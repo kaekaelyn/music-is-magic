@@ -1,0 +1,24 @@
+{
+  "name": "ice",
+  "palette": [
+    "#040d18",
+    "#0f2f4e",
+    "#2b628f",
+    "#79b3d8",
+    "#eafaff"
+  ],
+  "params": {
+    "scale": 2.0,
+    "speed": 0.22,
+    "warp": 0.8,
+    "sparkle": 0.85
+  },
+  "mappings": {
+    "warpBass": 0.9,
+    "brightRms": 0.6,
+    "sparkleTreble": 1.0,
+    "pulseFlux": 1.0,
+    "shiftCentroid": 0.2
+  },
+  "textures": []
+}

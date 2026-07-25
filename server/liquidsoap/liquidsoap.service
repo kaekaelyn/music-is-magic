@@ -1,0 +1,13 @@
+[Unit]
+Description=Liquidsoap Ogg-to-MP3 bridge for Icecast /live
+After=network.target icecast2.service
+
+[Service]
+ExecStart=/usr/bin/liquidsoap /etc/liquidsoap/live.liq
+Restart=always
+RestartSec=3
+User=liquidsoap
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -183,7 +183,7 @@ On drowse→resume, reset the audio element `src` and call `play()`
 `portal/control.html` — unlisted, plain, owner-only by obscurity + admin password.
 
 - First visit: enter Icecast admin password once → localStorage.
-- Then: seven big theme buttons + a live-status glow (it runs the same §5.1 poll).
+- Then: big theme buttons + a live-status glow (it runs the same §5.1 poll). Buttons are generated from `assets/themes/index.json`, so adding a theme folder updates the control page with zero edits here.
 - Buttons `fetch()` the §5.2 endpoint with an `Authorization: Basic` header.
 - Threat model: it's a radio station theme switcher on the owner's own phone; localStorage is acceptable. The password grants access to `/admin/metadata` only (see §5.2 exposure rule).
 - Fallback if ever needed: browser bookmarks hitting the same URL.
@@ -283,6 +283,8 @@ hardware/          ← empty until the ESP32 day
 | Item | Owner | Needed by |
 |---|---|---|
 | Pick + register domain name | Owner | M1 |
+| Deploy `portal/` to Cloudflare Pages (no build command, output dir = `portal`), connect domain | Owner | M1 |
+| Set `STREAM_BASE` in `portal/js/config.js` once the server exists | M2 session | M2 |
 | Pick VPS vendor (Hetzner vs RackNerd vs other) | Owner | M2 |
 | Verify Cool Mic MP3 sourcing (activates/retires D6) | M2 session | M2 |
 | Confirm/adjust initial theme list (currently the 7 in §5.2) | Owner | M4 |
@@ -298,3 +300,42 @@ hardware/          ← empty until the ESP32 day
 - Placeholder art is real deliverable, not filler: every asset slot renders procedurally until the owner plugs files in (D11).
 - When a decision changes or an open item resolves, edit §4/§11 in the same commit as the code.
 - Little to no visitor-facing text — resist adding UI. The eye is the interface.
+
+---
+
+## 13. Build log
+
+### 2026-07-25 — portal + server templates built
+
+Code for M1/M3/M4 plus M2's repo-side templates now exists and passes an
+automated headless-Chromium smoke test (sealed render → mock flip → 2-poll
+open → click → communing viz → theme morph → control page, zero console
+errors). What remains on each milestone is the part only the owner/VPS can
+do:
+
+- **M1** — code done. §2.1 state machine, §5.1 poller (jitter, hidden-tab
+  pause, defensive normalization), procedural eye honoring the §5.3 manifest
+  (drop-in layers verified absent→procedural), click/keyboard unlock.
+  Remaining: Pages deploy + domain (owner). Acceptance mock: open the portal
+  with `?mock=live` — the eye opens on the production URL.
+- **M2** — `server/` holds Caddyfile, icecast.xml, ntfy hook scripts, and the
+  D6 Liquidsoap contingency as placeholder templates plus a <1hr rebuild doc.
+  Remaining: provision VPS, run the doc, Cool Mic go/no-go, set
+  `STREAM_BASE` in `portal/js/config.js`.
+- **M3** — code done. §5.5 feature set with slow auto-gain, WebGL
+  domain-warped field (Canvas2D fallback auto-selected), drowse/resume audio
+  handling. Remaining: acceptance against a real live stream on a mid-range
+  phone.
+- **M4** — code done. Theme loader with built-in fallback palettes (a failed
+  theme.json fetch can never blank the site), ~2s morph transition,
+  `control.html` with buttons generated from `index.json`. Remaining:
+  acceptance mid-stream.
+
+Portal implementation notes for future sessions:
+- Plain ES modules, no build step. `portal/js/config.js` is the single
+  production-config touchpoint (`STREAM_BASE`).
+- Mock mode is automatic while `STREAM_BASE` is empty; dev overrides:
+  `?mock=live`, `?theme=<token>`, `?stream=<url>` (persisted; `?stream=clear`).
+- In mock/no-analyser situations the viz runs on gentle synthetic features
+  instead of freezing — also the graceful path if audio ever fails.
+- `prefers-reduced-motion` is honored (slower field, no blinks/ripples).

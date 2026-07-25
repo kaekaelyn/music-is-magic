@@ -1,0 +1,24 @@
+{
+  "name": "cave",
+  "palette": [
+    "#07070b",
+    "#161421",
+    "#2e2741",
+    "#5d5178",
+    "#cdc4e6"
+  ],
+  "params": {
+    "scale": 2.2,
+    "speed": 0.18,
+    "warp": 1.5,
+    "sparkle": 0.75
+  },
+  "mappings": {
+    "warpBass": 0.9,
+    "brightRms": 0.6,
+    "sparkleTreble": 1.0,
+    "pulseFlux": 1.0,
+    "shiftCentroid": 0.2
+  },
+  "textures": []
+}

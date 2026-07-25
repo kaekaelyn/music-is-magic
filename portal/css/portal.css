@@ -1,0 +1,27 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: #05060a;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#eye {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* The open eye is the one moment anything invites a click. */
+body[data-eye='open'] #eye {
+  cursor: pointer;
+}
