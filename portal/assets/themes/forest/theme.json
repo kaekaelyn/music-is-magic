@@ -1,0 +1,24 @@
+{
+  "name": "forest",
+  "palette": [
+    "#05130a",
+    "#0f3820",
+    "#2f6b3a",
+    "#7fae62",
+    "#e2f2c5"
+  ],
+  "params": {
+    "scale": 1.8,
+    "speed": 0.28,
+    "warp": 1.25,
+    "sparkle": 0.45
+  },
+  "mappings": {
+    "warpBass": 0.9,
+    "brightRms": 0.6,
+    "sparkleTreble": 1.0,
+    "pulseFlux": 1.0,
+    "shiftCentroid": 0.2
+  },
+  "textures": []
+}

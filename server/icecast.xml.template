@@ -1,0 +1,66 @@
+<!-- Icecast — localhost only; Caddy fronts it (§6).
+     Replace CHANGE_ME_SOURCE and CHANGE_ME_ADMIN before use. -->
+<icecast>
+    <location>the grove</location>
+    <admin>root@localhost</admin>
+
+    <limits>
+        <clients>100</clients>
+        <sources>2</sources>
+        <queue-size>524288</queue-size>
+        <client-timeout>30</client-timeout>
+        <header-timeout>15</header-timeout>
+        <source-timeout>10</source-timeout>
+        <burst-on-connect>1</burst-on-connect>
+        <burst-size>65535</burst-size>
+    </limits>
+
+    <authentication>
+        <source-password>CHANGE_ME_SOURCE</source-password>
+        <admin-user>admin</admin-user>
+        <admin-password>CHANGE_ME_ADMIN</admin-password>
+    </authentication>
+
+    <hostname>stream.example.com</hostname>
+
+    <!-- Localhost only: the public never talks to Icecast directly. -->
+    <listen-socket>
+        <port>8000</port>
+        <bind-address>127.0.0.1</bind-address>
+    </listen-socket>
+
+    <http-headers>
+        <!-- CORS is Caddy's job; nothing here. -->
+    </http-headers>
+
+    <mount type="normal">
+        <mount-name>/live</mount-name>
+        <max-listeners>100</max-listeners>
+        <hidden>0</hidden>
+        <public>0</public>
+        <!-- D13: the eye opens / closes → ntfy -->
+        <on-connect>/usr/local/bin/ntfy-on-connect.sh</on-connect>
+        <on-disconnect>/usr/local/bin/ntfy-on-disconnect.sh</on-disconnect>
+    </mount>
+
+    <fileserve>0</fileserve>
+
+    <paths>
+        <basedir>/usr/share/icecast2</basedir>
+        <logdir>/var/log/icecast2</logdir>
+        <webroot>/usr/share/icecast2/web</webroot>
+        <adminroot>/usr/share/icecast2/admin</adminroot>
+    </paths>
+
+    <logging>
+        <accesslog>access.log</accesslog>
+        <errorlog>error.log</errorlog>
+        <loglevel>3</loglevel>
+        <logsize>10000</logsize>
+        <logarchive>1</logarchive>
+    </logging>
+
+    <security>
+        <chroot>0</chroot>
+    </security>
+</icecast>

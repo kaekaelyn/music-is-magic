@@ -1,0 +1,12 @@
+{
+  "icestats": {
+    "host": "mock",
+    "server_id": "mock",
+    "source": {
+      "listenurl": "http://mock:8000/live",
+      "server_type": "audio/mpeg",
+      "listeners": 1,
+      "title": "default"
+    }
+  }
+}

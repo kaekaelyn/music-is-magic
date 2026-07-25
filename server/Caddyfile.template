@@ -1,0 +1,48 @@
+# Caddy — the only public listener. TLS + CORS + admin sealing (D3, §6).
+# Replace stream.example.com and https://example.com, then: systemctl reload caddy
+
+stream.example.com {
+	# Preflight for control.html's authorized metadata call (§5.2).
+	@metadata_preflight {
+		method OPTIONS
+		path /admin/metadata
+	}
+	handle @metadata_preflight {
+		header Access-Control-Allow-Origin "https://example.com"
+		header Access-Control-Allow-Methods "GET, OPTIONS"
+		header Access-Control-Allow-Headers "Authorization"
+		header Access-Control-Max-Age "86400"
+		respond 204
+	}
+
+	# The single admin path that exists to the outside world.
+	handle /admin/metadata* {
+		header Access-Control-Allow-Origin "https://example.com"
+		header Access-Control-Allow-Headers "Authorization"
+		reverse_proxy localhost:8000
+	}
+
+	# Everything else under /admin stays sealed.
+	handle /admin/* {
+		respond 403
+	}
+
+	# Listener mount — public, CORS open so the Web Audio analyser works (§5.5).
+	handle /live {
+		header Access-Control-Allow-Origin "*"
+		reverse_proxy localhost:8000 {
+			flush_interval -1
+		}
+	}
+
+	# Status poll — public, never cached (§5.1).
+	handle /status-json.xsl {
+		header Access-Control-Allow-Origin "*"
+		header Cache-Control "no-store"
+		reverse_proxy localhost:8000
+	}
+
+	handle {
+		respond 404
+	}
+}

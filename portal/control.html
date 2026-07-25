@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex">
+  <title>control</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='%238d80b8' stroke-width='8'/%3E%3Ccircle cx='50' cy='50' r='10' fill='%238d80b8'/%3E%3C/svg%3E">
+  <style>
+    html, body {
+      margin: 0;
+      background: #0a0b12;
+      color: #cfc9e0;
+      font-family: system-ui, sans-serif;
+      min-height: 100%;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      padding: 1.2rem;
+      box-sizing: border-box;
+      max-width: 30rem;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+    }
+    #dot {
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 50%;
+      background: #444;
+      transition: background 0.4s, box-shadow 0.4s;
+    }
+    #dot.live { background: #7fae62; box-shadow: 0 0 10px #7fae62; }
+    #dot.offline { background: #7a4040; }
+    #buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.8rem;
+    }
+    #buttons button {
+      font-size: 1.15rem;
+      padding: 1.1rem 0.5rem;
+      border-radius: 0.7rem;
+      border: 1px solid #35304a;
+      background: #14121f;
+      color: #cfc9e0;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    #buttons button:active { background: #241f38; }
+    #buttons button.ok { border-color: #7fae62; }
+    #buttons button.fail { border-color: #b05252; }
+    #buttons button.current { background: #241f38; border-color: #8d80b8; }
+    footer { margin-top: auto; font-size: 0.8rem; opacity: 0.55; }
+    footer button {
+      background: none;
+      border: none;
+      color: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+      font: inherit;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <header><span id="dot"></span><span id="statusText">waking…</span></header>
+  <main id="buttons"></main>
+  <footer><button id="forget">forget password</button></footer>
+
+  <script type="module">
+    import { CONFIG } from './js/config.js';
+    import { createPoller } from './js/status.js';
+
+    const AUTH_KEY = 'mim.adminAuth';
+    let auth = null;
+    try { auth = localStorage.getItem(AUTH_KEY); } catch (_) {}
+
+    function ensureAuth() {
+      if (auth) return auth;
+      const pw = prompt('Icecast admin password');
+      if (!pw) return null;
+      auth = 'Basic ' + btoa('admin:' + pw);
+      try { localStorage.setItem(AUTH_KEY, auth); } catch (_) {}
+      return auth;
+    }
+
+    document.getElementById('forget').addEventListener('click', () => {
+      auth = null;
+      try { localStorage.removeItem(AUTH_KEY); } catch (_) {}
+      flashStatus('password forgotten');
+    });
+
+    const statusText = document.getElementById('statusText');
+    const dot = document.getElementById('dot');
+    function flashStatus(msg) {
+      statusText.textContent = msg;
+      setTimeout(() => { statusText.textContent = lastStatusLine; }, 2500);
+    }
+
+    // Buttons come from the same index.json the portal uses — adding a theme
+    // folder updates this page too, no edits here.
+    const FALLBACK = ['default', 'forest', 'cave', 'ice', 'mountain', 'ocean', 'rain', 'sunshine'];
+    let names = FALLBACK;
+    try {
+      const res = await fetch('assets/themes/index.json', { cache: 'no-cache' });
+      if (res.ok) {
+        const list = await res.json();
+        if (Array.isArray(list) && list.length) names = list.map(String);
+      }
+    } catch (_) {}
+
+    const buttonsEl = document.getElementById('buttons');
+    const buttons = new Map();
+    for (const name of names) {
+      const b = document.createElement('button');
+      b.textContent = name;
+      b.addEventListener('click', () => setTheme(name, b));
+      buttonsEl.appendChild(b);
+      buttons.set(name, b);
+    }
+
+    function flashButton(b, cls) {
+      b.classList.add(cls);
+      setTimeout(() => b.classList.remove(cls), 1200);
+    }
+
+    // §5.2 — the whole theme mechanism is one metadata GET.
+    async function setTheme(token, b) {
+      if (!CONFIG.metadataUrl) { flashButton(b, 'ok'); markCurrent(token); return; } // mock
+      const a = ensureAuth();
+      if (!a) return;
+      const url = `${CONFIG.metadataUrl}?mount=/live&mode=updinfo&song=${encodeURIComponent(token)}`;
+      try {
+        const res = await fetch(url, { headers: { Authorization: a } });
+        if (res.status === 401) {
+          auth = null;
+          try { localStorage.removeItem(AUTH_KEY); } catch (_) {}
+          flashButton(b, 'fail');
+          flashStatus('wrong password');
+          return;
+        }
+        flashButton(b, res.ok ? 'ok' : 'fail');
+        if (res.ok) markCurrent(token);
+      } catch (_) {
+        flashButton(b, 'fail');
+      }
+    }
+
+    function markCurrent(token) {
+      for (const [name, btn] of buttons) btn.classList.toggle('current', name === token);
+    }
+
+    // Same §5.1 poll as the portal; three straight failures = offline.
+    let fails = 0;
+    let lastStatusLine = 'waking…';
+    createPoller(CONFIG.statusUrl, (res) => {
+      if (res.ok) {
+        fails = 0;
+        dot.className = res.live ? 'live' : '';
+        lastStatusLine = res.live
+          ? `live — ${res.theme}${CONFIG.mock ? ' (mock)' : ''}`
+          : `sealed${CONFIG.mock ? ' (mock)' : ''}`;
+        if (res.live) markCurrent(res.theme);
+      } else {
+        fails += 1;
+        if (fails >= 3) {
+          dot.className = 'offline';
+          lastStatusLine = 'unreachable';
+        }
+      }
+      statusText.textContent = lastStatusLine;
+    }, { pollMs: CONFIG.pollMs, jitterMs: CONFIG.pollJitterMs }).start();
+  </script>
+</body>
+</html>

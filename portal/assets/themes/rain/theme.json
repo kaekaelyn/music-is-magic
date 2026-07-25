@@ -1,0 +1,24 @@
+{
+  "name": "rain",
+  "palette": [
+    "#0a0e12",
+    "#1d2a33",
+    "#3a5464",
+    "#6f909f",
+    "#d3e3ea"
+  ],
+  "params": {
+    "scale": 2.4,
+    "speed": 0.5,
+    "warp": 1.0,
+    "sparkle": 0.6
+  },
+  "mappings": {
+    "warpBass": 0.9,
+    "brightRms": 0.6,
+    "sparkleTreble": 1.0,
+    "pulseFlux": 1.0,
+    "shiftCentroid": 0.2
+  },
+  "textures": []
+}

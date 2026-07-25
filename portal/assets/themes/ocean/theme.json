@@ -1,0 +1,24 @@
+{
+  "name": "ocean",
+  "palette": [
+    "#02101c",
+    "#043a57",
+    "#0b6d85",
+    "#39ac9b",
+    "#c9f2e2"
+  ],
+  "params": {
+    "scale": 1.6,
+    "speed": 0.4,
+    "warp": 1.6,
+    "sparkle": 0.4
+  },
+  "mappings": {
+    "warpBass": 0.9,
+    "brightRms": 0.6,
+    "sparkleTreble": 1.0,
+    "pulseFlux": 1.0,
+    "shiftCentroid": 0.2
+  },
+  "textures": []
+}

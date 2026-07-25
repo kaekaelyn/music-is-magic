@@ -1,0 +1,10 @@
+{
+  "layers": {
+    "sclera": { "file": "sclera.png" },
+    "iris": { "file": "iris.png" },
+    "lid-upper": { "file": "lid-upper.png", "travel": 0.45 },
+    "lid-lower": { "file": "lid-lower.png", "travel": 0.25 },
+    "glow": { "file": "glow.png" },
+    "frame": { "file": "frame.png" }
+  }
+}
