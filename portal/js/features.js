@@ -6,9 +6,20 @@
 //   centroid             brightness of timbre
 //
 // Auto-gain: each feature is normalized against its own slowly-decaying peak
-// so quiet and loud passages both use the full range.
+// so quiet and loud passages both use the full range. Centroid is the one
+// exception — it is a position, not an energy, so it gets a fixed
+// perceptual (log-frequency) scale instead; auto-gaining it would make the
+// whole spectrum drift to the middle and erase the very contrast it reports.
 
 const BANDS = { bass: [20, 250], mid: [250, 2000], treble: [2000, 8000] };
+
+// Centroid scale: log-frequency between these bounds maps to 0–1. Chosen so a
+// piano's working range lands mid-scale (≈1 kHz → 0.5), which is what IDLE and
+// syntheticFeatures assume. A linear bin fraction would pin real music near
+// 0.1 and leave the shiftCentroid mapping doing nothing.
+const CENTROID_LO_HZ = 60;
+const CENTROID_HI_HZ = 8000;
+const CENTROID_SPAN = Math.log2(CENTROID_HI_HZ / CENTROID_LO_HZ);
 
 export const IDLE = Object.freeze({
   bass: 0, mid: 0, treble: 0, rms: 0, flux: 0, centroid: 0.4,
@@ -21,6 +32,7 @@ export class FeatureExtractor {
     this.analyser = analyser;
     this.sampleRate = sampleRate || 48000;
     this.bins = analyser.frequencyBinCount;
+    this.hzPerBin = this.sampleRate / 2 / this.bins;
     this.freq = new Uint8Array(this.bins);
     this.wave = new Uint8Array(analyser.fftSize);
     this.prevSpec = new Float32Array(this.bins);
@@ -29,9 +41,8 @@ export class FeatureExtractor {
   }
 
   _band(lo, hi) {
-    const hzPerBin = this.sampleRate / 2 / this.bins;
-    const i0 = Math.max(1, Math.floor(lo / hzPerBin));
-    const i1 = Math.min(this.bins - 1, Math.ceil(hi / hzPerBin));
+    const i0 = Math.max(1, Math.floor(lo / this.hzPerBin));
+    const i1 = Math.min(this.bins - 1, Math.ceil(hi / this.hzPerBin));
     let sum = 0;
     for (let i = i0; i <= i1; i++) sum += this.freq[i];
     return sum / ((i1 - i0 + 1) * 255);
@@ -84,7 +95,9 @@ export class FeatureExtractor {
     this._smooth('rms', this._norm('rms', rms, dt), dt);
     this._smooth('flux', this._norm('flux', flux, dt), dt, 0.015, 0.12);
     if (den > 0.001) {
-      this._smooth('centroid', num / den / this.bins, dt, 0.4, 0.6);
+      const hz = (num / den) * this.hzPerBin;
+      const c = Math.log2(Math.max(CENTROID_LO_HZ, hz) / CENTROID_LO_HZ) / CENTROID_SPAN;
+      this._smooth('centroid', clamp01(c), dt, 0.4, 0.6);
     }
 
     return this.out;

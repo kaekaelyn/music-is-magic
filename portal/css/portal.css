@@ -25,3 +25,42 @@ canvas {
 body[data-eye='open'] #eye {
   cursor: pointer;
 }
+
+/* §5.7 the summons rune. Only offered while the eye sleeps — once it is open
+   there is nothing to be notified about, so the sigil withdraws. */
+#summon {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.6rem, env(safe-area-inset-bottom, 0) + 1rem);
+  translate: -50%;
+  width: 2rem;
+  height: 2rem;
+  color: #8d80b8;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.6s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#summon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+body[data-eye='sealed'] #summon {
+  opacity: 0.22;
+  pointer-events: auto;
+}
+
+body[data-eye='sealed'] #summon:hover,
+body[data-eye='sealed'] #summon:focus-visible {
+  opacity: 0.6;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #summon {
+    transition: none;
+  }
+}

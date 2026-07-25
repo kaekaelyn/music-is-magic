@@ -9,3 +9,10 @@ Everything — vision, architecture, contracts, milestones — lives in
 To see it locally: serve `portal/` with any static server (e.g.
 `python3 -m http.server -d portal`) and open it — that's the sealed eye.
 Add `?mock=live` to watch it wake.
+
+To check it still works:
+
+```sh
+node tools/validate-assets.mjs        # asset contracts, zero dependencies
+cd tools && npm install && npm test   # + headless run of the whole ceremony
+```

@@ -1,0 +1,4 @@
+# The site is a place, not a product (D14): no text to index, no analytics,
+# and control.html stays unlisted. Matches the noindex meta on both pages.
+User-agent: *
+Disallow: /

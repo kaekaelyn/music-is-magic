@@ -130,11 +130,30 @@ function themeStub() {
   };
 }
 
+const UNIFORM_NAMES = [
+  'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
+  'u_bright', 'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
+];
+
 function createGL(canvas, reducedMotion) {
   const gl =
     canvas.getContext('webgl', { antialias: false, alpha: false }) ||
     canvas.getContext('experimental-webgl', { antialias: false, alpha: false });
   if (!gl) throw new Error('no WebGL context');
+
+  // Animation state lives outside build() so a context loss costs nothing but
+  // the GPU objects — the field keeps its position in time and its theme morph.
+  let cur = themeStub();
+  let tgt = cur;
+  let morph = 1;
+  let tAcc = Math.random() * 100;
+  let pulse = 0;
+  let texAmt = 0;
+
+  let U = {};
+  let tex = null;
+  let uploadedImage = null;
+  let lost = false;
 
   function compile(type, src) {
     const sh = gl.createShader(type);
@@ -145,47 +164,57 @@ function createGL(canvas, reducedMotion) {
     }
     return sh;
   }
-  const prog = gl.createProgram();
-  gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
-  gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
-  gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-    throw new Error(gl.getProgramInfoLog(prog) || 'link failed');
+
+  // Everything GPU-side. Called once at startup and again after a context
+  // restore — mobile browsers drop the context on backgrounded tabs, and
+  // without this the field would stay black for the rest of the visit.
+  function build() {
+    const prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(prog) || 'link failed');
+    }
+    gl.useProgram(prog);
+
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, 'a_pos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    U = {};
+    for (const name of UNIFORM_NAMES) U[name] = gl.getUniformLocation(prog, name);
+
+    // 1x1 white placeholder until a theme texture arrives.
+    tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE,
+      new Uint8Array([255, 255, 255]));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.uniform1i(U.u_tex, 0);
+    uploadedImage = null; // force the theme texture to re-upload
   }
-  gl.useProgram(prog);
 
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const aPos = gl.getAttribLocation(prog, 'a_pos');
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  build();
 
-  const U = {};
-  for (const name of [
-    'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
-    'u_bright', 'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
-  ]) {
-    U[name] = gl.getUniformLocation(prog, name);
-  }
-
-  // 1x1 white placeholder until a theme texture arrives.
-  const tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE,
-    new Uint8Array([255, 255, 255]));
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.uniform1i(U.u_tex, 0);
-  let uploadedImage = null;
-  let texAmt = 0;
-
-  let cur = themeStub();
-  let tgt = cur;
-  let morph = 1;
-  let tAcc = Math.random() * 100;
-  let pulse = 0;
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault(); // required, or 'restored' never fires
+    lost = true;
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    try {
+      build();
+      resize(); // the viewport resets with the context
+      lost = false;
+    } catch (err) {
+      console.warn('viz: context restore failed', err);
+    }
+  });
 
   function isPow2(n) { return (n & (n - 1)) === 0; }
 
@@ -223,6 +252,7 @@ function createGL(canvas, reducedMotion) {
   function frame(t, dt, f, intensity) {
     if (morph < 1) morph = Math.min(1, morph + dt / MORPH_SECONDS);
     const th = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
+    if (lost) return; // morph still advances; drawing waits for the restore
     const m = th.mappings;
 
     const motion = reducedMotion ? 0.35 : 1;
