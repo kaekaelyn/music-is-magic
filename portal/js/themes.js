@@ -22,11 +22,12 @@ export const BUILTIN = {
     params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1 },
     motifs: { columns: 0.6, dapple: 0.75, rays: 0.3 },
   },
-  // Wet dark: slow seepage down formations, high contrast, little light.
+  // Wet dark: a drip now and then down the formations, high contrast, little
+  // light. The low drips weight is the sparseness — see mDrips' duty cycle.
   cave: {
     palette: ['#07070b', '#161421', '#2e2741', '#5d5178', '#cdc4e6'],
-    params: { scale: 2.2, speed: 0.12, warp: 1.5, sparkle: 0.75, gloss: 0.3 },
-    motifs: { drips: 0.3, columns: 0.28 },
+    params: { scale: 2.2, speed: 0.1, warp: 1.5, sparkle: 0.75, gloss: 0.3 },
+    motifs: { drips: 0.16, columns: 0.28 },
   },
   // Shards with lit seams. The one theme where the field is hard-edged.
   ice: {

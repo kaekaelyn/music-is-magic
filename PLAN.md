@@ -206,10 +206,11 @@ library of procedural motifs and a theme declares which ones it is made of:
 Weights are 0–1 and every theme carries every key (absent = 0), so morphing
 between two themes is a plain lerp and a motif the target lacks fades out
 rather than snapping off. Weight is not purely opacity: `drips` reads its own
-weight as **density**, which is why a cave's slow seep and hard rain are the
-same motif at two settings rather than two motifs. `gloss` hardens the palette
-ramp and lets specular highlights through — the difference between weather and
-ice.
+weight as **density** — both how many lanes exist and how often a lane fires —
+which is why a cave's occasional seep and hard rain are the same motif at two
+settings rather than two motifs. Brightness stays nearly constant across that
+range, or the sparse case just disappears. `gloss` hardens the palette ramp and
+lets specular highlights through — the difference between weather and ice.
 
 This keeps D10 intact: the motifs are engine code that never changes per
 theme, and a theme is still only data. Adding a *motif* is an engine change
@@ -225,6 +226,13 @@ Two findings worth not rediscovering:
   before cells are found, and blends snow coverage with noise rather than
   taking it per-cell — otherwise the facets tile like cracked glass, which is
   `facets`' job, not rock's.
+- **Check the sign of anything that moves.** `uv.y` increases upward, so
+  `uv.y * k + t` falls and `uv.y * k - t` rises. Drips shipped rising and rays
+  shipped lighting the aperture from below; neither is visible in a
+  screenshot. There is no automated guard — the composited output is dominated
+  by the base field's drift and the socket shading, so nothing measured from it
+  isolates one motif's motion. Two attempts at a smoke check were too flaky to
+  keep. Reason about the sign, then watch it move.
 
 ### 5.5 Audio features → visualization
 

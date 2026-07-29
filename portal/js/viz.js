@@ -70,10 +70,22 @@ float fbm(vec2 p) {
 // they stay anchored to the opening; texture motifs (facets, caustics, crags)
 // work in scaled space so a theme's own scale still governs their grain.
 // (No backticks in here — this whole block is a JS template literal.)
+//
+// DIRECTION. uv.y increases upward: gl_FragCoord has its origin bottom-left,
+// and drawImage preserves that when the eye composites the field. So a feature
+// sitting at constant "uv.y * k + t" moves DOWN as time passes, and one at
+// "uv.y * k - t" moves UP. Both drips and rays shipped inverted once, and
+// nothing about a screenshot says so. There is no automated guard for this:
+// the composited output is dominated by the base field's own drift and by the
+// socket shading, so no measurement of it isolates one motif's motion — two
+// attempts at a smoke check were too flaky to keep. Reason about the sign
+// here, and confirm any change by watching it move.
 
 // Shafts from a source above and to the left, drifting slowly.
+// uv.y increases upward, so the source's y is positive. Getting this backwards
+// lights the aperture from below and nothing about the still image says so.
 float mRays(vec2 uv, float t) {
-  vec2 d = uv - vec2(-0.18, -0.95);
+  vec2 d = uv - vec2(-0.18, 0.95);
   float a = atan(d.x, d.y);
   float s = fbm(vec2(a * 4.5, t * 0.09));
   s = pow(clamp(s * 1.4, 0.0, 1.0), 3.0);
@@ -91,13 +103,28 @@ float mDapple(vec2 uv, float t) {
   return smoothstep(0.5, 0.87, fbm(uv * 3.4 + vec2(t * 0.11, -t * 0.06)));
 }
 
-// Falling streaks. Weight sets lane count as well as strength.
+// Falling streaks. Weight sets how many lanes there are AND how often a lane
+// actually drips — without that duty cycle every lane runs continuously, so a
+// low weight gives thin rain rather than a slow seep.
+//
+// The streak lives inside one cycle of the phase, so the per-cycle coin flip
+// can never chop a drip in half partway down.
 float mDrips(vec2 uv, float t, float w) {
-  float lanes = 5.0 + 26.0 * w;
-  vec2 h = hash2(vec2(floor(uv.x * lanes), 1.7));
-  float y = fract(uv.y * 0.85 - t * (0.25 + h.x * 0.7) * 0.4 + h.y);
-  float streak = smoothstep(0.0, 0.05, y) * smoothstep(0.32, 0.05, y);
-  return streak * smoothstep(0.5, 0.14, abs(fract(uv.x * lanes) - 0.5));
+  float lanes = 4.0 + 22.0 * w;
+  float col = floor(uv.x * lanes);
+  vec2 h = hash2(vec2(col, 1.7));
+  // +t, not -t: uv.y increases upward, so subtracting time makes drips rise.
+  // Lane speeds vary, but not by much: a 4x spread had some drips crawling
+  // while others raced, which reads as noise rather than weather.
+  float phase = uv.y * 0.85 + t * (0.62 + h.x * 0.46) * 0.4 + h.y;
+  float falls = step(1.0 - (0.14 + 0.86 * w), hash2(vec2(col, floor(phase))).x);
+  float y = fract(phase);
+  // Bright head low, tail trailing above it — a drop, not a bar.
+  float streak = smoothstep(0.0, 0.025, y) * (1.0 - smoothstep(0.03, 0.34, y));
+  // Narrow on its own terms rather than as a fraction of the lane, so a sparse
+  // cave drip isn't a wide slab just because it has few lanes to sit in.
+  float thin = smoothstep(0.16, 0.04, abs(fract(uv.x * lanes) - 0.5));
+  return falls * streak * thin;
 }
 
 // Crystal shards: a flat value per cell, and a lit seam where cells meet. The
@@ -196,10 +223,10 @@ void main() {
     spec += v * u_mCaustics * 1.1;
   }
   if (u_mDrips > 0.0) {
-    // sqrt so a sparse seep still reads: weight controls density more than
-    // brightness, or a cave's few drips would be invisible.
+    // Weight controls density, not brightness: a cave's rare drip has to be
+    // as bright as any of rain's, or the sparse case just disappears.
     float v = mDrips(uv, u_t, u_mDrips);
-    float amp = sqrt(u_mDrips);
+    float amp = mix(0.62, 1.0, u_mDrips);
     lift += v * amp * 0.5;
     spec += v * amp * 1.5;
   }

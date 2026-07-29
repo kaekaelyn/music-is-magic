@@ -9,7 +9,7 @@
   ],
   "params": {
     "scale": 2.2,
-    "speed": 0.12,
+    "speed": 0.1,
     "warp": 1.5,
     "sparkle": 0.75,
     "gloss": 0.3
@@ -25,7 +25,7 @@
     "rays": 0,
     "columns": 0.28,
     "dapple": 0,
-    "drips": 0.3,
+    "drips": 0.16,
     "facets": 0,
     "caustics": 0,
     "crags": 0,
