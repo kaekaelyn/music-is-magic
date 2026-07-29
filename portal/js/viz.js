@@ -35,7 +35,8 @@ uniform float u_gloss;   // hardens the palette ramp and lets specular through
 // Motif weights (§5.4). Every theme sets all of them; most are 0. The branches
 // below are uniform-coherent — every fragment takes the same path — so an
 // unused motif costs nothing beyond the shader being longer.
-uniform float u_mRays, u_mColumns, u_mDapple, u_mDrips, u_mFacets, u_mCaustics, u_mStrata;
+uniform float u_mRays, u_mColumns, u_mDapple, u_mDrips;
+uniform float u_mFacets, u_mCaustics, u_mCrags, u_mSnow;
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 345.45));
@@ -66,7 +67,7 @@ float fbm(vec2 p) {
 
 // --- motifs -------------------------------------------------------------
 // Composition motifs (rays, columns, dapple, drips) work in aperture space so
-// they stay anchored to the opening; texture motifs (facets, caustics, strata)
+// they stay anchored to the opening; texture motifs (facets, caustics, crags)
 // work in scaled space so a theme's own scale still governs their grain.
 // (No backticks in here — this whole block is a JS template literal.)
 
@@ -132,12 +133,37 @@ float mCaustics(vec2 p, float t) {
   return pow(clamp(v / 3.0 * 0.5 + 0.5, 0.0, 1.0), 3.5);
 }
 
-// Rock layers: enough bands to read across a short aperture, warped just
-// enough not to be stripes. Returns 0 at the face of a layer, 1 at the seam
-// between two, so a caller can darken the seams and light the faces.
-float mStrata(vec2 p, float t) {
-  float y = p.y * 7.0 + fbm(p * 0.8 + vec2(t * 0.02, 0.0)) * 1.3;
-  return pow(abs(fract(y) - 0.5) * 2.0, 0.7);
+// Angular rock planes. Each cell gets a pseudo-normal from its own hash, so
+// facets catch the light at different angles and the mass reads as crags —
+// with a dark joint where two planes meet.
+//
+// This replaced a horizontal-strata motif: regular banding inside a glowing
+// aperture reads as scanlines, no matter how much it is warped. If a layered
+// look is ever wanted again, it has to arrive as something other than bands.
+//
+// upface is how far this plane tilts skyward, which is what snow needs.
+float mCrags(vec2 p, out float upface, out float joint) {
+  // Warping the lattice first is what separates rock from mosaic: clean
+  // voronoi cells read as tiles or cracked glass, which is ice's job.
+  p += vec2(fbm(p * 0.85), fbm(p * 0.85 + 31.0)) * 1.1 - 0.55;
+
+  vec2 i = floor(p), f = fract(p);
+  float d1 = 8.0, d2 = 8.0;
+  vec2 cell = vec2(0.0);
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 g = vec2(float(x), float(y));
+      vec2 r = g + hash2(i + g) - f;   // static offsets: rock does not drift
+      float d = dot(r, r);
+      if (d < d1) { d2 = d1; d1 = d; cell = i + g; }
+      else if (d < d2) { d2 = d; }
+    }
+  }
+  vec2 n = hash2(cell * 3.1) * 2.0 - 1.0;
+  n /= max(length(n), 0.001);
+  upface = clamp(n.y, 0.0, 1.0);                   // uv.y increases upward
+  joint = smoothstep(0.16, 0.0, d2 - d1);          // a soft crease, not a line
+  return clamp(0.42 + 0.42 * dot(n, vec2(-0.5, 0.87)), 0.0, 1.0); // lit upper left
 }
 
 void main() {
@@ -156,6 +182,7 @@ void main() {
   float lift = 0.0;
   float mass = 0.0;
   float spec = 0.0;
+  float snow = 0.0; // coverage, applied after the ramp rather than through it
 
   if (u_mRays > 0.0) {
     float v = mRays(uv, u_t);
@@ -177,10 +204,29 @@ void main() {
     spec += v * amp * 1.5;
   }
   if (u_mColumns > 0.0) mass += mColumns(uv, u_t) * u_mColumns * 0.42;
-  if (u_mStrata > 0.0) {
-    float s = mStrata(p, u_t);
-    mass += s * u_mStrata * 0.34;          // shadowed seams
-    lift += (1.0 - s) * u_mStrata * 0.22;  // lit layer faces
+  float skyward = 0.0; // where snow can lie, filled in by crags
+  if (u_mCrags > 0.0) {
+    float upface, joint;
+    // A hair of drift so the face isn't frozen; u_t is already speed-scaled.
+    float lit = mCrags(p * 2.6 + vec2(u_t * 0.012, 0.0), upface, joint);
+    // Textured by the base field, or every plane is a flat plate.
+    lit = clamp(lit * (0.7 + 0.55 * f), 0.0, 1.0);
+    g = mix(g, lit, u_mCrags * 0.55);
+    mass += joint * u_mCrags * 0.3;
+    skyward = upface;
+  }
+  if (u_mSnow > 0.0) {
+    // Snow is the one motif that goes straight to the top of the ramp: it is
+    // a different material lying on the rock, not the rock lit harder.
+    //
+    // Blended with noise rather than taken straight from the face, so the
+    // snowline wanders across a crag instead of stopping dead at its edge —
+    // per-cell coverage is what made this read as tiling.
+    float base = u_mCrags > 0.0 ? skyward : smoothstep(0.5, 0.82, f);
+    float s = smoothstep(0.47, 0.9, base * 0.62 + fbm(p * 2.2 + 5.0) * 0.62);
+    s *= smoothstep(-0.5, 0.32, uv.y); // a snowline
+    snow = max(snow, s * u_mSnow);
+    spec += s * u_mSnow * 0.4;
   }
   if (u_mFacets > 0.0) {
     float seam;
@@ -200,6 +246,9 @@ void main() {
   col = mix(col, u_c2, smoothstep(0.25, 0.6, g));
   col = mix(col, u_c3, smoothstep(0.5, 0.85, g));
   col = mix(col, u_c4, smoothstep(0.78, 1.0, g) * u_bright);
+  // Snow lies over the palette, mixing the two brightest steps so it reads as
+  // lit crust rather than blown-out highlight.
+  col = mix(col, mix(u_c3, u_c4, 0.72), clamp(snow, 0.0, 1.0) * 0.88);
   col += u_c4 * clamp(spec, 0.0, 1.0) * (0.16 + u_gloss * 0.5);
 
   vec3 matter = texture2D(u_tex, q + r * 0.25).rgb;

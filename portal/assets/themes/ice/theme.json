@@ -28,7 +28,8 @@
     "drips": 0,
     "facets": 0.85,
     "caustics": 0,
-    "strata": 0
+    "crags": 0,
+    "snow": 0
   },
   "textures": []
 }

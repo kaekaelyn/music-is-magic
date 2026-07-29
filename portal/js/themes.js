@@ -34,11 +34,13 @@ export const BUILTIN = {
     params: { scale: 2.0, speed: 0.16, warp: 0.8, sparkle: 0.95, gloss: 0.55 },
     motifs: { facets: 0.85 },
   },
-  // Layered rock, barely moving.
+  // Snow lying on broken rock, barely moving. The palette is cold on purpose:
+  // the old warm tan made snow impossible, since there was no cold white to
+  // put the crust on.
   mountain: {
-    palette: ['#0b0b10', '#26262e', '#4c4a55', '#8f8577', '#eadfc8'],
-    params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.3, gloss: 0.15 },
-    motifs: { strata: 0.6, columns: 0.1 },
+    palette: ['#0a0d14', '#252d3a', '#525e6f', '#97aabe', '#f4f9ff'],
+    params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.5, gloss: 0.2 },
+    motifs: { crags: 0.8, snow: 0.72 },
   },
   // Caustics, as seen from under the surface.
   ocean: {
@@ -74,7 +76,8 @@ export const MOTIFS = Object.freeze({
   drips: 0,     // falling streaks — seepage, rain
   facets: 0,    // crystal shards with a lit seam where they meet — ice
   caustics: 0,  // undulating light web — water
-  strata: 0,    // warped horizontal layers — rock
+  crags: 0,     // angular rock planes, each catching light its own way
+  snow: 0,      // accumulation on the upward faces of those layers
 });
 
 const DEFAULT_MAPPINGS = {

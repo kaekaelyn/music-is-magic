@@ -1,18 +1,18 @@
 {
   "name": "mountain",
   "palette": [
-    "#0b0b10",
-    "#26262e",
-    "#4c4a55",
-    "#8f8577",
-    "#eadfc8"
+    "#0a0d14",
+    "#252d3a",
+    "#525e6f",
+    "#97aabe",
+    "#f4f9ff"
   ],
   "params": {
     "scale": 1.4,
     "speed": 0.1,
     "warp": 0.9,
-    "sparkle": 0.3,
-    "gloss": 0.15
+    "sparkle": 0.5,
+    "gloss": 0.2
   },
   "mappings": {
     "warpBass": 0.9,
@@ -23,12 +23,13 @@
   },
   "motifs": {
     "rays": 0,
-    "columns": 0.1,
+    "columns": 0,
     "dapple": 0,
     "drips": 0,
     "facets": 0,
     "caustics": 0,
-    "strata": 0.6
+    "crags": 0.8,
+    "snow": 0.72
   },
   "textures": []
 }

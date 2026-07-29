@@ -195,7 +195,8 @@ library of procedural motifs and a theme declares which ones it is made of:
 | `drips` | falling streaks | cave, rain |
 | `facets` | crystal shards with a lit seam where they meet | ice |
 | `caustics` | undulating light web | ocean |
-| `strata` | warped horizontal rock layers | mountain |
+| `crags` | angular rock planes, each catching the light its own way | mountain |
+| `snow` | accumulation on whichever crag faces tilt skyward, below a snowline | mountain |
 
 ```json
 "motifs": { "rays": 0.85, "dapple": 0.25 },
@@ -211,8 +212,19 @@ ramp and lets specular highlights through — the difference between weather and
 ice.
 
 This keeps D10 intact: the motifs are engine code that never changes per
-theme, and a theme is still only data. Adding an *eighth* motif is an engine
-change and should be rare; adding a theme is still a folder.
+theme, and a theme is still only data. Adding a *motif* is an engine change
+and should be rare — reserve it for a material the library genuinely lacks,
+the way `snow` was. Adding a theme is still a folder.
+
+Two findings worth not rediscovering:
+
+- **Regular banding reads as electronic.** A horizontal-strata motif, however
+  warped, looked like VHS scanlines inside a glowing aperture. It was replaced
+  by `crags`. Anything with a repeating axis will have the same problem.
+- **Clean voronoi reads as mosaic.** `crags` warps its lattice with noise
+  before cells are found, and blends snow coverage with noise rather than
+  taking it per-cell — otherwise the facets tile like cracked glass, which is
+  `facets`' job, not rock's.
 
 ### 5.5 Audio features → visualization
 
@@ -429,12 +441,15 @@ Tuning notes, since these were all found by looking rather than reasoning:
 - `drips` takes its weight as density *and* strength, so a cave's slow seep
   and hard rain are one motif at two settings. Brightness is `sqrt(weight)`
   or the sparse case is invisible.
-- `strata` needed ~5 bands across the aperture, not 1.5 — the aperture is
-  short, and frequencies tuned against a full screen do not survive the move
-  into it. It lights the layer faces as well as shadowing the seams, or
-  mountain stays a smear.
+- Frequencies tuned against a full screen do not survive the move into a
+  short aperture — a motif that looked right at fullscreen can arrive with one
+  and a half features visible.
+- Mountain went through three motifs before it worked, and both failures are
+  now recorded in §5.4: horizontal strata read as VHS scanlines, and clean
+  voronoi crags read as a mosaic. It needed a warped lattice, a noise-blended
+  snowline, and a cold palette — the old warm tan left no white to put snow on.
 - Watch for backticks in the GLSL comments. The whole shader is a JS template
-  literal, and one in a comment cost a confusing syntax error.
+  literal, and one in a comment cost a confusing syntax error. Twice.
 
 Also landed `tools/shots.mjs` (every state × every theme at phone size, plus a
 contact sheet) and `tools/mock-portal.mjs`, now shared with the smoke test.
