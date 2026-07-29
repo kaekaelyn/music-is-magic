@@ -25,15 +25,27 @@ no consent banners. The site is a place, not a product.
 
 ### 2.1 Eye states
 
+The eye is **carved, not drawn**: a stone plate — golem, idol — with a
+lens-shaped aperture cut through it, in a dark room. Nothing about it is
+anatomical; a stylized human eye reads as cartoon at this scale, and stone
+does not blink.
+
+The aperture is a **window onto the visualization**, not a decoration over it.
+Where an iris and pupil would be, there is the moving field. Sealed, there is
+nothing to see but stone; open, you see what is inside the eye. That inversion
+is the design — everything else follows from it, including the fact that light
+spilling onto the surrounding stone is the only place a theme colors anything
+outside the aperture.
+
 The eye is a state machine, not a boolean. The names below are used in code.
 
 | State | Trigger | Look & feel |
 |---|---|---|
-| **Sealed** | No live source (steady state) | Closed eye. Slow ambient breathing pulse (~8s cycle) so the page feels alive, not broken. |
-| **Stirring** | Source detected (2 consecutive positive polls) | The opening ceremony: a deliberate 2–3s animation. This transition is the brand. |
-| **Open** | Live, but visitor hasn't interacted yet | Eye open, faint inviting glow. Autoplay is blocked by browsers — the eye itself is the click target that unlocks audio. |
-| **Communing** | Visitor clicked while live | Audio playing; visualization active, driven by the stream and the current theme. |
-| **Drowsing** | Signal lost while Open/Communing | Half-lidded grace state, up to **90 seconds**. Visualization dims and slows. If the source returns → resume (reload audio src, `play()`); if not → Sealed. |
+| **Sealed** | No live source (steady state) | Stone, and a carved slit where the aperture will part. Nothing inside. The life-sign is a slow ember in the seam (~8s cycle) rather than movement — the page must feel patient, not broken, and stone that breathes stops being stone. |
+| **Stirring** | Source detected (2 consecutive positive polls) | The opening ceremony: the stone parts over a deliberate 2–3s, and the field appears inside. This transition is the brand. |
+| **Open** | Live, but visitor hasn't interacted yet | Aperture open on a dim field, faint light spilling onto the stone. Autoplay is blocked by browsers — the eye itself is the click target that unlocks audio. |
+| **Communing** | Visitor clicked while live | Audio playing; the field inside the aperture is driven by the stream and the current theme, and the aperture widens slightly with the low end. |
+| **Drowsing** | Signal lost while Open/Communing | The aperture narrows to a slit, up to **90 seconds**. The field dims and slows. If the source returns → resume (reload audio src, `play()`); if not → Sealed. |
 
 State-change hygiene: **opening** requires 2 consecutive positive polls
 (no flicker on a fluke); **closing** goes through Drowsing (no slam on a
@@ -108,6 +120,7 @@ nothing but move audio bytes and answer a status poll.
 | D13 | Go-live alerting | Icecast per-mount `on-connect`/`on-disconnect` hooks curl an ntfy.sh topic | No watcher process, no cron. Visitors and (someday) an ESP32 lamp subscribe to the same topic. |
 | D14 | Analytics/privacy | None beyond Cloudflare's free aggregate stats | No cookies, no banners, fits the aesthetic. |
 | D15 | Visitor notification transport | A link to the ntfy topic page (§5.7), not Web Push | Web Push needs VAPID keys, a service worker and a permission prompt — a backend and an interruption, for something ntfy already does. |
+| D17 | The eye's form | Carved stone (golem/idol) with a lens aperture; the visualization lives **inside** the aperture, not behind the eye | A stylized human eye — sclera, iris, lashes — reads as cartoon at full-screen scale. And a field behind a floating eye is wallpaper; a field seen *through* carved stone is the thing the site is about. Reverses the first implementation. See §2.1. |
 | D16 | Dev tooling | `tools/` holds a zero-dep asset validator and a headless smoke test; `tools/package.json` keeps npm out of the repo root | The portal must stay buildless and dependency-free (§12); the contracts in §5 still need something that fails loudly, because the portal is built to fail silently. |
 
 ---
@@ -137,20 +150,25 @@ changing one means updating this file.
 ```
 portal/assets/eye/
   manifest.json      # ships with no layers → built-in procedural eye
+  plate.(svg|png)    # the stone face, aperture left transparent
+  socket.(svg|png)   # carved rim + inner shadow, over the field's edge
   lid-upper.(svg|png)
   lid-lower.(svg|png)
-  iris.(svg|png)
-  sclera.(svg|png)
   glow.(png)
   frame.(svg|png)    # surrounding druidic ornament, optional
 ```
 
-`manifest.json` declares which layer files exist, their pivot/anchor points,
-and per-layer motion hints (e.g. how far lids travel). The engine animates
-whatever layers are present and procedurally fills the rest. **Dropping art
-in never requires a code change**, and partial drops are fine (e.g. real
-iris + placeholder lids while iterating). The shipped manifest declares no
-layers — equivalent to having none, but without a 404 on every page load.
+`manifest.json` declares which layer files exist, the aperture the field is
+clipped to, and per-layer motion hints (e.g. how far lids travel). The engine
+animates whatever layers are present and procedurally fills the rest.
+**Dropping art in never requires a code change**, and partial drops are fine.
+The shipped manifest declares no layers — equivalent to having none, but
+without a 404 on every page load.
+
+There is no eyeball to author. See §2.1: the aperture is a window onto the
+visualization, so the art is stone and the hole in it. `aperture: {w, h}`
+(fractions of the shared square box) is the one value that must agree with
+the art, since it decides where the field is clipped.
 
 ### 5.4 Theme asset plug
 
@@ -359,6 +377,39 @@ do:
   theme.json fetch can never blank the site), ~2s morph transition,
   `control.html` with buttons generated from `index.json`. Remaining:
   acceptance mid-stream.
+
+### 2026-07-29 — the eye is carved, and the field moved inside it
+
+Owner review of the first build: the eye looked too human, and stylizing a
+human eye at that scale reads as cartoon. Wanted stone — golem, idol — with
+the moving pattern *inside*, where an iris and pupil would be. Sealed shows
+nothing; open shows what is inside. Locked as D17 and written into §2.1.
+
+Architecturally this inverts the two canvases. `#viz` was a full-screen field
+with the eye floating on top; it is now an offscreen **source**, sized to the
+aperture's bounding box, and `#eye` is the compositor — it draws the stone,
+clips to the aperture, and pulls the field in. Two consequences worth knowing:
+
+- Shading stopped at the aperture, so the fragment shader now covers a few
+  percent of the pixels it used to. This is a large win on exactly the
+  mid-range phone M3 has to pass on, not a cost.
+- The field is drawn at the *full* aperture box no matter how open the eye is,
+  so it stays a fixed plane seen through a changing gap rather than something
+  that stretches as the stone parts.
+
+On the stone itself, in case it ever gets retouched: it is shaded by the
+**slope** of a noise height field, not its value. Value alone gives clouds no
+matter how it is tuned — the first attempt looked like fog. Ridged noise cuts
+the fissures, one light direction (`LIGHT_X/Y`) governs the relief, the socket
+lip and the aperture bevel alike, and every carved line is a concentric vesica
+echoing the aperture. Concentric *circles* around a lens-shaped hole read as a
+targeting reticle at any opacity; that was the second attempt. A raised brow
+arc was the third, and it pulled the composition upward and started the face
+being a face again — dropped.
+
+§5.3's layer names changed with the design: `sclera`/`iris` no longer describe
+anything, so the plug is now `plate`/`socket`/`lid-*`/`glow`/`frame` plus a
+declared `aperture` the field is clipped to.
 
 ### 2026-07-25 — hardening, M6 visitor side, and a test that exists
 

@@ -20,7 +20,7 @@ const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle'];
 const KNOWN_MAPPINGS = [
   'warpBass', 'brightRms', 'sparkleTreble', 'pulseFlux', 'shiftCentroid',
 ];
-const EYE_LAYERS = ['frame', 'glow', 'sclera', 'iris', 'lid-lower', 'lid-upper'];
+const EYE_LAYERS = ['plate', 'socket', 'lid-lower', 'lid-upper', 'glow', 'frame'];
 const HEX = /^#[0-9a-f]{6}$/i;
 
 const errors = [];
@@ -178,6 +178,16 @@ for (const [file, checkFiles] of [
   if (!m.layers || typeof m.layers !== 'object') {
     fail(`eye/${file}: needs a 'layers' object`);
     continue;
+  }
+  if (m.aperture !== undefined) {
+    for (const k of ['w', 'h']) {
+      const v = m.aperture[k];
+      if (v !== undefined && !(Number.isFinite(v) && v > 0 && v <= 0.5)) {
+        // Fractions of the shared square box, so anything over 0.5 would put
+        // the aperture's edge outside the art.
+        fail(`eye/${file}: aperture.${k} must be a number between 0 and 0.5`);
+      }
+    }
   }
   if (file === 'manifest.json' && !Object.keys(m.layers).length) {
     warn('eye/manifest.json: no layers declared — the procedural eye renders (intended default)');

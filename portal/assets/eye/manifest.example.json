@@ -1,7 +1,8 @@
 {
+  "aperture": { "w": 0.42, "h": 0.22 },
   "layers": {
-    "sclera": { "file": "sclera.png" },
-    "iris": { "file": "iris.png" },
+    "plate": { "file": "plate.png" },
+    "socket": { "file": "socket.png" },
     "lid-upper": { "file": "lid-upper.png", "travel": 0.45 },
     "lid-lower": { "file": "lid-lower.png", "travel": 0.25 },
     "glow": { "file": "glow.png" },

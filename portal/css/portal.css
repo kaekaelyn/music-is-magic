@@ -15,6 +15,13 @@ canvas {
   display: block;
 }
 
+/* #viz is a source, not a sight — the eye canvas is opaque and draws the
+   field into its aperture. Keeping it in the layout (rather than display:none)
+   avoids any chance of a browser throttling a detached canvas. */
+#viz {
+  visibility: hidden;
+}
+
 #eye {
   outline: none;
   -webkit-tap-highlight-color: transparent;

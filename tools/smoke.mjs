@@ -132,7 +132,7 @@ const eyeIs = (page, want, timeout = 9000) =>
 const themeIs = (page, want, timeout = 5000) =>
   page.waitForFunction((w) => document.body.dataset.theme === w, want, { timeout, polling: 100 });
 
-// Sparse sample of the eye canvas: proves something was actually painted, and
+// Sparse sample of the whole eye canvas: proves something was painted, and
 // that it keeps changing (i.e. the render loop is alive).
 const sampleEye = (page) =>
   page.evaluate(() => {
@@ -146,6 +146,21 @@ const sampleEye = (page) =>
       if (v > 0) lit++;
     }
     return { sum, lit };
+  });
+
+// Mean brightness of the middle of the aperture. This is the assertion that
+// the whole design rests on (§2.1): stone when sealed, field when open.
+const sampleAperture = (page) =>
+  page.evaluate(() => {
+    const c = document.getElementById('eye');
+    const w = Math.round(c.width * 0.16);
+    const h = Math.round(c.height * 0.03);
+    const d = c.getContext('2d')
+      .getImageData(Math.round(c.width / 2 - w / 2), Math.round(c.height / 2 - h / 2), w, h)
+      .data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+    return sum / (d.length / 4) / 3;
   });
 
 // Prefer a chromium that is already on the machine. CI images and sandboxes
@@ -187,7 +202,9 @@ try {
     );
 
     const sealed = await sampleEye(page);
-    check(sealed.lit > 0, 'sealed sigil is painted', JSON.stringify(sealed));
+    check(sealed.lit > 0, 'sealed plate is painted', JSON.stringify(sealed));
+    const sealedAperture = await sampleAperture(page);
+    check(sealedAperture < 40, 'nothing shows through the sealed stone', `${sealedAperture.toFixed(1)}`);
 
     // Opening needs two consecutive positive polls (§2.1 hygiene).
     state.live = true;
@@ -204,6 +221,15 @@ try {
     await page.waitForTimeout(500);
     const b = await sampleEye(page);
     check(a.sum !== b.sum, 'render loop advances while communing', `${a.sum} vs ${b.sum}`);
+
+    // The field has to reach the visitor through the aperture, and only there.
+    await page.waitForTimeout(3500); // intensity eases in over ~1.5s tau
+    const openAperture = await sampleAperture(page);
+    check(
+      openAperture > sealedAperture * 3,
+      'the field shows through the open aperture',
+      `sealed ${sealedAperture.toFixed(1)} vs communing ${openAperture.toFixed(1)}`
+    );
 
     // §5.2 — a theme token arriving on the metadata field.
     state.theme = 'cave';

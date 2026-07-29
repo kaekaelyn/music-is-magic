@@ -81,7 +81,7 @@ void main() {
   float ring = (1.0 - u_pulse) * 1.15;
   col += u_c3 * u_pulse * 0.35 * smoothstep(0.12, 0.0, abs(d - ring));
 
-  col *= 1.0 - 0.55 * d * d;   // vignette
+  col *= 1.0 - 0.28 * d * d;   // slight vignette; the eye's socket supplies the rest
   col *= u_open;
   col += (hash(gl_FragCoord.xy) - 0.5) / 255.0; // dither against banding
 
@@ -91,6 +91,9 @@ void main() {
 
 const DEFAULT_PARAMS = { scale: 1.5, speed: 0.3, warp: 1.1, sparkle: 0.5 };
 const MORPH_SECONDS = 2.2;
+// Cap on the field's longest edge, so a large phone doesn't shade more pixels
+// than the aperture can show.
+const MAX_EDGE = 1024;
 
 const lerp = (a, b, k) => a + (b - a) * k;
 
@@ -234,14 +237,19 @@ function createGL(canvas, reducedMotion) {
     }
   }
 
-  function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    // Cap the framebuffer so big phone screens keep a smooth framerate.
-    const capScale = Math.min(1, 1600 / Math.max(canvas.clientWidth * dpr, canvas.clientHeight * dpr));
-    canvas.width = Math.round(canvas.clientWidth * dpr * capScale);
-    canvas.height = Math.round(canvas.clientHeight * dpr * capScale);
+  // The field is never displayed directly — the eye composites it into the
+  // aperture — so the caller sizes it to the aperture box, not the screen.
+  let lastW = 2;
+  let lastH = 2;
+  function setSize(w, h) {
+    lastW = Math.max(2, w);
+    lastH = Math.max(2, h);
+    const cap = Math.min(1, MAX_EDGE / Math.max(lastW, lastH));
+    canvas.width = Math.round(lastW * cap);
+    canvas.height = Math.round(lastH * cap);
     gl.viewport(0, 0, canvas.width, canvas.height);
   }
+  const resize = () => setSize(lastW, lastH); // context restore resets the viewport
 
   function setTheme(theme) {
     cur = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
@@ -285,7 +293,7 @@ function createGL(canvas, reducedMotion) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  return { resize, setTheme, frame, kind: 'webgl' };
+  return { resize, setSize, setTheme, frame, kind: 'webgl' };
 }
 
 // Canvas2D fallback: soft palette blobs drifting around the center.
@@ -307,11 +315,16 @@ function create2D(canvas, reducedMotion) {
     });
   }
 
-  function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    canvas.width = Math.round(canvas.clientWidth * dpr);
-    canvas.height = Math.round(canvas.clientHeight * dpr);
+  let lastW = 2;
+  let lastH = 2;
+  function setSize(w, h) {
+    lastW = Math.max(2, w);
+    lastH = Math.max(2, h);
+    const cap = Math.min(1, MAX_EDGE / Math.max(lastW, lastH));
+    canvas.width = Math.round(lastW * cap);
+    canvas.height = Math.round(lastH * cap);
   }
+  const resize = () => setSize(lastW, lastH);
 
   function setTheme(theme) {
     cur = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
@@ -354,5 +367,5 @@ function create2D(canvas, reducedMotion) {
     }
   }
 
-  return { resize, setTheme, frame, kind: 'canvas2d' };
+  return { resize, setSize, setTheme, frame, kind: 'canvas2d' };
 }

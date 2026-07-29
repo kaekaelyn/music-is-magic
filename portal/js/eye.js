@@ -1,46 +1,95 @@
-// The eye. Procedural by default (D11 — placeholder art is a real
-// deliverable); if assets/eye/manifest.json exists, image layers replace the
-// procedural parts they cover (§5.3) and the engine animates them the same way.
+// The eye is a carved thing, not a face: a stone plate with a lens-shaped
+// aperture cut through it. The aperture is a window onto the visualization —
+// sealed, there is nothing to see but stone; open, you see what is inside.
+//
+// That inversion is the whole design. This canvas is the compositor: it draws
+// the stone, clips to the aperture, and pulls the field in from the viz
+// canvas (which is never displayed — it is only a source). Nothing here is
+// anatomical; no sclera, no lashes, no glint. Stone doesn't blink.
+//
+// If assets/eye/manifest.json declares layers, they replace the procedural
+// parts they cover (§5.3) and the engine animates them the same way.
 
 import { EyeState } from './state.js';
 
-const LAYER_NAMES = ['frame', 'glow', 'sclera', 'iris', 'lid-lower', 'lid-upper'];
+const LAYER_NAMES = ['plate', 'socket', 'lid-lower', 'lid-upper', 'glow', 'frame'];
 
-const ease = (t) => t * t * (3 - 2 * t);
+// Aperture half-height as a fraction of half-width. Lower than a human eye's
+// proportion on purpose — a narrow vesica reads as carved, not drawn.
+const APERTURE_RATIO = 0.52;
+const EYE_RADIUS = 0.3; // half-width, as a fraction of the smaller screen edge
+
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const ease = (t) => t * t * (3 - 2 * t);
+const smoothstep = (a, b, x) => ease(clamp01((x - a) / (b - a)));
 
-export function createEye(canvas, { reducedMotion = false } = {}) {
+// Light comes from above and slightly left, consistently: the relief shading,
+// the aperture bevel and the socket lip all agree on it, which is most of what
+// makes a flat canvas read as carved.
+const LIGHT_X = -0.5;
+const LIGHT_Y = -0.87;
+
+// --- procedural stone ----------------------------------------------------
+
+function hash2(x, y) {
+  let h = Math.imul(x, 374761393) + Math.imul(y, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+
+function vnoise(x, y) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const a = hash2(xi, yi);
+  const b = hash2(xi + 1, yi);
+  const c = hash2(xi, yi + 1);
+  const d = hash2(xi + 1, yi + 1);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+
+function fbm2(x, y, octaves) {
+  let v = 0;
+  let amp = 0.5;
+  let f = 1;
+  for (let i = 0; i < octaves; i++) {
+    v += amp * vnoise(x * f, y * f);
+    f *= 2.07;
+    amp *= 0.5;
+  }
+  return v;
+}
+
+export function createEye(canvas, { reducedMotion = false, field = null } = {}) {
   const ctx = canvas.getContext('2d');
   let W = 0;
   let H = 0;
   let dpr = 1;
+  let R = 0;      // aperture half-width, CSS px
+  let hFull = 0;  // aperture half-height at full open, CSS px
+  let plate = null; // baked stone, redrawn only on resize
 
   // Animated parameters: current value eases toward its target each frame.
   const p = {
     open: 0, openTarget: 0, openSpeed: 1.2,
-    glow: 0.08, glowTarget: 0.08,
-    pupil: 0.42, pupilTarget: 0.42,
-    scale: 1, scaleTarget: 1,
+    glow: 0, glowTarget: 0,
   };
   let state = EyeState.SEALED;
-  let irisRGB = [141, 128, 184];
-  let irisTargetRGB = irisRGB.slice();
+  let glowRGB = [141, 128, 184];
+  let glowTargetRGB = glowRGB.slice();
   let features = null;
   let focusGlow = false;
 
-  // Occasional blinks make an open eye alive rather than painted.
-  let nextBlinkAt = 0;
-  let blinkStart = -1;
-  const BLINK_MS = 0.26;
-
   // §5.3 manifest plug
-  let manifest = null;
   const layers = {};
   (async () => {
     try {
       const res = await fetch('assets/eye/manifest.json', { cache: 'no-cache' });
       if (!res.ok) return;
-      manifest = await res.json();
+      const manifest = await res.json();
       for (const name of LAYER_NAMES) {
         const spec = manifest.layers && manifest.layers[name];
         if (!spec || !spec.file) continue;
@@ -48,8 +97,9 @@ export function createEye(canvas, { reducedMotion = false } = {}) {
         img.src = `assets/eye/${spec.file}`;
         img.onload = () => { layers[name] = { img, spec }; };
       }
+      if (manifest.aperture) layers.aperture = manifest.aperture;
     } catch (_) {
-      // No manifest — fully procedural eye, by design.
+      // No manifest — fully procedural, by design.
     }
   })();
 
@@ -59,305 +109,428 @@ export function createEye(canvas, { reducedMotion = false } = {}) {
     H = canvas.clientHeight;
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
+    R = Math.min(W, H) * EYE_RADIUS;
+    hFull = R * APERTURE_RATIO;
+    plate = buildPlate();
+  }
+
+  // The size the field should be rendered at: the aperture's bounding box in
+  // device pixels. Everything outside it is stone, so rendering more is waste.
+  function apertureSize() {
+    return { w: Math.round(2 * R * dpr), h: Math.round(2 * hFull * dpr) };
   }
 
   function setState(next) {
     state = next;
     switch (next) {
       case EyeState.SEALED:
-        p.openTarget = 0; p.openSpeed = 0.5; p.glowTarget = 0.08; p.scaleTarget = 1;
+        p.openTarget = 0; p.openSpeed = 0.5; p.glowTarget = 0;
         break;
       case EyeState.STIRRING:
-        p.openTarget = 1; p.openSpeed = 0.42; p.glowTarget = 0.55; p.scaleTarget = 1;
+        p.openTarget = 1; p.openSpeed = 0.42; p.glowTarget = 0.75;
         break;
       case EyeState.OPEN:
-        p.openTarget = 1; p.openSpeed = 1.4; p.glowTarget = 0.4; p.scaleTarget = 1;
+        p.openTarget = 1; p.openSpeed = 1.4; p.glowTarget = 0.5;
         break;
       case EyeState.COMMUNING:
-        p.openTarget = 1; p.openSpeed = 1.4; p.glowTarget = 0.35; p.scaleTarget = 0.82;
+        p.openTarget = 1; p.openSpeed = 1.4; p.glowTarget = 0.55;
         break;
       case EyeState.DROWSING:
-        p.openTarget = 0.32; p.openSpeed = 0.35; p.glowTarget = 0.15; p.scaleTarget = 0.9;
+        p.openTarget = 0.26; p.openSpeed = 0.35; p.glowTarget = 0.16;
         break;
     }
   }
 
-  function setIris(theme) {
+  // The stone is neutral; the theme reaches the plate only as spilled light.
+  function setTheme(theme) {
     const c = theme.paletteRGB[3];
-    irisTargetRGB = [c[0] * 255, c[1] * 255, c[2] * 255];
+    glowTargetRGB = [c[0] * 255, c[1] * 255, c[2] * 255];
   }
 
   function setAudio(f) { features = f; }
   function setFocus(v) { focusGlow = v; }
 
-  function approach(cur, target, dt, speed) {
-    return cur + (target - cur) * (1 - Math.exp(-dt * speed * 3));
+  const approach = (cur, target, dt, speed) =>
+    cur + (target - cur) * (1 - Math.exp(-dt * speed * 3));
+
+  // --- geometry ----------------------------------------------------------
+
+  // A vesica: two arcs meeting at points. Symmetric top and bottom, which is
+  // what keeps it from reading as an eyelid.
+  function aperturePath(c, r, h) {
+    c.beginPath();
+    c.moveTo(-r, 0);
+    c.quadraticCurveTo(0, -2 * h, r, 0);
+    c.quadraticCurveTo(0, 2 * h, -r, 0);
+    c.closePath();
   }
 
-  function blinkFactor(t) {
-    const open = state === EyeState.OPEN || state === EyeState.COMMUNING;
-    if (!open || reducedMotion) { blinkStart = -1; return 1; }
-    if (nextBlinkAt === 0) nextBlinkAt = t + 4 + Math.random() * 8;
-    if (blinkStart < 0 && t >= nextBlinkAt) blinkStart = t;
-    if (blinkStart < 0) return 1;
-    const ph = (t - blinkStart) / BLINK_MS;
-    if (ph >= 1) {
-      blinkStart = -1;
-      nextBlinkAt = t + 5 + Math.random() * 9;
-      return 1;
+  // --- the baked stone plate ---------------------------------------------
+
+  // Dark basalt. The trick that makes it read as rock rather than fog is
+  // shading by the *slope* of the noise instead of its value — a cheap bump
+  // map. Value alone gives you clouds no matter how you tune it.
+  //
+  // Built at reduced resolution (one fbm per pixel, gradients taken from
+  // neighbours in the height buffer) and scaled up; the full-resolution grain
+  // pass on top hides the interpolation.
+  function buildPlate() {
+    const cw = Math.max(1, canvas.width);
+    const chh = Math.max(1, canvas.height);
+    const out = document.createElement('canvas');
+    out.width = cw;
+    out.height = chh;
+    const g = out.getContext('2d');
+
+    g.fillStyle = '#04050a';
+    g.fillRect(0, 0, cw, chh);
+
+    const LW = Math.max(64, Math.min(420, Math.round(cw / 2)));
+    const LH = Math.max(64, Math.round((LW * chh) / cw));
+
+    // Pass 1: height field.
+    const hgt = new Float32Array(LW * LH);
+    const freq = 7.5 / LW * (LW / 380); // features stay the same size at any LW
+    for (let y = 0; y < LH; y++) {
+      for (let x = 0; x < LW; x++) {
+        hgt[y * LW + x] = fbm2(x * freq, y * freq, 5);
+      }
     }
-    return 1 - Math.sin(ph * Math.PI) * 0.96;
+
+    // Pass 2: shade.
+    const low = document.createElement('canvas');
+    low.width = LW;
+    low.height = LH;
+    const lg = low.getContext('2d');
+    const img = lg.createImageData(LW, LH);
+    const d = img.data;
+    const unit = Math.min(cw, chh) * EYE_RADIUS;
+    const halfDiag = Math.hypot(cw, chh) / 2;
+
+    for (let y = 0; y < LH; y++) {
+      const ym = y > 0 ? y - 1 : y;
+      const yp = y < LH - 1 ? y + 1 : y;
+      for (let x = 0; x < LW; x++) {
+        const i = y * LW + x;
+        const xm = x > 0 ? x - 1 : x;
+        const xp = x < LW - 1 ? x + 1 : x;
+        const hh = hgt[i];
+        const gx = hgt[y * LW + xp] - hgt[y * LW + xm];
+        const gy = hgt[yp * LW + x] - hgt[ym * LW + x];
+
+        // Lambert against the shared light direction.
+        const lam = clamp01(0.5 - (gx * LIGHT_X + gy * LIGHT_Y) * 26);
+        let v = (0.30 + 0.34 * hh) * (0.34 + 0.9 * lam);
+
+        // Slow albedo drift, so the face reads as one weathered block rather
+        // than a tiled rock texture.
+        v *= 0.74 + 0.52 * fbm2(x * freq * 0.16 + 91, y * freq * 0.16 + 17, 2);
+
+        // Fissures: ridged noise cuts dark veins through the face.
+        const ridge = 1 - Math.abs(2 * hh - 1);
+        v *= 1 - 0.6 * smoothstep(0.88, 0.995, ridge);
+
+        // The plate is a wall, not an object: it fills the frame and falls
+        // into darkness at the corners so the aperture is the only light.
+        const px = ((x + 0.5) / LW) * cw - cw / 2;
+        const py = ((y + 0.5) / LH) * chh - chh / 2;
+        v *= 0.18 + 0.82 * smoothstep(1.0, 0.12, Math.hypot(px, py) / halfDiag);
+        // Slight extra lift right around the socket, as if it catches more light.
+        v *= 1 + 0.25 * smoothstep(3.2, 0.6, Math.hypot(px / unit, py / unit));
+
+        const o = i * 4;
+        d[o] = Math.min(255, v * 138);
+        d[o + 1] = Math.min(255, v * 134);
+        d[o + 2] = Math.min(255, v * 152); // a violet bias toward the accent
+        d[o + 3] = 255;
+      }
+    }
+    lg.putImageData(img, 0, 0);
+    g.drawImage(low, 0, 0, cw, chh);
+
+    // Carved features, in device pixels about the center.
+    g.save();
+    g.translate(cw / 2, chh / 2);
+    carve(g, unit, unit * APERTURE_RATIO);
+    g.restore();
+
+    // Fine grain at full resolution, over everything, so the engraving sits in
+    // the same material as the stone.
+    const TILE = 96;
+    const tile = document.createElement('canvas');
+    tile.width = TILE;
+    tile.height = TILE;
+    const tg = tile.getContext('2d');
+    const timg = tg.createImageData(TILE, TILE);
+    for (let i = 0; i < timg.data.length; i += 4) {
+      const v = 128 + (hash2(i, 7) - 0.5) * 150;
+      timg.data[i] = timg.data[i + 1] = timg.data[i + 2] = v;
+      timg.data[i + 3] = 255;
+    }
+    tg.putImageData(timg, 0, 0);
+    g.save();
+    g.globalCompositeOperation = 'overlay';
+    g.globalAlpha = 0.3;
+    g.fillStyle = g.createPattern(tile, 'repeat');
+    g.fillRect(0, 0, cw, chh);
+    g.restore();
+
+    return out;
   }
+
+  // A line reads as cut or raised entirely from which side of it catches the
+  // light. Groove: shadow on the line, highlight just below it. Ridge: the
+  // reverse. Both must agree with LIGHT_Y or the surface stops reading as
+  // stone and starts reading as a drawing of stone.
+  function relief(g, drawPath, width, strength, raised) {
+    const off = width * 0.75 * (raised ? -1 : 1);
+    g.save();
+    g.lineCap = 'round';
+    g.lineWidth = width;
+    g.translate(0, -off);
+    g.strokeStyle = `rgba(0,0,0,${0.8 * strength})`;
+    drawPath(g);
+    g.stroke();
+    g.translate(0, off * 2);
+    g.strokeStyle = `rgba(206,201,224,${0.26 * strength})`;
+    drawPath(g);
+    g.stroke();
+    g.restore();
+  }
+
+  const engrave = (g, path, w, s = 1) => relief(g, path, w, s, false);
+  const emboss = (g, path, w, s = 1) => relief(g, path, w, s, true);
+
+  function carve(g, r, h) {
+    const lw = Math.max(1.3, r * 0.012);
+
+    // The socket: a depression the aperture sits in. Shadow pooled toward the
+    // top (light comes from above, so the upper wall is the one in shade) and
+    // a lit lip along the bottom where the recess turns back to the surface.
+    const rx = r * 1.62;
+    const ry = h * 3.0;
+    g.save();
+    g.scale(1, ry / rx);
+    const sock = g.createRadialGradient(0, -rx * 0.16, rx * 0.18, 0, 0, rx);
+    sock.addColorStop(0, 'rgba(0,0,0,0.62)');
+    sock.addColorStop(0.55, 'rgba(0,0,0,0.34)');
+    sock.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = sock;
+    g.beginPath();
+    g.arc(0, 0, rx, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+
+    const lip = g.createLinearGradient(0, ry * 0.15, 0, ry * 1.0);
+    lip.addColorStop(0, 'rgba(0,0,0,0)');
+    lip.addColorStop(1, 'rgba(208,204,224,0.1)');
+    g.save();
+    g.fillStyle = lip;
+    g.beginPath();
+    g.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    g.fill();
+    g.restore();
+
+    // Every carved line echoes the lens. Concentric circles around a lens-
+    // shaped hole read as a targeting reticle no matter how faint they are;
+    // concentric vesicas read as the shape radiating out through the stone.
+    for (const [s, strength] of [[1.4, 0.7], [1.9, 0.45], [2.45, 0.28]]) {
+      engrave(g, (c) => aperturePath(c, r * s, h * s), lw * 1.3, strength);
+    }
+
+    // No brow. A raised arc above the aperture pulls the composition upward
+    // and crosses the outer vesica, which already does that work — and the
+    // moment the face has a brow it starts being a face again.
+
+    // Chisel ticks along the lens axis, reinforcing the one direction the
+    // whole face agrees on.
+    for (const side of [-1, 1]) {
+      for (const s of [1.4, 1.9, 2.45]) {
+        engrave(g, (c) => {
+          c.beginPath();
+          c.moveTo(side * r * s + side * lw * 2, 0);
+          c.lineTo(side * r * s + side * lw * 6, 0);
+        }, lw * 1.2, 0.55);
+      }
+    }
+  }
+
+  // --- frame -------------------------------------------------------------
 
   function frame(dt, t) {
-    // Integrate parameters.
     p.open = approach(p.open, p.openTarget, dt, p.openSpeed);
+
     let glowTarget = p.glowTarget;
     if (state === EyeState.COMMUNING && features) {
-      glowTarget = 0.3 + features.rms * 0.5;
-      p.pupilTarget = 0.36 - features.bass * 0.14; // pupil tightens on the low end
-    } else {
-      p.pupilTarget = 0.42;
+      glowTarget = 0.4 + features.rms * 0.55;
     }
-    if (focusGlow) glowTarget = Math.max(glowTarget, 0.3);
+    if (state === EyeState.SEALED) {
+      // Sealed must feel patient, not broken (§2.1). A stone idol shouldn't
+      // breathe, so the life-sign is a slow ember in the carved seam instead
+      // of movement — barely there, on the same ~8s cycle.
+      const amp = reducedMotion ? 0.4 : 1;
+      glowTarget = 0.035 * amp * (0.5 + 0.5 * Math.sin((t * 2 * Math.PI) / 8));
+    }
+    if (focusGlow) glowTarget = Math.max(glowTarget, 0.35);
     p.glow = approach(p.glow, glowTarget, dt, 1);
-    p.pupil = approach(p.pupil, p.pupilTarget, dt, 1.4);
-    p.scale = approach(p.scale, p.scaleTarget, dt, 0.5);
-    for (let i = 0; i < 3; i++) irisRGB[i] = approach(irisRGB[i], irisTargetRGB[i], dt, 0.4);
+    for (let i = 0; i < 3; i++) {
+      glowRGB[i] = approach(glowRGB[i], glowTargetRGB[i], dt, 0.4);
+    }
 
-    // Sealed breathing (~8s cycle) so the page feels alive, not broken.
-    const breathAmp = reducedMotion ? 0.4 : 1;
-    const breath =
-      state === EyeState.SEALED
-        ? 1 + 0.014 * breathAmp * Math.sin((t * 2 * Math.PI) / 8)
-        : 1;
-    const breathGlow =
-      state === EyeState.SEALED
-        ? 0.05 * breathAmp * (0.5 + 0.5 * Math.sin((t * 2 * Math.PI) / 8))
-        : 0;
-
-    const openEff = ease(clamp01(p.open)) * blinkFactor(t);
-    const glowEff = clamp01(p.glow + breathGlow);
+    // The aperture widens a little with the music: the idol's one movement.
+    let openEff = ease(clamp01(p.open));
+    if (state === EyeState.COMMUNING && features && !reducedMotion) {
+      openEff *= 0.94 + features.bass * 0.1;
+    }
+    const h = hFull * openEff;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-
-    const cx = W / 2;
-    const cy = H / 2;
-    const R = Math.min(W, H) * 0.3 * p.scale * breath; // eye half-width
-    const hFull = R * 0.62;
+    if (plate) ctx.drawImage(plate, 0, 0, W, H);
+    else { ctx.fillStyle = '#05060a'; ctx.fillRect(0, 0, W, H); }
 
     ctx.save();
-    ctx.translate(cx, cy);
+    ctx.translate(W / 2, H / 2);
 
-    drawOrnamentRing(t, R, glowEff);
-    drawGlow(R, glowEff);
-
-    if (layers['sclera'] || layers['iris'] || layers['lid-upper']) {
-      drawManifestEye(R, openEff, glowEff, t);
+    if (layers.plate || layers.socket || layers['lid-upper']) {
+      drawManifestEye(openEff, h);
     } else {
-      drawProceduralEye(R, hFull, openEff, t);
+      drawAperture(h, openEff);
     }
 
     ctx.restore();
   }
 
-  // --- procedural rendering ---------------------------------------------
+  // The window. Everything visible inside it belongs to the visualization.
+  function drawAperture(h, open) {
+    const [gr, gg, gb] = glowRGB;
 
-  function aperturePath(R, h) {
-    ctx.beginPath();
-    ctx.moveTo(-R, 0);
-    ctx.quadraticCurveTo(0, -2 * h, R, 0);
-    ctx.quadraticCurveTo(0, 1.7 * h, -R, 0);
-    ctx.closePath();
-  }
+    const lw = Math.max(1.3, R * 0.013);
 
-  function drawProceduralEye(R, hFull, open, t) {
-    const h = hFull * open;
-    const [ir, ig, ib] = irisRGB;
-
-    if (open > 0.02) {
+    if (open > 0.004) {
+      // The shadow the recess casts onto the surrounding stone.
       ctx.save();
-      aperturePath(R, h);
+      ctx.shadowColor = 'rgba(0,0,0,0.85)';
+      ctx.shadowBlur = R * 0.09;
+      ctx.shadowOffsetY = R * 0.012;
+      ctx.lineWidth = lw * 1.4;
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      aperturePath(ctx, R, h);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      aperturePath(ctx, R, h);
       ctx.clip();
 
-      // Sclera: muted moonstone, darker at the corners.
-      const sg = ctx.createRadialGradient(0, 0, R * 0.1, 0, 0, R);
-      sg.addColorStop(0, '#b6b0a1');
-      sg.addColorStop(0.75, '#7d7869');
-      sg.addColorStop(1, '#3d3a31');
-      ctx.fillStyle = sg;
-      ctx.fillRect(-R, -hFull * 2, R * 2, hFull * 4);
-
-      // Iris wanders slowly, as if looking around.
-      const wander = open * R * 0.06;
-      const ix = (Math.sin(t * 0.11 + 1) * 0.7 + Math.sin(t * 0.043) * 0.3) * wander;
-      const iy = Math.sin(t * 0.07 + 2.6) * wander * 0.4;
-      const ri = hFull * 0.92;
-
-      ctx.save();
-      ctx.translate(ix, iy);
-
-      const igr = ctx.createRadialGradient(0, 0, ri * 0.15, 0, 0, ri);
-      igr.addColorStop(0, `rgb(${ir * 1.15 | 0},${ig * 1.15 | 0},${ib * 1.15 | 0})`);
-      igr.addColorStop(0.7, `rgb(${ir * 0.6 | 0},${ig * 0.6 | 0},${ib * 0.6 | 0})`);
-      igr.addColorStop(1, `rgb(${ir * 0.25 | 0},${ig * 0.25 | 0},${ib * 0.25 | 0})`);
-      ctx.beginPath();
-      ctx.arc(0, 0, ri, 0, Math.PI * 2);
-      ctx.fillStyle = igr;
-      ctx.fill();
-
-      // Striations.
-      ctx.save();
-      ctx.rotate(t * 0.004);
-      ctx.strokeStyle = `rgba(${ir | 0},${ig | 0},${ib | 0},0.35)`;
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 48; i++) {
-        const a = (i / 48) * Math.PI * 2;
-        const r0 = ri * (0.35 + 0.1 * ((i * 7) % 5) / 5);
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
-        ctx.lineTo(Math.cos(a) * ri * 0.96, Math.sin(a) * ri * 0.96);
-        ctx.stroke();
+      if (field && field.width > 0) {
+        // Drawn at the full aperture box regardless of how open the eye is, so
+        // the field is a fixed plane seen through a changing gap — not
+        // something that stretches as the stone parts.
+        ctx.drawImage(field, -R, -hFull, R * 2, hFull * 2);
       }
+
+      // Inside the recess: the upper wall is in shadow, the lower one catches
+      // the light. Same light direction as the relief, so it reads as depth.
+      const wall = ctx.createLinearGradient(0, -h, 0, h);
+      wall.addColorStop(0, 'rgba(0,0,0,0.72)');
+      wall.addColorStop(0.42, 'rgba(0,0,0,0)');
+      wall.addColorStop(0.88, 'rgba(0,0,0,0)');
+      wall.addColorStop(1, 'rgba(222,216,236,0.09)');
+      ctx.fillStyle = wall;
+      ctx.fillRect(-R, -hFull, R * 2, hFull * 2);
+
+      // And the points of the vesica fall away into the stone.
+      const ends = ctx.createLinearGradient(-R, 0, R, 0);
+      ends.addColorStop(0, 'rgba(0,0,0,0.8)');
+      ends.addColorStop(0.16, 'rgba(0,0,0,0)');
+      ends.addColorStop(0.84, 'rgba(0,0,0,0)');
+      ends.addColorStop(1, 'rgba(0,0,0,0.8)');
+      ctx.fillStyle = ends;
+      ctx.fillRect(-R, -hFull, R * 2, hFull * 2);
       ctx.restore();
 
-      // Pupil with a soft edge.
-      const rp = ri * p.pupil;
-      const pg = ctx.createRadialGradient(0, 0, rp * 0.6, 0, 0, rp * 1.25);
-      pg.addColorStop(0, '#05060a');
-      pg.addColorStop(0.8, '#05060a');
-      pg.addColorStop(1, 'rgba(5,6,10,0)');
-      ctx.beginPath();
-      ctx.arc(0, 0, rp * 1.25, 0, Math.PI * 2);
-      ctx.fillStyle = pg;
-      ctx.fill();
-
-      // Specular glint.
-      ctx.beginPath();
-      ctx.arc(-ri * 0.28, -ri * 0.3, ri * 0.1, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,252,0.55)';
-      ctx.fill();
-
-      ctx.restore(); // iris translate
-      ctx.restore(); // clip
-
-      // Lid edges.
-      ctx.strokeStyle = `rgba(${ir | 0},${ig | 0},${ib | 0},0.8)`;
-      ctx.lineWidth = Math.max(1.5, R * 0.012);
-      ctx.beginPath();
-      ctx.moveTo(-R, 0);
-      ctx.quadraticCurveTo(0, -2 * h, R, 0);
+      // The cut edge itself: dark all round, lit where the light strikes it.
+      ctx.save();
+      ctx.lineWidth = lw;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      aperturePath(ctx, R, h);
       ctx.stroke();
-      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = lw * 0.9;
+      ctx.strokeStyle = 'rgba(214,209,230,0.2)';
       ctx.beginPath();
-      ctx.moveTo(-R, 0);
-      ctx.quadraticCurveTo(0, 1.7 * h, R, 0);
+      ctx.moveTo(-R, -lw * 0.5);
+      ctx.quadraticCurveTo(0, -2 * h - lw * 0.5, R, -lw * 0.5);
       ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
-    // Closed / low-open seam with lash ticks — the sealed sigil.
-    if (open < 0.35) {
-      const seamAlpha = 1 - open / 0.35;
-      const droop = R * 0.22 * (1 - open);
-      ctx.strokeStyle = `rgba(${ir | 0},${ig | 0},${ib | 0},${0.85 * seamAlpha})`;
-      ctx.lineWidth = Math.max(1.5, R * 0.014);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-R, 0);
-      ctx.quadraticCurveTo(0, droop * 2, R, 0);
-      ctx.stroke();
-      // Lashes: short ticks following the seam's normal.
-      for (const s of [0.12, 0.3, 0.5, 0.7, 0.88]) {
-        const x = -R + 2 * R * s;
-        const y = 2 * droop * s * (1 - s); // point on the quadratic
-        const dx = 2 * R;
-        const dy = 2 * droop * (1 - 2 * s);
-        const len = Math.hypot(dx, dy);
-        const nx = -dy / len;
-        const ny = dx / len;
-        const lash = R * (0.1 + 0.04 * Math.sin(s * 17));
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x - nx * lash, y - ny * lash);
-        ctx.stroke();
-      }
+    // The sealed seam: a cut where the stone will part. It has to be clearly
+    // deliberate — a closed eye, not a crack — without becoming a feature in
+    // its own right.
+    if (open < 0.4) {
+      const a = 1 - open / 0.4;
+      const seam = (c) => {
+        c.beginPath();
+        c.moveTo(-R, 0);
+        c.quadraticCurveTo(0, hFull * 0.18, R, 0);
+      };
+      engrave(ctx, seam, lw * 2.2, a);
+    }
+
+    // Light spilling out onto the stone. This is the only place the theme
+    // colors anything outside the aperture.
+    const spill = p.glow * (0.25 + open * 0.75);
+    if (spill > 0.005) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R * 2.6);
+      g.addColorStop(0, `rgba(${gr | 0},${gg | 0},${gb | 0},${0.3 * spill})`);
+      g.addColorStop(0.45, `rgba(${gr | 0},${gg | 0},${gb | 0},${0.09 * spill})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(-R * 2.6, -R * 2.6, R * 5.2, R * 5.2);
+      ctx.restore();
     }
   }
 
-  function drawGlow(R, glow) {
-    if (glow <= 0.01) return;
-    const [ir, ig, ib] = irisRGB;
-    const g = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R * 2.1);
-    g.addColorStop(0, `rgba(${ir | 0},${ig | 0},${ib | 0},${0.28 * glow})`);
-    g.addColorStop(0.6, `rgba(${ir | 0},${ig | 0},${ib | 0},${0.1 * glow})`);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(-R * 2.2, -R * 2.2, R * 4.4, R * 4.4);
-  }
+  // --- manifest (image layer) rendering ----------------------------------
 
-  // Druidic ornament: a broken ring with cardinal marks, turning slowly.
-  function drawOrnamentRing(t, R, glow) {
-    const [ir, ig, ib] = irisRGB;
-    const rr = R * 1.5;
-    const rot = reducedMotion ? 0 : t * 0.012;
-    ctx.save();
-    ctx.rotate(rot);
-    ctx.strokeStyle = `rgba(${ir | 0},${ig | 0},${ib | 0},${0.1 + glow * 0.12})`;
-    ctx.lineWidth = Math.max(1, R * 0.008);
-    for (let k = 0; k < 4; k++) {
-      const a0 = (k * Math.PI) / 2 + 0.28;
-      ctx.beginPath();
-      ctx.arc(0, 0, rr, a0, a0 + Math.PI / 2 - 0.56);
-      ctx.stroke();
-    }
-    for (let k = 0; k < 4; k++) {
-      const a = (k * Math.PI) / 2;
-      const x = Math.cos(a) * rr;
-      const y = Math.sin(a) * rr;
-      ctx.beginPath();
-      ctx.arc(x, y, R * 0.02, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${ir | 0},${ig | 0},${ib | 0},${0.25 + glow * 0.2})`;
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // --- manifest (image layer) rendering ---------------------------------
-
-  function drawManifestEye(R, open, glow, t) {
+  function drawManifestEye(open, h) {
     const box = R * 2.4; // layers are authored on a shared square canvas
-    const draw = (name, dx = 0, dy = 0, alpha = 1) => {
+    const draw = (name, dx = 0, dy = 0, alpha = 1, blend = 'source-over') => {
       const layer = layers[name];
-      if (!layer) return false;
+      if (!layer) return;
       ctx.save();
       ctx.globalAlpha = alpha;
+      ctx.globalCompositeOperation = blend;
       ctx.drawImage(layer.img, -box / 2 + dx, -box / 2 + dy, box, box);
       ctx.restore();
-      return true;
     };
-
     const travel = (name, fallback) => {
       const spec = layers[name] && layers[name].spec;
       return spec && typeof spec.travel === 'number' ? spec.travel : fallback;
     };
 
-    draw('sclera');
-    const wander = open * R * 0.05;
-    const ix = Math.sin(t * 0.11 + 1) * wander;
-    const iy = Math.sin(t * 0.07 + 2.6) * wander * 0.4;
-    draw('iris', ix, iy);
-    draw('lid-lower', 0, open * travel('lid-lower', 0.25) * box);
-    draw('lid-upper', 0, -open * travel('lid-upper', 0.45) * box);
-    if (layers['glow']) {
+    draw('plate');
+
+    // The aperture the art was cut for, if it declared one.
+    const ap = layers.aperture || {};
+    const ar = (typeof ap.w === 'number' ? ap.w : 0.42) * box;
+    const ah = (typeof ap.h === 'number' ? ap.h : 0.22) * box * open;
+    if (open > 0.004 && field && field.width > 0) {
       ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      draw('glow', 0, 0, glow);
+      aperturePath(ctx, ar, ah);
+      ctx.clip();
+      ctx.drawImage(field, -ar, -ar * APERTURE_RATIO, ar * 2, ar * APERTURE_RATIO * 2);
       ctx.restore();
     }
+
+    draw('socket');
+    draw('lid-lower', 0, open * travel('lid-lower', 0.25) * box);
+    draw('lid-upper', 0, -open * travel('lid-upper', 0.45) * box);
+    draw('glow', 0, 0, p.glow, 'lighter');
     draw('frame');
   }
 
-  return { resize, frame, setState, setIris, setAudio, setFocus };
+  return { resize, frame, setState, setTheme, setAudio, setFocus, apertureSize };
 }
