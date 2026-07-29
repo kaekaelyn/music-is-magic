@@ -1,0 +1,36 @@
+# Cloudflare Pages response headers. Pages consumes this file and does not
+# serve it. No build step involved — it ships as-is with the rest of portal/.
+#
+# Deliberately absent: a full Content-Security-Policy. connect-src and media-src
+# would have to name the streaming host, which would make the stream address a
+# second production touchpoint alongside STREAM_BASE in js/config.js. The
+# directives below are the ones that cost nothing to keep true.
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+
+# Live state must never come from a cache (§5.1).
+/mock/*
+  Cache-Control: no-store
+
+# Theme and eye definitions are the owner's editing surface — a stale
+# theme.json after a drop-in would look like the plug failing (D11).
+/assets/themes/*.json
+  Cache-Control: public, max-age=60
+/assets/themes/*/*.json
+  Cache-Control: public, max-age=60
+/assets/eye/*.json
+  Cache-Control: public, max-age=60
+
+# Textures are large and effectively immutable once dropped in.
+/assets/themes/*/textures/*
+  Cache-Control: public, max-age=604800
+
+/js/*
+  Cache-Control: public, max-age=600
+/css/*
+  Cache-Control: public, max-age=600

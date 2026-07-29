@@ -1,0 +1,14 @@
+{
+  "name": "music-is-magic-tools",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only tooling. Deliberately quarantined here: portal/ has no dependencies and no build step, and Cloudflare Pages must never find a package.json at the repo root to install from.",
+  "scripts": {
+    "validate": "node validate-assets.mjs",
+    "smoke": "node smoke.mjs",
+    "test": "npm run validate && npm run smoke"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}

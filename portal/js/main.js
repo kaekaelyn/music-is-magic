@@ -19,15 +19,33 @@ const themes = createThemeStore();
 const machine = createEyeMachine({ stirMs: CONFIG.stirMs, drowseMs: CONFIG.drowseMs });
 const audio = createAudioEngine(CONFIG.streamUrl);
 
+// Which renderer won, for field debugging ("is this phone on the fallback?")
+// and for the smoke test. CSS keys off data-eye; nothing keys off this.
+document.body.dataset.viz = viz.kind;
+
+// §5.7 — the summons. Absent from the DOM unless a topic is configured.
+const summon = document.getElementById('summon');
+if (CONFIG.summonUrl) {
+  summon.href = CONFIG.summonUrl;
+  summon.hidden = false;
+} else {
+  summon.remove();
+}
+
 let extractor = null;
 let currentToken = null;
+let themeSeq = 0;
 
 function applyTheme(token) {
   if (token === currentToken) return;
   currentToken = token;
+  const seq = ++themeSeq;
   themes.load(token).then((theme) => {
+    if (seq !== themeSeq) return; // a newer token won the race
     viz.setTheme(theme);
     eye.setIris(theme);
+    // The resolved name, not the raw token: unknown tokens land on 'default'.
+    document.body.dataset.theme = theme.name;
   });
 }
 
@@ -46,8 +64,10 @@ async function startAudio() {
   }
 }
 
+// Resume goes through startAudio, not audio.resume(), so a first attempt that
+// failed still gets its extractor built on the way back.
 machine.on('commune', startAudio);
-machine.on('resume', () => audio.resume());
+machine.on('resume', startAudio);
 machine.on('sealed', () => { audio.stop(); extractor = null; });
 machine.on('change', (next) => {
   eye.setState(next);

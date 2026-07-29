@@ -107,6 +107,8 @@ nothing but move audio bytes and answer a status poll.
 | D12 | Dropout posture | Drowse (90s half-lidded grace) then Sealed | Honest but forgiving of cell hiccups. |
 | D13 | Go-live alerting | Icecast per-mount `on-connect`/`on-disconnect` hooks curl an ntfy.sh topic | No watcher process, no cron. Visitors and (someday) an ESP32 lamp subscribe to the same topic. |
 | D14 | Analytics/privacy | None beyond Cloudflare's free aggregate stats | No cookies, no banners, fits the aesthetic. |
+| D15 | Visitor notification transport | A link to the ntfy topic page (§5.7), not Web Push | Web Push needs VAPID keys, a service worker and a permission prompt — a backend and an interruption, for something ntfy already does. |
+| D16 | Dev tooling | `tools/` holds a zero-dep asset validator and a headless smoke test; `tools/package.json` keeps npm out of the repo root | The portal must stay buildless and dependency-free (§12); the contracts in §5 still need something that fails loudly, because the portal is built to fail silently. |
 
 ---
 
@@ -134,7 +136,7 @@ changing one means updating this file.
 
 ```
 portal/assets/eye/
-  manifest.json      # if absent → engine renders the built-in procedural eye
+  manifest.json      # ships with no layers → built-in procedural eye
   lid-upper.(svg|png)
   lid-lower.(svg|png)
   iris.(svg|png)
@@ -147,7 +149,8 @@ portal/assets/eye/
 and per-layer motion hints (e.g. how far lids travel). The engine animates
 whatever layers are present and procedurally fills the rest. **Dropping art
 in never requires a code change**, and partial drops are fine (e.g. real
-iris + placeholder lids while iterating).
+iris + placeholder lids while iterating). The shipped manifest declares no
+layers — equivalent to having none, but without a 404 on every page load.
 
 ### 5.4 Theme asset plug
 
@@ -188,6 +191,24 @@ On drowse→resume, reset the audio element `src` and call `play()`
 - Threat model: it's a radio station theme switcher on the owner's own phone; localStorage is acceptable. The password grants access to `/admin/metadata` only (see §5.2 exposure rule).
 - Fallback if ever needed: browser bookmarks hitting the same URL.
 
+### 5.7 Summons opt-in (M6, visitor side)
+
+The server side of D13 already pushes to an ntfy topic when the source
+connects. The visitor side is the smallest thing that can work: a link.
+
+- `NTFY_TOPIC` in `portal/js/config.js` — empty by default. Empty means
+  `main.js` **removes the element from the DOM**, so the feature does not exist
+  until the owner opts in. It is the second and last production config edit.
+- When set: a small sigil (no text) fades in at the bottom of the screen, and
+  **only while the eye is Sealed** — once the eye is open there is nothing to be
+  notified about, so it withdraws. Opacity 0.22, 0.6 on hover/focus.
+- Tapping it opens `https://ntfy.sh/<topic>`, where the visitor subscribes in
+  the ntfy app or web client. No Web Push keys, no service worker, no backend,
+  no permission prompt from us — consistent with D14, and $0.
+- The topic is unguessable-random, and anyone holding it can post to it as well
+  as read (§6). That is the accepted trade for having no backend; the worst case
+  is a stranger sending a false "the eye opens" to subscribers.
+
 ---
 
 ## 6. Server spec
@@ -226,7 +247,7 @@ Each is sized for one focused build session. **Done when** is the acceptance tes
 | M3 | **The Pulse** | Web Audio feature extraction (§5.5) + WebGL engine + `default` theme, all procedural. Canvas2D fallback. Drowse/resume audio handling. | Visualization visibly, pleasingly reacts to live playing on a mid-range phone at smooth framerate. |
 | M4 | **The Moods** | Theme system: `index.json`, `theme.json` loader, morph transition between themes, `/control.html` (§5.6). Seven themes defined with procedural looks (empty texture folders). | Tapping "cave" on the phone mid-stream morphs every viewer's visualization within one poll cycle. |
 | M5 | **The Gallery** | Owner generates AI texture banks + eye art separately and drops them in per §5.3/§5.4. Build session only assists: validates manifests, tunes mappings, optimizes images. | At least one theme runs on real textures with zero code edits — proving the plug. |
-| M6 | **The Summons** | ntfy on-connect hooks (§6); portal gets a subtle opt-in for notifications. ESP32 lamp: someday, `hardware/`, subscribes to the same topic. | Phone buzzes "the eye opens" within seconds of the source connecting. |
+| M6 | **The Summons** | ntfy on-connect hooks (§6); portal gets a subtle opt-in for notifications (§5.7). ESP32 lamp: someday, `hardware/`, subscribes to the same topic. | Phone buzzes "the eye opens" within seconds of the source connecting. |
 
 ---
 
@@ -234,6 +255,8 @@ Each is sized for one focused build session. **Done when** is the acceptance tes
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
+| WebGL context lost on a backgrounded phone tab | Routine on mobile | Engine catches `webglcontextlost`/`restored` and rebuilds its GPU objects; animation state survives. Covered by the smoke test. |
+| Audio element stalls while the status poll still says live | Likely on cell data | 4s watchdog re-primes `src` when the playhead stops advancing (§5.5). |
 | Cool Mic can't source MP3 | Real — verify first in M2 | D6: Liquidsoap transcode, planned in advance. |
 | Ogg mount would break both Safari playback **and** metadata updates | Certain if Ogg-only | D5: MP3 listener mount, non-negotiable. |
 | Mixed content / CORS silently breaks polling or zeroes the analyser | Certain without action | D3: Caddy from day one; `crossorigin` attr; §5.5 requirements. |
@@ -269,10 +292,14 @@ portal/            ← static site → Cloudflare Pages
   index.html
   control.html
   js/  css/
+  _headers         ← Pages response headers (Pages consumes, never serves)
+  robots.txt
   assets/eye/      ← §5.3 plug
   assets/themes/   ← §5.4 plug
 server/            ← icecast/caddy/(liquidsoap) config TEMPLATES + setup doc
                      (placeholders only — real secrets never committed)
+tools/             ← dev-only: asset validator + headless smoke test (D16).
+                     npm lives here and nowhere else; portal/ has no deps.
 hardware/          ← empty until the ESP32 day
 ```
 
@@ -288,7 +315,7 @@ hardware/          ← empty until the ESP32 day
 | Pick VPS vendor (Hetzner vs RackNerd vs other) | Owner | M2 |
 | Verify Cool Mic MP3 sourcing (activates/retires D6) | M2 session | M2 |
 | Confirm/adjust initial theme list (currently the 7 in §5.2) | Owner | M4 |
-| ntfy topic string | M6 session | M6 |
+| Generate the ntfy topic string, put it in `server/ntfy-on-connect.sh` **and** `NTFY_TOPIC` in `portal/js/config.js` (§5.7) | Owner | M6 |
 | USB audio interface vs phone mic for piano | Owner | Whenever sound quality itches |
 
 ---
@@ -296,7 +323,9 @@ hardware/          ← empty until the ESP32 day
 ## 12. Handoff notes for build sessions
 
 - Read this file before writing code. Implement to the contracts in §5.
-- Keep the portal dependency-free: plain HTML/CSS/JS + WebGL. No frameworks, no build step, no npm. It must deploy to Pages as-is and still make sense in five years.
+- Keep the portal dependency-free: plain HTML/CSS/JS + WebGL. No frameworks, no build step, no npm. It must deploy to Pages as-is and still make sense in five years. Dev tooling is exempt but stays inside `tools/` (D16).
+- Run `cd tools && npm test` before committing portal changes. It is fast, it drives the real ceremony, and a console error fails it.
+- The portal is written to degrade silently — a bad asset, a missing file, a dead fetch all render *something*. That is correct for visitors and terrible for review, which is why the validator exists. Never "fix" a silent fallback by making it throw.
 - Placeholder art is real deliverable, not filler: every asset slot renders procedurally until the owner plugs files in (D11).
 - When a decision changes or an open item resolves, edit §4/§11 in the same commit as the code.
 - Little to no visitor-facing text — resist adding UI. The eye is the interface.
@@ -331,11 +360,51 @@ do:
   `control.html` with buttons generated from `index.json`. Remaining:
   acceptance mid-stream.
 
+### 2026-07-25 — hardening, M6 visitor side, and a test that exists
+
+The previous entry claimed a headless smoke test; it was never committed.
+`tools/` now holds a real one (32 checks, drives the whole ceremony) plus a
+zero-dependency asset validator (D16). Everything below was found or fixed
+with them in place.
+
+Fixed:
+- **Centroid was doing nothing.** `features.js` reported a linear bin fraction
+  (~0.1 for real music) while `IDLE` and `syntheticFeatures` assumed ~0.4, so
+  `shiftCentroid` was pinned to a constant negative nudge. Now log-frequency
+  normalized between 60 Hz and 8 kHz, which puts a piano mid-scale and makes
+  the mapping actually swing. Deliberately *not* auto-gained like the other
+  features: centroid is a position, not an energy.
+- **WebGL context loss** left the field black forever on a backgrounded phone
+  tab. The GPU objects now rebuild on restore; morph and field time survive.
+  The smoke test loses and restores the context for real.
+- **Audio stall watchdog** (4s). A cell hiccup shorter than the drowse window
+  could stall the element permanently while the poll still said "live".
+- `resume` now goes through `startAudio`, so a first attempt that failed still
+  gets its extractor rebuilt on the way back.
+- The eye's `manifest.json` is shipped (empty layers) instead of absent, so
+  every visitor no longer 404s on page load.
+
+Added:
+- **M6 visitor side (§5.7, D15)** — the summons rune. Config-gated on
+  `NTFY_TOPIC`; removed from the DOM entirely when unset; visible only while
+  Sealed. A link to the ntfy topic, not Web Push — no keys, no service worker,
+  no permission prompt, no backend.
+- `portal/_headers` and `portal/robots.txt` for the Pages deploy. Full CSP is
+  deliberately absent: `connect-src`/`media-src` would name the streaming host
+  and make it a second production touchpoint alongside `STREAM_BASE`.
+- `body[data-theme]` and `body[data-viz]` for field debugging ("is this phone
+  on the Canvas2D fallback?") and as the smoke test's observation hooks.
+
+Still owner-side, unchanged: Pages deploy + domain (M1), the whole VPS (M2),
+acceptance against real audio on a real phone (M3/M4), art (M5), topic (M6).
+
 Portal implementation notes for future sessions:
-- Plain ES modules, no build step. `portal/js/config.js` is the single
-  production-config touchpoint (`STREAM_BASE`).
+- Plain ES modules, no build step. `portal/js/config.js` holds the only two
+  production edits: `STREAM_BASE` (M2) and `NTFY_TOPIC` (M6).
 - Mock mode is automatic while `STREAM_BASE` is empty; dev overrides:
-  `?mock=live`, `?theme=<token>`, `?stream=<url>` (persisted; `?stream=clear`).
+  `?mock=live`, `?theme=<token>`, `?stream=<url>` (persisted; `?stream=clear`),
+  `?fast=1` (short poll/drowse for tests). All except `?stream` are gated on
+  mock mode, so no URL can retune a real deployment.
 - In mock/no-analyser situations the viz runs on gentle synthetic features
   instead of freezing — also the graceful path if audio ever fails.
 - `prefers-reduced-motion` is honored (slower field, no blinks/ripples).

@@ -5,7 +5,10 @@
 // The same definitions live in assets/themes/<name>/theme.json (the editable
 // source); these built-ins keep the site alive if a fetch ever fails.
 
-const BUILTIN = {
+// Exported so tools/validate-assets.mjs can catch drift between these
+// fallbacks and the theme.json files they mirror — a silent divergence would
+// only show up as "the site looks different when the network is slow".
+export const BUILTIN = {
   default: {
     palette: ['#070810', '#181a33', '#463d6b', '#8d80b8', '#e9e4f2'],
     params: { scale: 1.5, speed: 0.3, warp: 1.1, sparkle: 0.5 },
