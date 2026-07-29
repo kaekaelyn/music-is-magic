@@ -200,7 +200,7 @@ library of procedural motifs and a theme declares which ones it is made of:
 
 ```json
 "motifs": { "rays": 0.85, "dapple": 0.25 },
-"params": { "gloss": 0.2, ... }
+"params": { "gloss": 0.2, "slant": 0, ... }
 ```
 
 Weights are 0–1 and every theme carries every key (absent = 0), so morphing
@@ -211,6 +211,13 @@ which is why a cave's occasional seep and hard rain are the same motif at two
 settings rather than two motifs. Brightness stays nearly constant across that
 range, or the sparse case just disappears. `gloss` hardens the palette ramp and
 lets specular highlights through — the difference between weather and ice.
+`slant` leans falling things off vertical: rain is wind-driven, a cave's seep
+is not, and that is a separate axis from density — deriving it from the drips
+weight would make heavier rain automatically windier, which is a different
+claim about the world.
+
+Params default (see `DEFAULT_PARAMS`) and are merged under every theme, so a
+theme only names what it changes and morphing stays a plain lerp.
 
 This keeps D10 intact: the motifs are engine code that never changes per
 theme, and a theme is still only data. Adding a *motif* is an engine change

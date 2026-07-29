@@ -17,7 +17,7 @@ const THEMES = join(ROOT, 'portal/assets/themes');
 const EYE = join(ROOT, 'portal/assets/eye');
 
 // scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
-const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle', 'gloss'];
+const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant'];
 const POSITIVE_PARAMS = ['scale', 'speed', 'warp'];
 const KNOWN_MAPPINGS = [
   'warpBass', 'brightRms', 'sparkleTreble', 'pulseFlux', 'shiftCentroid',
@@ -29,6 +29,7 @@ const HEX = /^#[0-9a-f]{6}$/i;
 // means a renamed motif fails validation instead of silently doing nothing.
 const themesModule = await import(pathToFileURL(join(ROOT, 'portal/js/themes.js')));
 const MOTIF_NAMES = Object.keys(themesModule.MOTIFS);
+const PARAM_DEFAULTS = themesModule.DEFAULT_PARAMS;
 
 const errors = [];
 const warnings = [];
@@ -166,10 +167,13 @@ for (const name of names) {
   const a = JSON.stringify(builtin.palette);
   const b = JSON.stringify((t.palette || []).slice(0, 5));
   if (a !== b) fail(`themes/${name}: palette drift — js/themes.js ${a} vs theme.json ${b}`);
+  // Compare against the merged view the engine actually builds, or every
+  // param a theme leaves to its default would look like drift.
+  const effective = { ...PARAM_DEFAULTS, ...builtin.params };
   for (const key of KNOWN_PARAMS) {
-    if (t.params && t.params[key] !== undefined && builtin.params[key] !== t.params[key]) {
+    if (t.params && t.params[key] !== undefined && effective[key] !== t.params[key]) {
       fail(
-        `themes/${name}: params.${key} drift — js/themes.js ${builtin.params[key]} ` +
+        `themes/${name}: params.${key} drift — js/themes.js ${effective[key]} ` +
         `vs theme.json ${t.params[key]}`
       );
     }

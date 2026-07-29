@@ -31,6 +31,7 @@ uniform float u_open;    // overall intensity (drowse dims, commune blooms)
 uniform sampler2D u_tex;
 uniform float u_texAmt;
 uniform float u_gloss;   // hardens the palette ramp and lets specular through
+uniform float u_slant;   // how far falling things lean from vertical
 
 // Motif weights (§5.4). Every theme sets all of them; most are 0. The branches
 // below are uniform-coherent — every fragment takes the same path — so an
@@ -109,9 +110,14 @@ float mDapple(vec2 uv, float t) {
 //
 // The streak lives inside one cycle of the phase, so the per-cycle coin flip
 // can never chop a drip in half partway down.
-float mDrips(vec2 uv, float t, float w) {
+float mDrips(vec2 uv, float t, float w, float slant) {
+  // Shear the lane coordinate rather than drifting the drops sideways: the
+  // streaks themselves have to lean, or fast rain reads as vertical rain
+  // sliding across the aperture.
+  float lx = uv.x + uv.y * slant;
+
   float lanes = 4.0 + 22.0 * w;
-  float col = floor(uv.x * lanes);
+  float col = floor(lx * lanes);
   vec2 h = hash2(vec2(col, 1.7));
   // +t, not -t: uv.y increases upward, so subtracting time makes drips rise.
   // Lane speeds vary, but not by much: a 4x spread had some drips crawling
@@ -123,7 +129,7 @@ float mDrips(vec2 uv, float t, float w) {
   float streak = smoothstep(0.0, 0.025, y) * (1.0 - smoothstep(0.03, 0.34, y));
   // Narrow on its own terms rather than as a fraction of the lane, so a sparse
   // cave drip isn't a wide slab just because it has few lanes to sit in.
-  float thin = smoothstep(0.16, 0.04, abs(fract(uv.x * lanes) - 0.5));
+  float thin = smoothstep(0.16, 0.04, abs(fract(lx * lanes) - 0.5));
   return falls * streak * thin;
 }
 
@@ -225,7 +231,7 @@ void main() {
   if (u_mDrips > 0.0) {
     // Weight controls density, not brightness: a cave's rare drip has to be
     // as bright as any of rain's, or the sparse case just disappears.
-    float v = mDrips(uv, u_t, u_mDrips);
+    float v = mDrips(uv, u_t, u_mDrips, u_slant);
     float amp = mix(0.62, 1.0, u_mDrips);
     lift += v * amp * 0.5;
     spec += v * amp * 1.5;
@@ -296,13 +302,13 @@ void main() {
 }
 `;
 
-import { MOTIFS } from './themes.js';
+import { MOTIFS, DEFAULT_PARAMS as THEME_DEFAULT_PARAMS } from './themes.js';
 
 const MOTIF_NAMES = Object.keys(MOTIFS);
 // rays -> u_mRays. One source of truth for the names: themes.js.
 const MOTIF_UNIFORMS = MOTIF_NAMES.map((n) => `u_m${n[0].toUpperCase()}${n.slice(1)}`);
 
-const DEFAULT_PARAMS = { scale: 1.5, speed: 0.3, warp: 1.1, sparkle: 0.5, gloss: 0 };
+const DEFAULT_PARAMS = { ...THEME_DEFAULT_PARAMS };
 const MORPH_SECONDS = 2.2;
 // Cap on the field's longest edge, so a large phone doesn't shade more pixels
 // than the aperture can show.
@@ -355,7 +361,7 @@ function themeStub() {
 const UNIFORM_NAMES = [
   'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
   'u_bright', 'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
-  'u_gloss', ...MOTIF_UNIFORMS,
+  'u_gloss', 'u_slant', ...MOTIF_UNIFORMS,
 ];
 
 function createGL(canvas, reducedMotion) {
@@ -510,6 +516,7 @@ function createGL(canvas, reducedMotion) {
     gl.uniform1f(U.u_open, intensity);
     gl.uniform1f(U.u_texAmt, texAmt);
     gl.uniform1f(U.u_gloss, th.params.gloss || 0);
+    gl.uniform1f(U.u_slant, th.params.slant || 0);
     for (let i = 0; i < MOTIF_NAMES.length; i++) {
       gl.uniform1f(U[MOTIF_UNIFORMS[i]], th.motifs?.[MOTIF_NAMES[i]] || 0);
     }

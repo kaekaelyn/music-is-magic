@@ -12,7 +12,8 @@
     "speed": 0.55,
     "warp": 1,
     "sparkle": 0.6,
-    "gloss": 0.25
+    "gloss": 0.25,
+    "slant": 0.34
   },
   "mappings": {
     "warpBass": 0.9,

@@ -49,10 +49,12 @@ export const BUILTIN = {
     params: { scale: 1.6, speed: 0.4, warp: 1.6, sparkle: 0.4, gloss: 0.35 },
     motifs: { caustics: 0.8 },
   },
-  // The same drips as cave, dense and fast — that is what the weight means.
+  // The same drips as cave, dense and fast — that is what the weight means —
+  // but blown off vertical, which is the difference between weather and a
+  // ceiling. Cave keeps slant at 0: nothing underground is windy.
   rain: {
     palette: ['#0a0e12', '#1d2a33', '#3a5464', '#6f909f', '#d3e3ea'],
-    params: { scale: 2.4, speed: 0.55, warp: 1.0, sparkle: 0.6, gloss: 0.25 },
+    params: { scale: 2.4, speed: 0.55, warp: 1.0, sparkle: 0.6, gloss: 0.25, slant: 0.34 },
     motifs: { drips: 0.95, columns: 0.15 },
   },
   // Shafts. Slow, wide, and the brightest thing in the set.
@@ -81,6 +83,17 @@ export const MOTIFS = Object.freeze({
   snow: 0,      // accumulation on the upward faces of those layers
 });
 
+// Spread under every theme so each one carries every key. Morphing is then a
+// plain lerp with nothing missing on either side, exactly as with motifs.
+export const DEFAULT_PARAMS = Object.freeze({
+  scale: 1.5,
+  speed: 0.3,
+  warp: 1.1,
+  sparkle: 0.5,
+  gloss: 0,   // hardens the palette ramp and lets specular through
+  slant: 0,   // how far falling things lean from vertical — wind, basically
+});
+
 const DEFAULT_MAPPINGS = {
   warpBass: 0.9,      // bass energy deepens the domain warp
   brightRms: 0.6,     // loudness lifts the palette's bright end
@@ -103,7 +116,7 @@ function buildTheme(name, base, override) {
   const theme = {
     name,
     palette: Array.isArray(src.palette) && src.palette.length >= 5 ? src.palette : base.palette,
-    params: { ...base.params, ...(src.params || {}) },
+    params: { ...DEFAULT_PARAMS, ...base.params, ...(src.params || {}) },
     mappings: { ...DEFAULT_MAPPINGS, ...(src.mappings || {}) },
     // Every theme carries every motif key, so morphing between two themes is
     // a plain lerp with nothing missing on either side.
