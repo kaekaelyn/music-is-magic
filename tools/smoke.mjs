@@ -3,7 +3,7 @@
 //
 //   cd tools && npm install && npm test
 //
-// Why a bespoke server instead of `python3 -m http.server`: the interesting
+// Why mock-portal.mjs instead of `python3 -m http.server`: the interesting
 // assertions are all *transitions* — sealed→stirring needs the status endpoint
 // to flip mid-run. Serving portal/ from this process makes `state.live = true`
 // the whole mechanism, with no control endpoint and no portal-side test hooks.
@@ -11,14 +11,7 @@
 // The portal itself stays dependency-free; Playwright is dev-only tooling and
 // nothing under portal/ knows this file exists.
 
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
-import { join, dirname, extname, normalize } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PORTAL = join(ROOT, 'portal');
+import { startPortal, launch } from './mock-portal.mjs';
 
 let chromium;
 try {
@@ -28,76 +21,9 @@ try {
   process.exit(2);
 }
 
-// --- controllable mock server -------------------------------------------
-
-// What the status endpoint currently reports, and whether js/config.js is
-// served with a summons topic filled in (§5.7's production edit).
-const state = { live: false, theme: 'default', topic: '' };
-
-const TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.txt': 'text/plain; charset=utf-8',
-  '.webp': 'image/webp',
-  '.png': 'image/png',
-};
-
-function statusBody() {
-  if (!state.live) return { icestats: { host: 'smoke', server_id: 'smoke' } };
-  return {
-    icestats: {
-      host: 'smoke',
-      server_id: 'smoke',
-      source: {
-        listenurl: 'http://smoke:8000/live',
-        server_type: 'audio/mpeg',
-        listeners: 1,
-        title: state.theme,
-      },
-    },
-  };
-}
-
-const NTFY_LINE = "const NTFY_TOPIC = '';";
-
-const server = createServer(async (req, res) => {
-  const path = normalize(decodeURIComponent(req.url.split('?')[0]));
-  const send = (code, type, body) => {
-    res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
-    res.end(body);
-  };
-
-  // The live state, driven straight from this process.
-  if (path === '/mock/status.json' || path === '/mock/status-live.json') {
-    return send(200, TYPES['.json'], JSON.stringify(statusBody()));
-  }
-
-  const rel = path === '/' ? 'index.html' : path.replace(/^\/+/, '');
-  if (rel.includes('..')) return send(403, TYPES['.txt'], 'no');
-
-  try {
-    let body = await readFile(join(PORTAL, rel));
-    if (rel === 'js/config.js' && state.topic) {
-      const src = body.toString();
-      if (!src.includes(NTFY_LINE)) {
-        // Loud on purpose: a renamed constant must fail the test, not silently
-        // skip the summons assertions.
-        return send(500, TYPES['.txt'], `smoke: could not find ${NTFY_LINE} in config.js`);
-      }
-      body = src.replace(NTFY_LINE, `const NTFY_TOPIC = '${state.topic}';`);
-    }
-    send(200, TYPES[extname(rel)] || 'application/octet-stream', body);
-  } catch (_) {
-    send(404, TYPES['.txt'], 'not found');
-  }
-});
-
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const BASE = `http://127.0.0.1:${server.address().port}`;
+const portal = await startPortal();
+const { state } = portal;
+const BASE = portal.base;
 
 // --- harness -------------------------------------------------------------
 
@@ -163,22 +89,7 @@ const sampleAperture = (page) =>
     return sum / (d.length / 4) / 3;
   });
 
-// Prefer a chromium that is already on the machine. CI images and sandboxes
-// often ship one whose build number doesn't match whatever npm resolved, and
-// Playwright's own resolution then insists on a download that may not be
-// permitted. MIM_CHROMIUM overrides; otherwise fall back to Playwright.
-function findChromium() {
-  if (process.env.MIM_CHROMIUM) return process.env.MIM_CHROMIUM;
-  const base = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  if (base) {
-    const link = join(base, 'chromium');
-    if (existsSync(link) && statSync(link).isFile()) return link;
-  }
-  return undefined;
-}
-
-const executablePath = findChromium();
-const browser = await chromium.launch(executablePath ? { executablePath } : {});
+const browser = await launch(chromium);
 
 try {
   // === 1. the full ceremony ============================================
@@ -415,7 +326,7 @@ try {
   check(false, 'smoke run', err.message);
 } finally {
   await browser.close();
-  server.close();
+  portal.close();
 }
 
 for (const line of results) console.log(line);

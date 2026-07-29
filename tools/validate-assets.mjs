@@ -16,12 +16,19 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const THEMES = join(ROOT, 'portal/assets/themes');
 const EYE = join(ROOT, 'portal/assets/eye');
 
-const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle'];
+// scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
+const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle', 'gloss'];
+const POSITIVE_PARAMS = ['scale', 'speed', 'warp'];
 const KNOWN_MAPPINGS = [
   'warpBass', 'brightRms', 'sparkleTreble', 'pulseFlux', 'shiftCentroid',
 ];
 const EYE_LAYERS = ['plate', 'socket', 'lid-lower', 'lid-upper', 'glow', 'frame'];
 const HEX = /^#[0-9a-f]{6}$/i;
+
+// The engine is the authority on what a motif is called; importing it here
+// means a renamed motif fails validation instead of silently doing nothing.
+const themesModule = await import(pathToFileURL(join(ROOT, 'portal/js/themes.js')));
+const MOTIF_NAMES = Object.keys(themesModule.MOTIFS);
 
 const errors = [];
 const warnings = [];
@@ -98,8 +105,20 @@ for (const name of names) {
   for (const [key, val] of Object.entries(t.params || {})) {
     if (!KNOWN_PARAMS.includes(key)) {
       fail(`${label}/theme.json: unknown param '${key}' (engine ignores it)`);
-    } else if (!Number.isFinite(val) || val <= 0) {
-      fail(`${label}/theme.json: params.${key} must be a positive number`);
+    } else if (!Number.isFinite(val) || val < 0) {
+      fail(`${label}/theme.json: params.${key} must be a non-negative number`);
+    } else if (POSITIVE_PARAMS.includes(key) && val <= 0) {
+      fail(`${label}/theme.json: params.${key} must be greater than zero`);
+    }
+  }
+  for (const [key, val] of Object.entries(t.motifs || {})) {
+    if (!MOTIF_NAMES.includes(key)) {
+      fail(
+        `${label}/theme.json: unknown motif '${key}' — the engine only has ` +
+        `${MOTIF_NAMES.join(', ')} (a typo here is silently no motif at all)`
+      );
+    } else if (!Number.isFinite(val) || val < 0 || val > 1) {
+      fail(`${label}/theme.json: motifs.${key} must be a number between 0 and 1`);
     }
   }
   for (const [key, val] of Object.entries(t.mappings || {})) {
@@ -131,10 +150,9 @@ for (const found of dirs(THEMES)) {
   }
 }
 
-// Drift between the built-in fallback palettes and theme.json. The built-ins
-// exist so a failed fetch can't blank the site; if they disagree with the
-// files, a slow network silently shows a different theme.
-const themesModule = await import(pathToFileURL(join(ROOT, 'portal/js/themes.js')));
+// Drift between the built-in fallbacks and theme.json. The built-ins exist so
+// a failed fetch can't blank the site; if they disagree with the files, a slow
+// network silently shows a different theme.
 for (const name of names) {
   const builtin = themesModule.BUILTIN[name];
   const file = join(THEMES, name, 'theme.json');
@@ -154,6 +172,13 @@ for (const name of names) {
         `themes/${name}: params.${key} drift — js/themes.js ${builtin.params[key]} ` +
         `vs theme.json ${t.params[key]}`
       );
+    }
+  }
+  for (const key of MOTIF_NAMES) {
+    const bv = (builtin.motifs || {})[key] || 0;
+    const tv = (t.motifs || {})[key] || 0;
+    if (bv !== tv) {
+      fail(`themes/${name}: motifs.${key} drift — js/themes.js ${bv} vs theme.json ${tv}`);
     }
   }
 }

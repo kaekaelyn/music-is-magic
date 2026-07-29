@@ -114,7 +114,7 @@ nothing but move audio bytes and answer a status poll.
 | D7 | Portal hosting | Cloudflare Pages (free) | Static, global, $0. |
 | D8 | Live detection | Portal polls `status-json.xsl` every 5s | No backend, no websocket infra. See §5.1. |
 | D9 | Theme control | Metadata "song" field carries a bare theme token; hidden `/control.html` sends it | See §5.2, §5.6. Zero extra backend. |
-| D10 | Visualization | One WebGL engine; themes are pure data (textures + palette + mappings). Canvas2D fallback for weak devices | Adding a theme = adding a folder. Engine code never changes per theme. |
+| D10 | Visualization | One WebGL engine; themes are pure data (palette + params + **motif weights** + mappings + textures). Canvas2D fallback for weak devices | Adding a theme = adding a folder. Engine code never changes per theme. Motifs (§5.4) are how a theme gets character without breaking that: the engine holds the library, the theme picks from it. |
 | D11 | Art pipeline | All visual assets are **drop-in plugs** per manifest contracts (§5.3, §5.4). Engine ships with procedural placeholders for every slot | Owner generates/refines AI art separately, on their own schedule, and swaps files — never code. |
 | D12 | Dropout posture | Drowse (90s half-lidded grace) then Sealed | Honest but forgiving of cell hiccups. |
 | D13 | Go-live alerting | Icecast per-mount `on-connect`/`on-disconnect` hooks curl an ntfy.sh topic | No watcher process, no cron. Visitors and (someday) an ESP32 lamp subscribe to the same topic. |
@@ -182,6 +182,37 @@ portal/assets/themes/
 
 A theme with `theme.json` but no textures renders procedurally in its
 palette. Adding theme #8 later = new folder + one line in `index.json`.
+
+**Motifs.** A palette and four scalars only ever produced the same fog in
+different colors, which is not a mood. So the engine compiles in a fixed
+library of procedural motifs and a theme declares which ones it is made of:
+
+| Motif | What it is | Used by |
+|---|---|---|
+| `rays` | shafts of light from above | sunshine, forest |
+| `columns` | irregular vertical masses — trunks, formations | forest, cave, mountain |
+| `dapple` | patches of light drifting at their own rate | forest, sunshine |
+| `drips` | falling streaks | cave, rain |
+| `facets` | crystal shards with a lit seam where they meet | ice |
+| `caustics` | undulating light web | ocean |
+| `strata` | warped horizontal rock layers | mountain |
+
+```json
+"motifs": { "rays": 0.85, "dapple": 0.25 },
+"params": { "gloss": 0.2, ... }
+```
+
+Weights are 0–1 and every theme carries every key (absent = 0), so morphing
+between two themes is a plain lerp and a motif the target lacks fades out
+rather than snapping off. Weight is not purely opacity: `drips` reads its own
+weight as **density**, which is why a cave's slow seep and hard rain are the
+same motif at two settings rather than two motifs. `gloss` hardens the palette
+ramp and lets specular highlights through — the difference between weather and
+ice.
+
+This keeps D10 intact: the motifs are engine code that never changes per
+theme, and a theme is still only data. Adding an *eighth* motif is an engine
+change and should be rare; adding a theme is still a folder.
 
 ### 5.5 Audio features → visualization
 
@@ -264,7 +295,7 @@ Each is sized for one focused build session. **Done when** is the acceptance tes
 | M2 | **First Breath** | VPS + Caddy + Icecast per §6; Cool Mic streaming; swap the portal's endpoint config to the real server. **Go/no-go here:** verify Cool Mic MP3 sourcing; activate D6 (Liquidsoap) if not. Also verify metadata updates land on the mount. | A friend's iPhone hears live playing at the real domain, eye open, over cell data. |
 | M3 | **The Pulse** | Web Audio feature extraction (§5.5) + WebGL engine + `default` theme, all procedural. Canvas2D fallback. Drowse/resume audio handling. | Visualization visibly, pleasingly reacts to live playing on a mid-range phone at smooth framerate. |
 | M4 | **The Moods** | Theme system: `index.json`, `theme.json` loader, morph transition between themes, `/control.html` (§5.6). Seven themes defined with procedural looks (empty texture folders). | Tapping "cave" on the phone mid-stream morphs every viewer's visualization within one poll cycle. |
-| M5 | **The Gallery** | Owner generates AI texture banks + eye art separately and drops them in per §5.3/§5.4. Build session only assists: validates manifests, tunes mappings, optimizes images. | At least one theme runs on real textures with zero code edits — proving the plug. |
+| M5 | **The Gallery** | Owner generates AI texture banks + eye art separately and drops them in per §5.3/§5.4. Build session only assists: validates manifests (`tools/validate-assets.mjs`), tunes motif weights and mappings against `tools/shots.mjs`, optimizes images. | At least one theme runs on real textures with zero code edits — proving the plug. |
 | M6 | **The Summons** | ntfy on-connect hooks (§6); portal gets a subtle opt-in for notifications (§5.7). ESP32 lamp: someday, `hardware/`, subscribes to the same topic. | Phone buzzes "the eye opens" within seconds of the source connecting. |
 
 ---
@@ -377,6 +408,38 @@ do:
   theme.json fetch can never blank the site), ~2s morph transition,
   `control.html` with buttons generated from `index.json`. Remaining:
   acceptance mid-stream.
+
+### 2026-07-29 — motifs, so a theme is a mood and not a palette swap
+
+Owner review, second pass: the colors were fine but every theme was the same
+fog. Fair — `theme.json` carried a palette and four scalars, so there was
+nothing for a theme to *be*. Wanted sunshine to have rays, ice to glitter and
+be glossy, cave to drip, forest to have columns and dappled light.
+
+Fixed by giving the shader a **motif library** (§5.4) that themes weight as
+data, which keeps D10: the engine holds all seven motifs and never changes per
+theme; a theme still only picks from them. The branches are uniform-coherent,
+so an unused motif costs nothing but shader length.
+
+Tuning notes, since these were all found by looking rather than reasoning:
+
+- First pass blew out ice and sunshine and turned cave and mountain black.
+  Motif `mass` is now clamped — an all-mass theme would just be a shut
+  aperture, which is what Sealed is for.
+- `drips` takes its weight as density *and* strength, so a cave's slow seep
+  and hard rain are one motif at two settings. Brightness is `sqrt(weight)`
+  or the sparse case is invisible.
+- `strata` needed ~5 bands across the aperture, not 1.5 — the aperture is
+  short, and frequencies tuned against a full screen do not survive the move
+  into it. It lights the layer faces as well as shadowing the seams, or
+  mountain stays a smear.
+- Watch for backticks in the GLSL comments. The whole shader is a JS template
+  literal, and one in a comment cost a confusing syntax error.
+
+Also landed `tools/shots.mjs` (every state × every theme at phone size, plus a
+contact sheet) and `tools/mock-portal.mjs`, now shared with the smoke test.
+The shots tool is the M5 loop: procedural looks leave nothing to inspect in
+the repo, so tuning art without it is guessing.
 
 ### 2026-07-29 — the eye is carved, and the field moved inside it
 

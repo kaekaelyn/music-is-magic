@@ -9,39 +9,73 @@
 // fallbacks and the theme.json files they mirror — a silent divergence would
 // only show up as "the site looks different when the network is slow".
 export const BUILTIN = {
+  // The unadorned field: no motif, so the warped noise shows on its own. It is
+  // what every unknown token lands on, and it should read as "before weather".
   default: {
     palette: ['#070810', '#181a33', '#463d6b', '#8d80b8', '#e9e4f2'],
-    params: { scale: 1.5, speed: 0.3, warp: 1.1, sparkle: 0.5 },
+    params: { scale: 1.5, speed: 0.3, warp: 1.1, sparkle: 0.5, gloss: 0 },
+    motifs: {},
   },
+  // Light coming down through a canopy onto trunks.
   forest: {
     palette: ['#05130a', '#0f3820', '#2f6b3a', '#7fae62', '#e2f2c5'],
-    params: { scale: 1.8, speed: 0.28, warp: 1.25, sparkle: 0.45 },
+    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1 },
+    motifs: { columns: 0.6, dapple: 0.75, rays: 0.3 },
   },
+  // Wet dark: slow seepage down formations, high contrast, little light.
   cave: {
     palette: ['#07070b', '#161421', '#2e2741', '#5d5178', '#cdc4e6'],
-    params: { scale: 2.2, speed: 0.18, warp: 1.5, sparkle: 0.75 },
+    params: { scale: 2.2, speed: 0.12, warp: 1.5, sparkle: 0.75, gloss: 0.3 },
+    motifs: { drips: 0.3, columns: 0.28 },
   },
+  // Shards with lit seams. The one theme where the field is hard-edged.
   ice: {
     palette: ['#040d18', '#0f2f4e', '#2b628f', '#79b3d8', '#eafaff'],
-    params: { scale: 2.0, speed: 0.22, warp: 0.8, sparkle: 0.85 },
+    params: { scale: 2.0, speed: 0.16, warp: 0.8, sparkle: 0.95, gloss: 0.55 },
+    motifs: { facets: 0.85 },
   },
+  // Layered rock, barely moving.
   mountain: {
     palette: ['#0b0b10', '#26262e', '#4c4a55', '#8f8577', '#eadfc8'],
-    params: { scale: 1.4, speed: 0.16, warp: 0.9, sparkle: 0.3 },
+    params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.3, gloss: 0.15 },
+    motifs: { strata: 0.6, columns: 0.1 },
   },
+  // Caustics, as seen from under the surface.
   ocean: {
     palette: ['#02101c', '#043a57', '#0b6d85', '#39ac9b', '#c9f2e2'],
-    params: { scale: 1.6, speed: 0.4, warp: 1.6, sparkle: 0.4 },
+    params: { scale: 1.6, speed: 0.4, warp: 1.6, sparkle: 0.4, gloss: 0.35 },
+    motifs: { caustics: 0.8 },
   },
+  // The same drips as cave, dense and fast — that is what the weight means.
   rain: {
     palette: ['#0a0e12', '#1d2a33', '#3a5464', '#6f909f', '#d3e3ea'],
-    params: { scale: 2.4, speed: 0.5, warp: 1.0, sparkle: 0.6 },
+    params: { scale: 2.4, speed: 0.55, warp: 1.0, sparkle: 0.6, gloss: 0.25 },
+    motifs: { drips: 0.95, columns: 0.15 },
   },
+  // Shafts. Slow, wide, and the brightest thing in the set.
   sunshine: {
     palette: ['#170e04', '#553811', '#a06e1d', '#dfb84a', '#fff3c2'],
-    params: { scale: 1.3, speed: 0.34, warp: 1.2, sparkle: 0.6 },
+    params: { scale: 1.3, speed: 0.26, warp: 1.2, sparkle: 0.6, gloss: 0.2 },
+    motifs: { rays: 0.85, dapple: 0.25 },
   },
 };
+
+// Motifs are the answer to "why does every theme look like the same fog in a
+// different color". The engine compiles all of them in; a theme picks which
+// ones it is made of and how strongly, as pure data (D10 — adding a theme is
+// still a folder, and the engine still never changes per theme).
+//
+// Weight is not just opacity: `drips` reads its own weight as density too, so
+// a slow cave seep and hard rain are the same motif at two settings.
+export const MOTIFS = Object.freeze({
+  rays: 0,      // shafts of light from above — sun through a gap
+  columns: 0,   // irregular vertical masses — trunks, formations
+  dapple: 0,    // patches of light drifting at their own rate — canopy shadow
+  drips: 0,     // falling streaks — seepage, rain
+  facets: 0,    // crystal shards with a lit seam where they meet — ice
+  caustics: 0,  // undulating light web — water
+  strata: 0,    // warped horizontal layers — rock
+});
 
 const DEFAULT_MAPPINGS = {
   warpBass: 0.9,      // bass energy deepens the domain warp
@@ -67,6 +101,9 @@ function buildTheme(name, base, override) {
     palette: Array.isArray(src.palette) && src.palette.length >= 5 ? src.palette : base.palette,
     params: { ...base.params, ...(src.params || {}) },
     mappings: { ...DEFAULT_MAPPINGS, ...(src.mappings || {}) },
+    // Every theme carries every motif key, so morphing between two themes is
+    // a plain lerp with nothing missing on either side.
+    motifs: { ...MOTIFS, ...(base.motifs || {}), ...(src.motifs || {}) },
     textures: Array.isArray(src.textures) ? src.textures : [],
     textureImage: null,
   };

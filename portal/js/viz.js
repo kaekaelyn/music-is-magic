@@ -30,11 +30,20 @@ uniform float u_shift;   // centroid-driven gradient shift
 uniform float u_open;    // overall intensity (drowse dims, commune blooms)
 uniform sampler2D u_tex;
 uniform float u_texAmt;
+uniform float u_gloss;   // hardens the palette ramp and lets specular through
+
+// Motif weights (§5.4). Every theme sets all of them; most are 0. The branches
+// below are uniform-coherent — every fragment takes the same path — so an
+// unused motif costs nothing beyond the shader being longer.
+uniform float u_mRays, u_mColumns, u_mDapple, u_mDrips, u_mFacets, u_mCaustics, u_mStrata;
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 345.45));
   p += dot(p, p + 34.345);
   return fract(p.x * p.y);
+}
+vec2 hash2(vec2 p) {
+  return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
 }
 float noise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
@@ -55,6 +64,82 @@ float fbm(vec2 p) {
   return v;
 }
 
+// --- motifs -------------------------------------------------------------
+// Composition motifs (rays, columns, dapple, drips) work in aperture space so
+// they stay anchored to the opening; texture motifs (facets, caustics, strata)
+// work in scaled space so a theme's own scale still governs their grain.
+// (No backticks in here — this whole block is a JS template literal.)
+
+// Shafts from a source above and to the left, drifting slowly.
+float mRays(vec2 uv, float t) {
+  vec2 d = uv - vec2(-0.18, -0.95);
+  float a = atan(d.x, d.y);
+  float s = fbm(vec2(a * 4.5, t * 0.09));
+  s = pow(clamp(s * 1.4, 0.0, 1.0), 3.0);
+  return s * smoothstep(2.1, 0.1, length(d));
+}
+
+// Irregular vertical masses, leaning very slightly.
+float mColumns(vec2 uv, float t) {
+  return smoothstep(0.37, 0.67, fbm(vec2(uv.x * 2.4 + uv.y * 0.16 + t * 0.014, 4.7)));
+}
+
+// Patches of light moving at their own rate, so they read as something passing
+// in front of the field rather than as part of it.
+float mDapple(vec2 uv, float t) {
+  return smoothstep(0.5, 0.87, fbm(uv * 3.4 + vec2(t * 0.11, -t * 0.06)));
+}
+
+// Falling streaks. Weight sets lane count as well as strength.
+float mDrips(vec2 uv, float t, float w) {
+  float lanes = 5.0 + 26.0 * w;
+  vec2 h = hash2(vec2(floor(uv.x * lanes), 1.7));
+  float y = fract(uv.y * 0.85 - t * (0.25 + h.x * 0.7) * 0.4 + h.y);
+  float streak = smoothstep(0.0, 0.05, y) * smoothstep(0.32, 0.05, y);
+  return streak * smoothstep(0.5, 0.14, abs(fract(uv.x * lanes) - 0.5));
+}
+
+// Crystal shards: a flat value per cell, and a lit seam where cells meet. The
+// seam comes from the gap between nearest and second-nearest, which is the
+// cheap way to get voronoi edges in one pass.
+float mFacets(vec2 p, float t, out float seam) {
+  vec2 i = floor(p), f = fract(p);
+  float d1 = 8.0, d2 = 8.0;
+  vec2 cell = vec2(0.0);
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 g = vec2(float(x), float(y));
+      vec2 o = hash2(i + g);
+      o = 0.5 + 0.42 * sin(t * 0.22 + 6.283 * o);
+      vec2 r = g + o - f;
+      float d = dot(r, r);
+      if (d < d1) { d2 = d1; d1 = d; cell = i + g; }
+      else if (d < d2) { d2 = d; }
+    }
+  }
+  seam = smoothstep(0.2, 0.0, d2 - d1);
+  return hash(cell * 1.7);
+}
+
+// Undulating light web, as on a pool floor.
+float mCaustics(vec2 p, float t) {
+  float v = 0.0;
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    v += sin(p.x * (2.6 + fi * 1.9) + t * (0.7 + fi * 0.35)
+             + sin(p.y * (2.1 + fi * 1.1) + t * 0.6) * 1.5);
+  }
+  return pow(clamp(v / 3.0 * 0.5 + 0.5, 0.0, 1.0), 3.5);
+}
+
+// Rock layers: enough bands to read across a short aperture, warped just
+// enough not to be stripes. Returns 0 at the face of a layer, 1 at the seam
+// between two, so a caller can darken the seams and light the faces.
+float mStrata(vec2 p, float t) {
+  float y = p.y * 7.0 + fbm(p * 0.8 + vec2(t * 0.02, 0.0)) * 1.3;
+  return pow(abs(fract(y) - 0.5) * 2.0, 0.7);
+}
+
 void main() {
   vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / min(u_res.x, u_res.y);
   vec2 p = uv * u_scale;
@@ -66,10 +151,56 @@ void main() {
   float f = fbm(p + u_warp * r);
 
   float g = clamp(f * 1.25 + u_shift - 0.1, 0.0, 1.0);
+
+  // Motifs add light, take away mass, or leave a hard highlight behind.
+  float lift = 0.0;
+  float mass = 0.0;
+  float spec = 0.0;
+
+  if (u_mRays > 0.0) {
+    float v = mRays(uv, u_t);
+    lift += v * u_mRays * 0.62;
+    spec += v * u_mRays * 0.3;
+  }
+  if (u_mDapple > 0.0) lift += mDapple(uv, u_t) * u_mDapple * 0.55;
+  if (u_mCaustics > 0.0) {
+    float v = mCaustics(p, u_t);
+    lift += v * u_mCaustics * 0.5;
+    spec += v * u_mCaustics * 1.1;
+  }
+  if (u_mDrips > 0.0) {
+    // sqrt so a sparse seep still reads: weight controls density more than
+    // brightness, or a cave's few drips would be invisible.
+    float v = mDrips(uv, u_t, u_mDrips);
+    float amp = sqrt(u_mDrips);
+    lift += v * amp * 0.5;
+    spec += v * amp * 1.5;
+  }
+  if (u_mColumns > 0.0) mass += mColumns(uv, u_t) * u_mColumns * 0.42;
+  if (u_mStrata > 0.0) {
+    float s = mStrata(p, u_t);
+    mass += s * u_mStrata * 0.34;          // shadowed seams
+    lift += (1.0 - s) * u_mStrata * 0.22;  // lit layer faces
+  }
+  if (u_mFacets > 0.0) {
+    float seam;
+    float shard = mFacets(p * 1.4, u_t, seam);
+    g = mix(g, shard, u_mFacets * 0.4); // flatten the field into shards
+    lift += seam * u_mFacets * 0.3;
+    spec += seam * u_mFacets * 0.85;
+  }
+
+  // Mass can shape the field but must never swallow it — an all-mass theme
+  // would just be a black aperture, which is what Sealed is for.
+  g = clamp(g + lift - min(mass, 0.5), 0.0, 1.0);
+  // Gloss hardens the transitions: the difference between weather and ice.
+  g = mix(g, smoothstep(0.24, 0.76, g), u_gloss);
+
   vec3 col = mix(u_c0, u_c1, smoothstep(0.0, 0.35, g));
   col = mix(col, u_c2, smoothstep(0.25, 0.6, g));
   col = mix(col, u_c3, smoothstep(0.5, 0.85, g));
   col = mix(col, u_c4, smoothstep(0.78, 1.0, g) * u_bright);
+  col += u_c4 * clamp(spec, 0.0, 1.0) * (0.16 + u_gloss * 0.5);
 
   vec3 matter = texture2D(u_tex, q + r * 0.25).rgb;
   col = mix(col, col * matter * 1.7, u_texAmt);
@@ -89,7 +220,13 @@ void main() {
 }
 `;
 
-const DEFAULT_PARAMS = { scale: 1.5, speed: 0.3, warp: 1.1, sparkle: 0.5 };
+import { MOTIFS } from './themes.js';
+
+const MOTIF_NAMES = Object.keys(MOTIFS);
+// rays -> u_mRays. One source of truth for the names: themes.js.
+const MOTIF_UNIFORMS = MOTIF_NAMES.map((n) => `u_m${n[0].toUpperCase()}${n.slice(1)}`);
+
+const DEFAULT_PARAMS = { scale: 1.5, speed: 0.3, warp: 1.1, sparkle: 0.5, gloss: 0 };
 const MORPH_SECONDS = 2.2;
 // Cap on the field's longest edge, so a large phone doesn't shade more pixels
 // than the aperture can show.
@@ -98,7 +235,7 @@ const MAX_EDGE = 1024;
 const lerp = (a, b, k) => a + (b - a) * k;
 
 function mixTheme(a, b, k) {
-  const out = { paletteRGB: [], params: {}, mappings: {} };
+  const out = { paletteRGB: [], params: {}, mappings: {}, motifs: {} };
   for (let i = 0; i < 5; i++) {
     out.paletteRGB[i] = [0, 1, 2].map((c) => lerp(a.paletteRGB[i][c], b.paletteRGB[i][c], k));
   }
@@ -107,6 +244,11 @@ function mixTheme(a, b, k) {
   }
   for (const key of Object.keys(b.mappings)) {
     out.mappings[key] = lerp(a.mappings[key] ?? b.mappings[key], b.mappings[key], k);
+  }
+  // Motifs default to 0 when absent, not to the target's value: a theme that
+  // doesn't have rays should fade them out, not snap them on.
+  for (const key of MOTIF_NAMES) {
+    out.motifs[key] = lerp(a.motifs?.[key] || 0, b.motifs?.[key] || 0, k);
   }
   out.textureImage = k > 0.5 ? b.textureImage : a.textureImage;
   return out;
@@ -129,6 +271,7 @@ function themeStub() {
     ],
     params: { ...DEFAULT_PARAMS },
     mappings: { warpBass: 0.9, brightRms: 0.6, sparkleTreble: 1.0, pulseFlux: 1.0, shiftCentroid: 0.2 },
+    motifs: { ...MOTIFS },
     textureImage: null,
   };
 }
@@ -136,6 +279,7 @@ function themeStub() {
 const UNIFORM_NAMES = [
   'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
   'u_bright', 'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
+  'u_gloss', ...MOTIF_UNIFORMS,
 ];
 
 function createGL(canvas, reducedMotion) {
@@ -289,6 +433,10 @@ function createGL(canvas, reducedMotion) {
     gl.uniform1f(U.u_shift, (f.centroid - 0.4) * m.shiftCentroid);
     gl.uniform1f(U.u_open, intensity);
     gl.uniform1f(U.u_texAmt, texAmt);
+    gl.uniform1f(U.u_gloss, th.params.gloss || 0);
+    for (let i = 0; i < MOTIF_NAMES.length; i++) {
+      gl.uniform1f(U[MOTIF_UNIFORMS[i]], th.motifs?.[MOTIF_NAMES[i]] || 0);
+    }
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
