@@ -1,35 +1,37 @@
 {
   "name": "cave",
   "palette": [
-    "#07070b",
-    "#161421",
-    "#2e2741",
-    "#5d5178",
-    "#cdc4e6"
+    "#05050a",
+    "#12101d",
+    "#2b2440",
+    "#5f5280",
+    "#d2dcef"
   ],
   "params": {
-    "scale": 2.2,
+    "scale": 2.0,
     "speed": 0.1,
-    "warp": 1.5,
-    "sparkle": 0.75,
+    "warp": 0.55,
+    "sparkle": 0.7,
     "gloss": 0.3,
-    "slant": 0
+    "slant": 0,
+    "base": 0.6,
+    "drift": 0.05
   },
   "mappings": {
-    "warpBass": 0.9,
-    "brightRms": 0.6,
-    "sparkleTreble": 1,
-    "pulseFlux": 1,
-    "shiftCentroid": 0.2
+    "warpBass": 0.18,
+    "brightRms": 0.62,
+    "sparkleTreble": 1.3,
+    "pulseFlux": 0.7,
+    "shiftCentroid": 0.1
   },
   "motifs": {
     "rays": 0,
-    "columns": 0.28,
+    "columns": 0.3,
     "dapple": 0,
-    "drips": 0.16,
+    "drips": 0.13,
     "facets": 0,
     "caustics": 0,
-    "crags": 0,
+    "crags": 0.6,
     "snow": 0
   },
   "textures": []

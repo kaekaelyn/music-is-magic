@@ -17,7 +17,7 @@ const THEMES = join(ROOT, 'portal/assets/themes');
 const EYE = join(ROOT, 'portal/assets/eye');
 
 // scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
-const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant'];
+const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant', 'base', 'drift'];
 const POSITIVE_PARAMS = ['scale', 'speed', 'warp'];
 const KNOWN_MAPPINGS = [
   'warpBass', 'brightRms', 'sparkleTreble', 'pulseFlux', 'shiftCentroid',

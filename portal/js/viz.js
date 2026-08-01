@@ -32,6 +32,8 @@ uniform sampler2D u_tex;
 uniform float u_texAmt;
 uniform float u_gloss;   // hardens the palette ramp and lets specular through
 uniform float u_slant;   // how far falling things lean from vertical
+uniform float u_base;    // how much the shared fog field contributes at all
+uniform float u_drift;   // how fast that field evolves; 0 freezes it into rock
 
 // Motif weights (§5.4). Every theme sets all of them; most are 0. The branches
 // below are uniform-coherent — every fragment takes the same path — so an
@@ -116,21 +118,50 @@ float mDrips(vec2 uv, float t, float w, float slant) {
   // sliding across the aperture.
   float lx = uv.x + uv.y * slant;
 
-  float lanes = 4.0 + 22.0 * w;
+  // Sparse and dense are different weather, not the same weather in different
+  // quantities. A cave's seep is a small droplet falling fast and alone; hard
+  // rain is a long streak among many. Shape follows weight, or a low setting
+  // is just thin rain — which is what it used to be, and read as slow constant
+  // streams rather than as the occasional drip.
+  float speed = mix(1.15, 0.4, w);   // droplets fall fast, sheets drag
+  float tail = mix(0.05, 0.34, w);   // and are short
+  // Quadratic, so the sparse end is genuinely rare rather than merely thinner:
+  // at w = 0.16 this is ~0.27 drips on screen at a time.
+  float duty = 0.012 + 0.988 * w * w;
+
+  float lanes = 3.0 + 23.0 * w;
   float col = floor(lx * lanes);
   vec2 h = hash2(vec2(col, 1.7));
   // +t, not -t: uv.y increases upward, so subtracting time makes drips rise.
   // Lane speeds vary, but not by much: a 4x spread had some drips crawling
   // while others raced, which reads as noise rather than weather.
-  float phase = uv.y * 0.85 + t * (0.62 + h.x * 0.46) * 0.4 + h.y;
-  float falls = step(1.0 - (0.14 + 0.86 * w), hash2(vec2(col, floor(phase))).x);
+  float phase = uv.y * 0.85 + t * (0.62 + h.x * 0.46) * speed + h.y;
+  float falls = step(1.0 - duty, hash2(vec2(col, floor(phase))).x);
   float y = fract(phase);
   // Bright head low, tail trailing above it — a drop, not a bar.
-  float streak = smoothstep(0.0, 0.025, y) * (1.0 - smoothstep(0.03, 0.34, y));
+  float streak = smoothstep(0.0, 0.02, y) * (1.0 - smoothstep(0.025, tail, y));
   // Narrow on its own terms rather than as a fraction of the lane, so a sparse
   // cave drip isn't a wide slab just because it has few lanes to sit in.
-  float thin = smoothstep(0.16, 0.04, abs(fract(lx * lanes) - 0.5));
+  float thin = smoothstep(mix(0.10, 0.16, w), 0.03, abs(fract(lx * lanes) - 0.5));
   return falls * streak * thin;
+}
+
+// Glints: scattered points of light that come and go with the music.
+//
+// One candidate per cell, sitting at a hashed position *inside* that cell, so
+// they scatter. The first version thresholded value noise near its ceiling —
+// and value noise peaks at its integer lattice, so every glint landed on a
+// regular grid. It read as a rendering artifact because it was one.
+//
+// Each cell also twinkles on its own phase and period, so they do not all
+// breathe together, which is the other half of looking natural.
+float mGlint(vec2 p, float t, float amount) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 o = hash2(i);
+  float tw = 0.5 + 0.5 * sin(t * (1.1 + o.x * 2.4) + o.y * 6.283);
+  float lit = step(1.0 - amount, hash(i + 3.7) * (0.3 + 0.7 * tw));
+  return lit * smoothstep(0.13, 0.0, length(f - o));
 }
 
 // Crystal shards: a flat value per cell, and a lit seam where cells meet. The
@@ -203,13 +234,21 @@ void main() {
   vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / min(u_res.x, u_res.y);
   vec2 p = uv * u_scale;
 
-  vec2 q = vec2(fbm(p + vec2(0.0, u_t * 0.35)),
-                fbm(p + vec2(5.2, 1.3) - u_t * 0.22));
-  vec2 r = vec2(fbm(p + u_warp * q + vec2(1.7, 9.2) + u_t * 0.15),
-                fbm(p + u_warp * q + vec2(8.3, 2.8) - u_t * 0.12));
+  // The shared field. Two knobs keep it from making every theme the same
+  // weather: u_drift decides whether it flows or sits still, and u_base
+  // decides whether it is the subject or merely a floor for the motifs.
+  // Frozen and faint, the same fbm reads as rock rather than as fog.
+  float bt = u_t * u_drift;
+  vec2 q = vec2(fbm(p + vec2(0.0, bt * 0.35)),
+                fbm(p + vec2(5.2, 1.3) - bt * 0.22));
+  vec2 r = vec2(fbm(p + u_warp * q + vec2(1.7, 9.2) + bt * 0.15),
+                fbm(p + u_warp * q + vec2(8.3, 2.8) - bt * 0.12));
   float f = fbm(p + u_warp * r);
 
   float g = clamp(f * 1.25 + u_shift - 0.1, 0.0, 1.0);
+  // Toward a dark floor, not toward grey: a quiet base has to leave the
+  // aperture dark so the motifs are the only things carrying light.
+  g = mix(0.12, g, u_base);
 
   // Motifs add light, take away mass, or leave a hard highlight behind.
   float lift = 0.0;
@@ -232,9 +271,11 @@ void main() {
     // Weight controls density, not brightness: a cave's rare drip has to be
     // as bright as any of rain's, or the sparse case just disappears.
     float v = mDrips(uv, u_t, u_mDrips, u_slant);
-    float amp = mix(0.62, 1.0, u_mDrips);
-    lift += v * amp * 0.5;
-    spec += v * amp * 1.5;
+    // Flat, not scaled by weight — the comment above always said the sparse
+    // case has to be as bright as the dense one, but the gain said otherwise
+    // and a lone droplet arrived dimmer than the rain it stood in for.
+    lift += v * 0.5;
+    spec += v * 1.5;
   }
   if (u_mColumns > 0.0) mass += mColumns(uv, u_t) * u_mColumns * 0.42;
   float skyward = 0.0; // where snow can lie, filled in by crags
@@ -287,8 +328,8 @@ void main() {
   vec3 matter = texture2D(u_tex, q + r * 0.25).rgb;
   col = mix(col, col * matter * 1.7, u_texAmt);
 
-  float glint = step(0.995 - u_sparkle * 0.012, noise(uv * u_scale * 42.0 + u_t * 3.0));
-  col += glint * u_c4 * u_sparkle * 0.5;
+  float glint = mGlint(uv * 30.0, u_t, clamp(u_sparkle * 0.55, 0.0, 1.0));
+  col += glint * u_c4 * u_sparkle * 0.7;
 
   float d = length(uv);
   float ring = (1.0 - u_pulse) * 1.15;
@@ -401,7 +442,7 @@ function themeStub() {
 const UNIFORM_NAMES = [
   'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
   'u_bright', 'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
-  'u_gloss', 'u_slant', ...MOTIF_UNIFORMS,
+  'u_gloss', 'u_slant', 'u_base', 'u_drift', ...MOTIF_UNIFORMS,
 ];
 
 function createGL(canvas, reducedMotion) {
@@ -560,6 +601,8 @@ function createGL(canvas, reducedMotion) {
     gl.uniform1f(U.u_texAmt, texAmt);
     gl.uniform1f(U.u_gloss, th.params.gloss || 0);
     gl.uniform1f(U.u_slant, th.params.slant || 0);
+    gl.uniform1f(U.u_base, th.params.base);
+    gl.uniform1f(U.u_drift, th.params.drift);
     for (let i = 0; i < MOTIF_NAMES.length; i++) {
       gl.uniform1f(U[MOTIF_UNIFORMS[i]], th.motifs?.[MOTIF_NAMES[i]] || 0);
     }

@@ -203,8 +203,21 @@ library of procedural motifs and a theme declares which ones it is made of:
 
 ```json
 "motifs": { "rays": 0.85, "dapple": 0.25 },
-"params": { "gloss": 0.2, "slant": 0, ... }
+"params": { "gloss": 0.2, "slant": 0, "base": 1, "drift": 1, ... }
 ```
+
+**`base` and `drift` are how a theme escapes the shared field.** Every theme
+was built on the same domain-warped fbm at full strength and full speed, and
+the result was that every theme was the same weather in a different colour —
+"an identical fog effect suffusing everything", in the owner's words. `drift`
+scales how fast that field evolves (0 freezes it) and `base` scales how much
+it contributes at all (0 leaves a dark floor for the motifs to light). Both
+default to 1, so a theme that says nothing looks exactly as it always did.
+
+Note what freezing does *not* buy: a domain-warped fbm held still still looks
+like smoke, because domain warping is what makes smoke. A theme that wants
+rock has to say `crags`, lower `warp`, or both. `base`/`drift` get the fog out
+of the way; they do not conjure a different material.
 
 Weights are 0–1 and every theme carries every key (absent = 0), so morphing
 between two themes is a plain lerp and a motif the target lacks fades out
@@ -518,6 +531,38 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — a cave that reads as a cave
+
+Owner review of the moods, and the useful part was not any single note but the
+summary: "the identical fog effect suffusing everything reduces everything to a
+sort of sameyness." True, and structural — every theme was the same
+domain-warped fbm at full strength and full speed, wearing a different palette.
+
+Two data-only knobs, both defaulting to no change (§5.4): `drift` scales the
+base field's evolution, `base` scales its contribution. Cave now runs nearly
+frozen and half-strength, so the motifs carry the look instead of decorating a
+cloud.
+
+Found along the way, and worth keeping:
+
+- **The sparkle was a grid, and it was a bug.** It thresholded value noise near
+  its ceiling — and value noise peaks at its integer lattice, so every glint
+  landed on a regular grid. It read as a rendering artifact because it was one.
+  Replaced with `mGlint`: one candidate per cell at a hashed position inside
+  that cell, each twinkling on its own phase.
+- **Freezing fog does not make rock.** A domain-warped fbm held still still
+  looks like frozen smoke, because the warp is what makes it smoke. Cave only
+  read as stone once it used `crags` and dropped `warp` to 0.55.
+- **Finer crags read as more mosaic, not less.** §5.4 already warned that clean
+  voronoi tiles; the fix is fewer, larger planes, not smaller ones. Scale 2.0
+  reads as rock faces where 3.4 reads as cracked tile.
+- **Sparse drips were thin rain, not rare drips.** Weight controlled how *many*
+  there were but not what they *were*, so a cave got slow constant streams. Now
+  shape follows weight: sparse means short, fast, genuinely occasional
+  droplets (~0.27 on screen at cave's setting), dense means long slow streaks.
+  The gain that was supposed to keep sparse drips as bright as dense ones was
+  doing the opposite; it is flat now.
 
 ### 2026-08-01 — the field twitched, because geometry was on a 40 ms filter
 

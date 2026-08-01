@@ -25,9 +25,10 @@ export const BUILTIN = {
   // Wet dark: a drip now and then down the formations, high contrast, little
   // light. The low drips weight is the sparseness — see mDrips' duty cycle.
   cave: {
-    palette: ['#07070b', '#161421', '#2e2741', '#5d5178', '#cdc4e6'],
-    params: { scale: 2.2, speed: 0.1, warp: 1.5, sparkle: 0.75, gloss: 0.3 },
-    motifs: { drips: 0.16, columns: 0.28 },
+    palette: ['#05050a', '#12101d', '#2b2440', '#5f5280', '#d2dcef'],
+    params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.7, gloss: 0.3, base: 0.6, drift: 0.05 },
+    motifs: { drips: 0.13, columns: 0.3, crags: 0.6 },
+    mappings: { warpBass: 0.18, brightRms: 0.62, sparkleTreble: 1.3, pulseFlux: 0.7, shiftCentroid: 0.1 },
   },
   // Shards with lit seams. The one theme where the field is hard-edged.
   ice: {
@@ -92,6 +93,8 @@ export const DEFAULT_PARAMS = Object.freeze({
   sparkle: 0.5,
   gloss: 0,   // hardens the palette ramp and lets specular through
   slant: 0,   // how far falling things lean from vertical — wind, basically
+  base: 1,    // how much the shared fog field contributes; 0 leaves a dark floor
+  drift: 1,   // how fast that field evolves; 0 freezes it into something solid
 });
 
 const DEFAULT_MAPPINGS = {
