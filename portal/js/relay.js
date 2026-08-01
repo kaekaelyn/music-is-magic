@@ -148,19 +148,26 @@ function ntfyAdapter({ topic, base = 'https://ntfy.sh', catchUpWindow = '12h' })
 
       try {
         source = new EventSource(`${url}/sse`);
+
+        // ntfy sends its own 'open' and 'keepalive' frames as *named* SSE
+        // events, and EventSource routes named events away from onmessage —
+        // so a handler that waited for one inside onmessage would never fire
+        // and the UI would never confirm a subscription that was working.
+        // The connection's own onopen is the honest signal.
+        source.onopen = () => {
+          if (handlers.onStatus) handlers.onStatus({ ok: true, detail: 'subscribed' });
+        };
+
         source.onmessage = (e) => {
           let env;
           try { env = JSON.parse(e.data); } catch (_) { return; }
-          // The /sse stream carries ntfy's own 'open' and 'keepalive' frames
-          // in the same shape as real messages.
-          if (env.event === 'open' && handlers.onStatus) {
-            handlers.onStatus({ ok: true, detail: 'subscribed' });
-            return;
-          }
-          if (env.event !== 'message') return;
+          // Belt and braces: if a frame does arrive unnamed, skip the ones
+          // that are not messages rather than trying to sanitize a keepalive.
+          if (env.event && env.event !== 'message') return;
           const clean = sanitize(env.message);
           if (clean && handlers.onState) handlers.onState(clean);
         };
+
         source.onerror = () => {
           // EventSource reconnects on its own; say so rather than looking dead.
           if (handlers.onStatus) handlers.onStatus({ ok: false, detail: 'reconnecting' });
@@ -172,14 +179,13 @@ function ntfyAdapter({ topic, base = 'https://ntfy.sh', catchUpWindow = '12h' })
 
     async publish(state) {
       try {
-        const res = await fetch(url, {
-          method: 'POST',
-          // X-Priority, not Priority: the latter is a forbidden header name in
-          // fetch and would be stripped. Min priority keeps a mood tap from
-          // buzzing any phone that happens to subscribe to this topic.
-          headers: { 'X-Priority': 'min', 'X-Title': 'mim-control' },
-          body: JSON.stringify(state),
-        });
+        // No custom headers, deliberately. X-Priority and X-Title are not
+        // CORS-safelisted, so either one turns this into a preflighted
+        // request: an extra OPTIONS round trip to ntfy, and a second thing
+        // that can fail silently between a phone and a desktop. They only
+        // bought a quieter notification on a phone that is not subscribed to
+        // this topic in the ntfy app anyway. A bare POST is a simple request.
+        const res = await fetch(url, { method: 'POST', body: JSON.stringify(state) });
         return res.ok;
       } catch (_) {
         return false;

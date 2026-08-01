@@ -242,7 +242,11 @@
     const ceremonyWrap = document.getElementById('ceremonyWrap');
     const bWake = document.getElementById('bWake');
     const bSeal = document.getElementById('bSeal');
-    let relayOk = relay.active;
+    // Tri-state, not a boolean seeded to true. Assuming the channel works
+    // until told otherwise made this page report "control ok" on the strength
+    // of nothing at all — which is worse than saying nothing, because it sends
+    // you looking for the fault somewhere else.
+    let relayHealth = 'connecting';
 
     function markEye(eye) {
       bWake.classList.toggle('on', eye === EYE_LIVE);
@@ -272,7 +276,7 @@
           if (s.eye) markEye(s.eye);
           if (s.theme) markCurrent(s.theme);
         },
-        onStatus: ({ ok }) => { relayOk = ok; },
+        onStatus: ({ ok }) => { relayHealth = ok ? 'ok' : 'down'; },
       });
     } else {
       ceremonyWrap.remove();
@@ -306,10 +310,13 @@
       }
       if (broadcastOnly) {
         // Drop the Icecast half entirely rather than print a lie beside it.
-        dot.className = relayOk ? 'live' : 'offline';
-        lastStatusLine = relayOk ? 'control ok' : 'control unreachable';
+        dot.className = relayHealth === 'ok' ? 'live' : relayHealth === 'down' ? 'offline' : '';
+        lastStatusLine = relayHealth === 'ok'
+          ? 'control ok'
+          : relayHealth === 'down' ? 'control unreachable' : 'control connecting…';
       } else if (relay.active) {
-        lastStatusLine += relayOk ? ' · control ok' : ' · control down';
+        lastStatusLine += relayHealth === 'ok' ? ' · control ok'
+          : relayHealth === 'down' ? ' · control down' : ' · control connecting…';
       }
       statusText.textContent = lastStatusLine;
     }, { pollMs: CONFIG.pollMs, jitterMs: CONFIG.pollJitterMs }).start();

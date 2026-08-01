@@ -244,7 +244,11 @@ relay.start({
   onStatus: ({ ok, detail }) => say(el.relay, detail, ok ? 'good' : 'warn'),
 });
 
+// Say what is actually known. Until onStatus fires, "connecting" is the
+// truth — showing anything more confident sends you hunting for the fault
+// somewhere it is not.
 if (!relay.active) say(el.relay, 'local only', 'warn');
+else if (el.relay.textContent === '—') say(el.relay, 'connecting…', 'warn');
 
 el.wake.addEventListener('click', () => {
   setDesired(true);
