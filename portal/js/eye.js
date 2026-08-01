@@ -151,6 +151,9 @@ export function createEye(canvas, { reducedMotion = false, field = null, radius 
     glowTargetRGB = [c[0] * 255, c[1] * 255, c[2] * 255];
   }
 
+  // Smoothed on the same principle as viz.js: features that move an edge
+  // need a far longer time constant than features that move light.
+  let bassSmooth = 0;
   function setAudio(f) { features = f; }
   function setFocus(v) { focusGlow = v; }
 
@@ -381,10 +384,20 @@ export function createEye(canvas, { reducedMotion = false, field = null, radius 
       glowRGB[i] = approach(glowRGB[i], glowTargetRGB[i], dt, 0.4);
     }
 
+    bassSmooth += ((features ? features.bass : 0) - bassSmooth)
+      * (1 - Math.exp(-dt / 0.35));
+
     // The aperture widens a little with the music: the idol's one movement.
+    //
+    // Two rules, both learned the hard way. It must never exceed 1: the field
+    // is drawn at the *fixed* full aperture box, so an aperture that opens
+    // past full reveals the edge of the plane behind it — a black band above
+    // and below on loud notes, which is exactly what it looked like. And it
+    // rides a smoothed bass, not the raw one: §5.5 gives bass a 40 ms attack
+    // so hits land crisply, which on a moving edge is a flinch, not a breath.
     let openEff = ease(clamp01(p.open));
     if (state === EyeState.COMMUNING && features && !reducedMotion) {
-      openEff *= 0.94 + features.bass * 0.1;
+      openEff *= 0.95 + bassSmooth * 0.05;
     }
     const h = hFull * openEff;
 

@@ -510,6 +510,7 @@ hardware/          ← empty until the ESP32 day
 | Confirm/adjust initial theme list (currently the 7 in §5.2) | Owner | M4 |
 | Generate the ntfy topic string, put it in `server/ntfy-on-connect.sh` **and** `NTFY_TOPIC` in `portal/js/config.js` (§5.7) | Owner | M6 |
 | USB audio interface vs phone mic for piano | Owner | Whenever sound quality itches |
+| **Moods still short of their name** — these need new motifs (§5.4), which is an engine change and deliberately rare, so they are batched rather than taken one at a time: forest wants trunks and will-o-wisps (it currently reads as green fog); rain wants splashes where drops land; cave wants a circular/tunnel structure instead of `crags`' stained-glass read; mountain wants an actual ridgeline silhouette, and drifting rather than static snow; ocean wants foam and wave crests | Next build session | M5 |
 | Generate a **second, distinct** ntfy topic for the §5.8 relay; keep it in two bookmarks, not in `config.js` | Owner | M7 |
 | Install OBS, enable YouTube live streaming (24h first-time delay) | Owner | M7 |
 | Verify OBS's Browser Source grants microphone access on this machine; fall back to Window Capture if not (RUNNING.md Part 3) | Owner | M7 |
@@ -531,6 +532,42 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — two rendering bugs, and motifs that answer the room
+
+Full mood review from the owner. Most of it is taste and is listed in §11 as
+still open, but two items were defects and one was structural.
+
+**The seam in forest and sunshine was `atan`.** `mRays` took `atan(d.x, d.y)`
+and fed it to `fbm`, and atan wraps from +pi to -pi directly below the light
+source — so the noise jumped along a vertical line there. Sunshine's own
+shafts mostly disguised it, which is why it was reported as "weird" in forest
+and merely "similar" in sunshine. Fixed by sampling the noise around a circle
+(`vec2(cos a, sin a)`), which is continuous across the wrap.
+
+**The letterboxing on loud notes was the aperture opening past full.**
+`eye.js` multiplied the open fraction by `0.94 + bass * 0.1`, which reaches
+1.04 — and §D17 draws the field at the *fixed* full aperture box on purpose,
+so anything past 1.0 exposes the edge of the plane behind it. Clamped to 1,
+and moved onto a smoothed bass for the same reason the warp was.
+
+**No motif answered the audio.** Every one of them took only `t`; the whole
+audio response lived in the base field, the palette, and the aperture. That is
+why rain's only visible reaction was the eye bulging. There is now a smoothed
+`u_rms` available inside the motifs: rays sharpen and reach further with
+loudness, drips thicken, and ice's seams — which is where ice catches light —
+take their specular from it. Frozen geometry, moving highlights.
+
+Also, per the owner's diagnosis of the glints, which was exactly right: they
+should not get *denser* as the room gets louder, they should change *position*.
+Density is now fixed per theme and each cell re-rolls its position and its
+coin-flip on its own clock, so what the music drives is brightness. They are
+also multiplied by the lit-ness of the surface under them — a glint on the dark
+side of a crag was the tell that they were unrelated to the shapes.
+
+And drips fell far too slowly: the first pass had dense drips *slower* than
+sparse ones, on the theory that sheets drag. Rain does not drag. Both ends are
+fast now, which is the difference between rain and a meteor shower.
 
 ### 2026-08-01 — a cave that reads as a cave
 

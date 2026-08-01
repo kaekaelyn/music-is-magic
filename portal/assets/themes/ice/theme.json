@@ -1,33 +1,35 @@
 {
   "name": "ice",
   "palette": [
-    "#040d18",
-    "#0f2f4e",
-    "#2b628f",
-    "#79b3d8",
-    "#eafaff"
+    "#04101c",
+    "#0d2b45",
+    "#2f6f96",
+    "#8fc8e0",
+    "#f2fbff"
   ],
   "params": {
-    "scale": 2,
+    "scale": 2.0,
     "speed": 0.16,
-    "warp": 0.8,
-    "sparkle": 0.95,
-    "gloss": 0.55,
-    "slant": 0
+    "warp": 0.5,
+    "sparkle": 1.0,
+    "gloss": 0.6,
+    "slant": 0,
+    "base": 0.55,
+    "drift": 0.02
   },
   "mappings": {
-    "warpBass": 0.9,
+    "warpBass": 0.06,
     "brightRms": 0.6,
-    "sparkleTreble": 1,
+    "sparkleTreble": 1.6,
     "pulseFlux": 1,
-    "shiftCentroid": 0.2
+    "shiftCentroid": 0.1
   },
   "motifs": {
     "rays": 0,
     "columns": 0,
     "dapple": 0,
     "drips": 0,
-    "facets": 0.85,
+    "facets": 0.9,
     "caustics": 0,
     "crags": 0,
     "snow": 0

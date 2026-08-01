@@ -26,15 +26,16 @@ export const BUILTIN = {
   // light. The low drips weight is the sparseness — see mDrips' duty cycle.
   cave: {
     palette: ['#05050a', '#12101d', '#2b2440', '#5f5280', '#d2dcef'],
-    params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.7, gloss: 0.3, base: 0.6, drift: 0.05 },
-    motifs: { drips: 0.13, columns: 0.3, crags: 0.6 },
-    mappings: { warpBass: 0.18, brightRms: 0.62, sparkleTreble: 1.3, pulseFlux: 0.7, shiftCentroid: 0.1 },
+    params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.8, gloss: 0.3, base: 0.6, drift: 0.05 },
+    motifs: { columns: 0.38, drips: 0.13, crags: 0.4 },
+    mappings: { warpBass: 0.18, brightRms: 0.62, sparkleTreble: 1.4, pulseFlux: 0.7, shiftCentroid: 0.1 },
   },
   // Shards with lit seams. The one theme where the field is hard-edged.
   ice: {
-    palette: ['#040d18', '#0f2f4e', '#2b628f', '#79b3d8', '#eafaff'],
-    params: { scale: 2.0, speed: 0.16, warp: 0.8, sparkle: 0.95, gloss: 0.55 },
-    motifs: { facets: 0.85 },
+    palette: ['#04101c', '#0d2b45', '#2f6f96', '#8fc8e0', '#f2fbff'],
+    params: { scale: 2.0, speed: 0.16, warp: 0.5, sparkle: 1.0, gloss: 0.6, base: 0.55, drift: 0.02 },
+    motifs: { facets: 0.9 },
+    mappings: { warpBass: 0.06, brightRms: 0.6, sparkleTreble: 1.6, pulseFlux: 1, shiftCentroid: 0.1 },
   },
   // Snow lying on broken rock, barely moving. The palette is cold on purpose:
   // the old warm tan made snow impossible, since there was no cold white to
@@ -55,14 +56,16 @@ export const BUILTIN = {
   // ceiling. Cave keeps slant at 0: nothing underground is windy.
   rain: {
     palette: ['#0a0e12', '#1d2a33', '#3a5464', '#6f909f', '#d3e3ea'],
-    params: { scale: 2.4, speed: 0.55, warp: 1.0, sparkle: 0.6, gloss: 0.25, slant: 0.34 },
-    motifs: { drips: 0.95, columns: 0.15 },
+    params: { scale: 2.4, speed: 0.55, warp: 1.0, sparkle: 0.5, gloss: 0.25, slant: 0.34, base: 0.7, drift: 0.8 },
+    motifs: { columns: 0.15, drips: 0.95 },
+    mappings: { warpBass: 0.4, brightRms: 0.6, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.2 },
   },
   // Shafts. Slow, wide, and the brightest thing in the set.
   sunshine: {
-    palette: ['#170e04', '#553811', '#a06e1d', '#dfb84a', '#fff3c2'],
-    params: { scale: 1.3, speed: 0.26, warp: 1.2, sparkle: 0.6, gloss: 0.2 },
-    motifs: { rays: 0.85, dapple: 0.25 },
+    palette: ['#0d2340', '#2f5f8c', '#8fb6cf', '#f0d79a', '#fff6dd'],
+    params: { scale: 1.3, speed: 0.26, warp: 1.2, sparkle: 0.5, gloss: 0.2, base: 0.45, drift: 0.35 },
+    motifs: { rays: 0.95, dapple: 0.3 },
+    mappings: { warpBass: 0.15, brightRms: 0.7, sparkleTreble: 1.0, pulseFlux: 1, shiftCentroid: 0.2 },
   },
 };
 

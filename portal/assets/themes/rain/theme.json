@@ -10,13 +10,15 @@
   "params": {
     "scale": 2.4,
     "speed": 0.55,
-    "warp": 1,
-    "sparkle": 0.6,
+    "warp": 1.0,
+    "sparkle": 0.5,
     "gloss": 0.25,
-    "slant": 0.34
+    "slant": 0.34,
+    "base": 0.7,
+    "drift": 0.8
   },
   "mappings": {
-    "warpBass": 0.9,
+    "warpBass": 0.4,
     "brightRms": 0.6,
     "sparkleTreble": 1,
     "pulseFlux": 1,

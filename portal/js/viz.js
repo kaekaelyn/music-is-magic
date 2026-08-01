@@ -24,7 +24,8 @@ uniform vec3 u_c0, u_c1, u_c2, u_c3, u_c4;
 uniform float u_scale;
 uniform float u_warp;    // effective warp (theme warp + bass drive)
 uniform float u_bright;  // rms-driven lift of the palette's top end
-uniform float u_sparkle; // treble-driven glint density
+uniform float u_sparkle; // treble drive for glint BRIGHTNESS
+uniform float u_sparkleDensity; // how many glints exist at all — fixed per theme
 uniform float u_pulse;   // decaying onset envelope -> expanding ripple
 uniform float u_shift;   // centroid-driven gradient shift
 uniform float u_open;    // overall intensity (drowse dims, commune blooms)
@@ -34,6 +35,7 @@ uniform float u_gloss;   // hardens the palette ramp and lets specular through
 uniform float u_slant;   // how far falling things lean from vertical
 uniform float u_base;    // how much the shared fog field contributes at all
 uniform float u_drift;   // how fast that field evolves; 0 freezes it into rock
+uniform float u_rms;     // smoothed loudness, for motifs that answer the room
 
 // Motif weights (§5.4). Every theme sets all of them; most are 0. The branches
 // below are uniform-coherent — every fragment takes the same path — so an
@@ -87,12 +89,19 @@ float fbm(vec2 p) {
 // Shafts from a source above and to the left, drifting slowly.
 // uv.y increases upward, so the source's y is positive. Getting this backwards
 // lights the aperture from below and nothing about the still image says so.
-float mRays(vec2 uv, float t) {
+float mRays(vec2 uv, float t, float drive) {
   vec2 d = uv - vec2(-0.18, 0.95);
   float a = atan(d.x, d.y);
-  float s = fbm(vec2(a * 4.5, t * 0.09));
-  s = pow(clamp(s * 1.4, 0.0, 1.0), 3.0);
-  return s * smoothstep(2.1, 0.1, length(d));
+  // Sample the noise around a CIRCLE, not along the raw angle. atan wraps from
+  // +pi to -pi directly below the source, and fbm of a wrapping coordinate
+  // leaves a hard vertical seam there. Sunshine's own rays mostly disguised
+  // it; forest's fainter ones did not, which is where it was spotted.
+  vec2 ring = vec2(cos(a), sin(a)) * 2.6;
+  float s = fbm(ring + vec2(t * 0.09, 0.0));
+  // Loudness sharpens the shafts rather than merely brightening them: quiet
+  // is diffuse light, loud is defined beams.
+  s = pow(clamp(s * 1.4, 0.0, 1.0), 3.4 - drive * 1.3);
+  return s * smoothstep(2.1 + drive * 0.45, 0.1, length(d)) * (0.72 + drive * 0.6);
 }
 
 // Irregular vertical masses, leaning very slightly.
@@ -112,7 +121,7 @@ float mDapple(vec2 uv, float t) {
 //
 // The streak lives inside one cycle of the phase, so the per-cycle coin flip
 // can never chop a drip in half partway down.
-float mDrips(vec2 uv, float t, float w, float slant) {
+float mDrips(vec2 uv, float t, float w, float slant, float drive) {
   // Shear the lane coordinate rather than drifting the drops sideways: the
   // streaks themselves have to lean, or fast rain reads as vertical rain
   // sliding across the aperture.
@@ -123,11 +132,16 @@ float mDrips(vec2 uv, float t, float w, float slant) {
   // rain is a long streak among many. Shape follows weight, or a low setting
   // is just thin rain — which is what it used to be, and read as slow constant
   // streams rather than as the occasional drip.
-  float speed = mix(1.15, 0.4, w);   // droplets fall fast, sheets drag
+  // Both ends fall FAST. The first pass had dense drips slower than sparse
+  // ones, on the theory that sheets drag — but rain does not drag, and at 0.4
+  // the streaks crawled down the aperture and read as a meteor shower.
+  float speed = mix(1.9, 2.7, w);
   float tail = mix(0.05, 0.34, w);   // and are short
   // Quadratic, so the sparse end is genuinely rare rather than merely thinner:
   // at w = 0.16 this is ~0.27 drips on screen at a time.
-  float duty = 0.012 + 0.988 * w * w;
+  // Loudness thickens it — the one thing the rain never did before was
+  // answer the music at all.
+  float duty = clamp((0.012 + 0.988 * w * w) * (0.75 + drive * 0.9), 0.0, 1.0);
 
   float lanes = 3.0 + 23.0 * w;
   float col = floor(lx * lanes);
@@ -155,13 +169,21 @@ float mDrips(vec2 uv, float t, float w, float slant) {
 //
 // Each cell also twinkles on its own phase and period, so they do not all
 // breathe together, which is the other half of looking natural.
-float mGlint(vec2 p, float t, float amount) {
+float mGlint(vec2 p, float t, float density, float drive) {
   vec2 i = floor(p);
   vec2 f = fract(p);
-  vec2 o = hash2(i);
-  float tw = 0.5 + 0.5 * sin(t * (1.1 + o.x * 2.4) + o.y * 6.283);
-  float lit = step(1.0 - amount, hash(i + 3.7) * (0.3 + 0.7 * tw));
-  return lit * smoothstep(0.13, 0.0, length(f - o));
+  // Each cell runs its own clock and re-rolls both its position and its
+  // coin-flip on every tick. That is the difference between glinting and
+  // snowing: density stays fixed, and what changes is WHERE the light is.
+  // Driving density from the music instead just piled on more speckles.
+  float tick = t * 0.85 + hash(i) * 10.0;
+  float clk = floor(tick);
+  vec2 o = hash2(i + clk * 1.37);
+  float on = step(1.0 - density, hash(i * 1.31 + clk * 2.11));
+  // A flash inside its slot, not a dot that sits there for the whole tick.
+  float life = fract(tick);
+  float env = smoothstep(0.0, 0.10, life) * (1.0 - smoothstep(0.18, 0.85, life));
+  return on * env * smoothstep(0.10, 0.0, length(f - o)) * drive;
 }
 
 // Crystal shards: a flat value per cell, and a lit seam where cells meet. The
@@ -257,7 +279,7 @@ void main() {
   float snow = 0.0; // coverage, applied after the ramp rather than through it
 
   if (u_mRays > 0.0) {
-    float v = mRays(uv, u_t);
+    float v = mRays(uv, u_t, u_rms);
     lift += v * u_mRays * 0.62;
     spec += v * u_mRays * 0.3;
   }
@@ -270,7 +292,7 @@ void main() {
   if (u_mDrips > 0.0) {
     // Weight controls density, not brightness: a cave's rare drip has to be
     // as bright as any of rain's, or the sparse case just disappears.
-    float v = mDrips(uv, u_t, u_mDrips, u_slant);
+    float v = mDrips(uv, u_t, u_mDrips, u_slant, u_rms);
     // Flat, not scaled by weight — the comment above always said the sparse
     // case has to be as bright as the dense one, but the gain said otherwise
     // and a lone droplet arrived dimmer than the rain it stood in for.
@@ -307,7 +329,9 @@ void main() {
     float shard = mFacets(p * 1.4, u_t, seam);
     g = mix(g, shard, u_mFacets * 0.4); // flatten the field into shards
     lift += seam * u_mFacets * 0.3;
-    spec += seam * u_mFacets * 0.85;
+    // The seams are where ice catches light, so that is where the music goes:
+    // frozen geometry, moving highlights.
+    spec += seam * u_mFacets * (0.6 + u_rms * 2.2);
   }
 
   // Mass can shape the field but must never swallow it — an all-mass theme
@@ -328,8 +352,11 @@ void main() {
   vec3 matter = texture2D(u_tex, q + r * 0.25).rgb;
   col = mix(col, col * matter * 1.7, u_texAmt);
 
-  float glint = mGlint(uv * 30.0, u_t, clamp(u_sparkle * 0.55, 0.0, 1.0));
-  col += glint * u_c4 * u_sparkle * 0.7;
+  // Multiplied by the surface it sits on, so glints look like light catching
+  // something rather than dust floating in front of it. A glint on the dark
+  // side of a crag was the tell that they were unrelated to the shapes.
+  float glint = mGlint(uv * 30.0, u_t, u_sparkleDensity, 0.35 + u_sparkle * 1.4);
+  col += glint * u_c4 * smoothstep(0.12, 0.6, g) * 0.9;
 
   float d = length(uv);
   float ring = (1.0 - u_pulse) * 1.15;
@@ -385,14 +412,18 @@ const lerp = (a, b, k) => a + (b - a) * k;
 // twitches on your material; turn it down if it feels dead. Watch it move.
 const GEOM_TAU = 0.35;  // domain warp, blob displacement
 const SHIFT_TAU = 1.0;  // palette shift: a drift across a piece, not a twitch
+const LIGHT_TAU = 0.18; // loudness reaching the motifs
 
 // One per renderer instance; seeded to IDLE's values so the first frame after
 // a theme load does not lurch in from zero.
 function createMotionSmoother() {
-  const v = { warp: 0, shift: 0.4 };
+  const v = { warp: 0, shift: 0.4, light: 0 };
   return (f, dt) => {
     v.warp += (f.bass - v.warp) * (1 - Math.exp(-dt / GEOM_TAU));
     v.shift += (f.centroid - v.shift) * (1 - Math.exp(-dt / SHIFT_TAU));
+    // Faster than the geometry pair: this one shapes motifs that are allowed
+    // to answer a phrase, just not a single frame's worth of extraction noise.
+    v.light += (f.rms - v.light) * (1 - Math.exp(-dt / LIGHT_TAU));
     return v;
   };
 }
@@ -442,7 +473,8 @@ function themeStub() {
 const UNIFORM_NAMES = [
   'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
   'u_bright', 'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
-  'u_gloss', 'u_slant', 'u_base', 'u_drift', ...MOTIF_UNIFORMS,
+  'u_gloss', 'u_slant', 'u_base', 'u_drift', 'u_rms', 'u_sparkleDensity',
+  ...MOTIF_UNIFORMS,
 ];
 
 function createGL(canvas, reducedMotion) {
@@ -603,6 +635,10 @@ function createGL(canvas, reducedMotion) {
     gl.uniform1f(U.u_slant, th.params.slant || 0);
     gl.uniform1f(U.u_base, th.params.base);
     gl.uniform1f(U.u_drift, th.params.drift);
+    // Loudness reaches the motifs smoothed, for the same reason the warp is:
+    // these drive shapes, and a 40 ms attack on a shape is a flinch.
+    gl.uniform1f(U.u_rms, sm.light);
+    gl.uniform1f(U.u_sparkleDensity, th.params.sparkle * 0.22);
     for (let i = 0; i < MOTIF_NAMES.length; i++) {
       gl.uniform1f(U[MOTIF_UNIFORMS[i]], th.motifs?.[MOTIF_NAMES[i]] || 0);
     }
