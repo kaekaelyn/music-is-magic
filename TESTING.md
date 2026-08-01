@@ -184,7 +184,7 @@ npm test
 assets ok — 8 theme(s), 1 warning(s)
 
 34/34 checks passed      ← the website
-35/35 checks passed      ← the broadcast
+37/37 checks passed      ← the broadcast
 ```
 
 The one warning is expected and correct: it says the eye manifest declares no
@@ -439,7 +439,7 @@ The phone must be on the **same WiFi**, not cell data.
 | If | Then |
 |---|---|
 | **No wake/seal on the phone, and mood taps do nothing** | The phone's URL has no `?topic=`. Without one the page has no channel, so it hides the controls and says so on screen. This is the most common miss — check the address bar |
-| **You used `?relay=local` for the phone** | That mode is one browser on one machine only; it cannot cross devices. Both pages need the same `?topic=` instead |
+| **You used `?relay=local` for the phone** | That mode is one browser on one machine only; it cannot cross devices. Both pages need the same `?topic=` instead. A leftover `?relay=local` beside a `?topic=` is now ignored in favour of the topic, but check the desktop's `control` row: if it reads **this machine only**, nothing you tap on a phone will ever arrive |
 | The two pages each look fine but ignore each other | The topics differ. One character is enough. Compare them side by side, character for character — there is deliberately no error for this, because a wrong topic is indistinguishable from a quiet one |
 | `control: reconnecting` and it stays there | Topic mismatch, or no internet on one of the two devices |
 | Works on the desktop's own HUD but not the phone | The phone is on cell data, not WiFi. Either join the WiFi or deploy the site (RUNNING.md Part 2 option B) |

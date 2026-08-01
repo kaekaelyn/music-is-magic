@@ -195,7 +195,7 @@ The corner panel is the operator HUD. It reads:
 | `eye` | current state — sealed, stirring, open, communing, drowsing |
 | `mood` | the theme currently showing |
 | `audio` | `live` = the mic is driving the visuals. Anything else, see troubleshooting |
-| `control` | `subscribed` = your phone can reach this page |
+| `control` | `subscribed` (green) = your phone can reach this page. `this machine only` = local mode, and no phone will ever reach it. `connecting…` / `reconnecting` = not there yet |
 | `render` | `webgl` is good. `canvas2d` means this machine fell back — still works, looks simpler |
 
 The HUD fades out on its own after six seconds of no mouse movement, and the

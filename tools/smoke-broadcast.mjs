@@ -281,6 +281,37 @@ try {
     await ctx.close();
   }
 
+  // === 5b. a topic beats a stale ?relay=local ========================
+  //
+  // The combination is a contradiction, and resolving it the other way sent
+  // a broadcast page to a channel its phone could not reach while both ends
+  // looked healthy. No watch() here: the ntfy subscription cannot connect
+  // from a test machine, and its failure is the point, not noise to police.
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/broadcast.html?nomic=1&relay=local&topic=smoke-test-topic&fast=1`);
+    await eyeIs(page, 'sealed');
+    const detail = await page.textContent('#hRelay');
+    check(
+      !/this machine/.test(detail),
+      'a ?topic= overrides a leftover ?relay=local',
+      `control row reads "${detail}"`
+    );
+    // And local mode, when it is genuinely chosen, must not look healthy.
+    const solo = await ctx.newPage();
+    await solo.goto(`${BASE}/broadcast.html?nomic=1&relay=local&fast=1`);
+    await eyeIs(solo, 'sealed');
+    const soloDetail = await solo.textContent('#hRelay');
+    const soloClass = await solo.getAttribute('#hRelay', 'class');
+    check(
+      /this machine/.test(soloDetail) && /warn/.test(soloClass || ''),
+      'local mode says it cannot leave the machine, and is not shown as healthy',
+      `control row reads "${soloDetail}" (${soloClass})`
+    );
+    await ctx.close();
+  }
+
   // === 6. the frame can be made clean ================================
   {
     const ctx = await browser.newContext();

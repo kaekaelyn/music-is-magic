@@ -58,7 +58,15 @@ const fast = mock && qs.get('fast') === '1';
 // owner-facing, so these overrides are not gated on mock mode the way the
 // visitor-facing ones are. index.html never touches them.
 const relayTopic = qs.get('topic') || RELAY_TOPIC;
-const relayMode = qs.get('relay') || (relayTopic ? 'ntfy' : 'none');
+const qsRelay = qs.get('relay');
+// A topic wins over ?relay=local, rather than the other way round. The two
+// together are a contradiction — local is BroadcastChannel, which cannot
+// leave the machine, so a topic beside it can only be ignored — and letting
+// the mode flag win stranded a broadcast page on a channel its phone could
+// not reach, while both ends reported themselves healthy. A ?topic= is a
+// deliberate act; a stale ?relay=local in a bookmark is not. ?relay=none
+// still switches the channel off, because that one is unambiguous.
+const relayMode = relayTopic && qsRelay !== 'none' ? 'ntfy' : qsRelay || 'none';
 
 export const CONFIG = {
   mock,

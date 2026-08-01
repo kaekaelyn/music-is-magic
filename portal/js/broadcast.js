@@ -241,7 +241,11 @@ relay.start({
       setDesired(s.eye === EYE_LIVE);
     }
   },
-  onStatus: ({ ok, detail }) => say(el.relay, detail, ok ? 'good' : 'warn'),
+  // Only a real, off-machine channel earns green. `local` is working-as-built
+  // but cannot reach a phone, and showing that as healthy is how an evening
+  // gets spent looking for the fault somewhere else.
+  onStatus: ({ ok, detail }) =>
+    say(el.relay, detail, ok && relay.mode === 'ntfy' ? 'good' : 'warn'),
 });
 
 // Say what is actually known. Until onStatus fires, "connecting" is the

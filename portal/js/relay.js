@@ -94,7 +94,9 @@ function localAdapter() {
       };
       window.addEventListener('storage', onStorage);
 
-      if (handlers.onStatus) handlers.onStatus({ ok: true, detail: 'local' });
+      // Named for what it cannot do, not what it is. A green "local" reads as
+      // a healthy channel, and this one reaches no other device.
+      if (handlers.onStatus) handlers.onStatus({ ok: true, detail: 'this machine only' });
     },
 
     publish(state) {
