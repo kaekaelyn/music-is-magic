@@ -240,7 +240,19 @@ differently:
   the room is loud — and `travelX`/`travelY` give it a direction that carries
   the whole texture-space frame (the current). This is how a theme becomes a
   place you move through: ocean's rolling sets, forest's walk among the
-  trunks, mountain's journey along the chain.
+  trunks, mountain's journey along the chain. It also drives everything the
+  moods do slowly and cumulatively: ice's frost thickening, cave's light
+  swinging round its quartz.
+
+  **Its scope is one visit to one mood.** It resets in `setTheme` and is
+  scaled by `intensity`, so it counts time in *this* mood while the eye is
+  actually open — not the session, and not that mood's lifetime history. It
+  began as a single clock for the whole page, which meant ocean's current
+  advanced cave's crystal selection while cave was off screen, and a mood
+  returned to an hour later resumed mid-cycle instead of beginning. The cost
+  of the reset is a cut in the outgoing mood's motion during the 2.2s
+  crossfade — one uniform cannot hold two positions — which is the cheaper
+  flaw, since the whole image is dissolving at that moment anyway.
 - `u_centroid` — smoothed pitch/timbre brightness. The aurora wakes on high
   playing AND slides along its colour band; ice's strikes pick different shard
   families by register; sunshine's fan leans with it; rain's sky bruises when

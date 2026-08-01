@@ -1485,6 +1485,19 @@ function createGL(canvas, reducedMotion) {
     cur = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
     tgt = theme;
     morph = 0;
+    // The travel clock restarts with every mood. It is what "the longer you
+    // play" means — frost thickening, the cave's light swinging round, the
+    // sea and the forest travelling — and the only reading of that which
+    // makes sense is THIS visit to THIS mood. One clock for the whole
+    // session (what this used to be) meant ocean's current was advancing
+    // cave's crystal selection while cave was not even on screen, and a mood
+    // returned to an hour later resumed mid-cycle instead of beginning.
+    //
+    // The cost is a cut in the outgoing mood's motion during the 2.2s
+    // crossfade, since one uniform cannot hold two positions. Inside a
+    // crossfade, where the whole image is dissolving anyway, that is the
+    // cheaper of the two flaws.
+    flowAcc = 0;
   }
 
   const smoothMotion = createMotionSmoother();
@@ -1502,10 +1515,18 @@ function createGL(canvas, reducedMotion) {
     // monotonic. An offset proportional to loudness slides back when the
     // sound dies — the owner watched the snow do exactly that. Integrating
     // the rate means motion earned by the music is kept.
+    //
     // The idle floor is LOW on purpose: a mountain range should hold nearly
     // still until the music moves it, and the owner found the ocean's resting
     // pace too quick. Playing is what buys motion.
-    flowAcc += dt * (th.params.travel || 0) * motion * (0.12 + sm.light * 1.6);
+    //
+    // Scaled by intensity, so the clock runs only while the mood is actually
+    // on screen: a sealed eye does not quietly age the frost for twenty
+    // minutes and then open onto the middle of a cycle. Together with the
+    // reset in setTheme, "the longer you play" means this visit to this mood,
+    // and nothing wider.
+    flowAcc += dt * (th.params.travel || 0) * motion * intensity
+             * (0.12 + sm.light * 1.6);
 
     if (f.flux * m.pulseFlux > 0.55) pulse = Math.max(pulse, Math.min(1, f.flux));
     pulse *= Math.exp(-dt * 1.6);
