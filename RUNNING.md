@@ -71,9 +71,13 @@ microphone access there.
 
 Pick whichever you already have:
 
-**Node** — the easier one on Windows. Install from
-[nodejs.org](https://nodejs.org/) (get the **LTS** build), then reopen your
-terminal:
+**Node** — the easier one on Windows. Install the **LTS** build from
+[nodejs.org](https://nodejs.org/), then reopen your terminal.
+
+> **Already have Node? Check its version anyway:** `node --version` must say
+> **v18 or higher**. An old Node fails with a page of `gyp ERR!` and Python
+> complaints that has nothing to do with this project — see
+> [TESTING.md 0.3](TESTING.md#03--install-nodejs-and-check-the-version-even-if-you-have-it).
 
 ```sh
 cd path/to/music-is-magic        # Windows: cd C:\musicismagic

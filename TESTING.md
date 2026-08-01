@@ -90,16 +90,18 @@ If you see those seven things, you are done with the hard part.
 > **From here on**, wherever this file says `cd music-is-magic`, Windows users
 > should type `cd C:\musicismagic`.
 
-### 0.3 — install Node.js
+### 0.3 — install Node.js, and check the version even if you have it
 
-You need **Node.js 18 or newer**. Check:
+**Do not skip the check.** Having Node is not the same as having a usable
+Node, and an old one fails in ways that look like the project is broken
+rather than like a version problem.
 
 ```sh
 node --version
 ```
 
-Nothing, or a number below 18? Install the **LTS** build from
-[nodejs.org](https://nodejs.org/), or:
+You need **v18 or newer**. Anything lower — or nothing at all — install the
+**LTS** build from [nodejs.org](https://nodejs.org/), or:
 
 ```sh
 # macOS
@@ -108,8 +110,34 @@ brew install node
 sudo apt install nodejs npm
 ```
 
-On Windows, **close and reopen your terminal** after installing, or `node`
-will still look missing.
+On Windows the installer upgrades in place; you do not need to uninstall the
+old one first.
+
+**Then close your terminal completely and open a new one.** The old window
+keeps using the old Node no matter what you installed. Re-run `node --version`
+in the new window to confirm the number actually changed.
+
+<details>
+<summary>What an old Node looks like when you skip this (click to expand)</summary>
+
+Node 8's `npx` does not understand `--yes`, so it misreads
+`npx --yes serve portal --listen 8000` and tries to download a package from
+the registry actually named `portal`. That package needs `fibers`, which is
+compiled C++, so you get a page of this instead of a web server:
+
+```
+gyp ERR! configure error
+gyp ERR! stack Error: Can't find Python executable ...
+gyp ERR! node -v v8.11.3                    ← the actual problem, buried
+npm ERR! Failed at the fibers@5.0.3 install script.
+```
+
+The `gyp`, Python and `fibers` lines are all downstream noise. The only line
+that matters is `node -v`. Other tells that you are on an ancient Node/npm:
+`npx: installed 1 in 2.3s`, `up to date in 0.11s`, or npm suggesting `sudo
+chown` on a Windows machine.
+
+</details>
 
 ### 0.4 — install the test tooling
 
@@ -220,6 +248,8 @@ blank. To stop it deliberately, click the window and press `Ctrl+C`.
 | `Path must be a string. Received undefined` | The `--listen` argument did not parse. Nearly always a mistyped flag — if you shortened it to `-l`, check you used a lowercase **L** and not the digit **1**. Safest is to spell out `--listen` |
 | `EADDRINUSE` / `address already in use` | Port 8000 is taken, usually by a server you already left running. Close that window, or pick another port (`--listen 8010`) and use it in the URLs too |
 | `'npx' is not recognized` | Node is not installed, or the terminal predates the install. See 0.3 and reopen the terminal |
+| A wall of `gyp ERR!`, `node-gyp`, `fibers`, or "Can't find Python executable" | Your Node is too old — check `node --version`, and see 0.3. Nothing here needs Python or a C++ compiler; that error only appears when an ancient `npx` goes looking for the wrong package |
+| `npx` seems to download something from the internet instead of serving your folder | Same cause. Modern `npx` fetches only `serve`; an old one misreads the arguments |
 
 Open **http://localhost:8000/** — sealed stone eye, a slow ember in the seam,
 nothing clickable.
