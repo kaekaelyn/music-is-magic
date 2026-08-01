@@ -16,8 +16,8 @@
     "slant": 0,
     "base": 0.3,
     "drift": 0.3,
-    "travel": 0,
-    "travelX": 0,
+    "travel": 0.3,
+    "travelX": 0.2,
     "travelY": 0
   },
   "mappings": {
@@ -41,7 +41,8 @@
     "wisps": 0,
     "foam": 0,
     "stars": 0,
-    "aurora": 0
+    "aurora": 0,
+    "clouds": 0.55
   },
   "textures": []
 }

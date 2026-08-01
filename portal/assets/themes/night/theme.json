@@ -1,5 +1,5 @@
 {
-  "name": "default",
+  "name": "night",
   "palette": [
     "#030714",
     "#101d40",
@@ -41,7 +41,8 @@
     "wisps": 0,
     "foam": 0,
     "stars": 0.95,
-    "aurora": 0.65
+    "aurora": 0.65,
+    "clouds": 0
   },
   "textures": []
 }

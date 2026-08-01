@@ -41,7 +41,8 @@
     "wisps": 0,
     "foam": 0.75,
     "stars": 0,
-    "aurora": 0
+    "aurora": 0,
+    "clouds": 0
   },
   "textures": []
 }

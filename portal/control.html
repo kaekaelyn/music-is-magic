@@ -204,7 +204,7 @@
 
     // Buttons come from the same index.json the portal uses — adding a theme
     // folder updates this page too, no edits here.
-    const FALLBACK = ['default', 'forest', 'cave', 'ice', 'mountain', 'ocean', 'rain', 'sunshine'];
+    const FALLBACK = ['night', 'forest', 'cave', 'ice', 'mountain', 'ocean', 'rain', 'sunshine'];
     let names = FALLBACK;
     try {
       const res = await fetch('assets/themes/index.json', { cache: 'no-cache' });

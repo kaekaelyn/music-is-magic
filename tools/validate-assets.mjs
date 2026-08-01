@@ -67,9 +67,13 @@ if (index !== null) {
     fail('themes/index.json: every entry must be a string');
   } else {
     names = index;
-    // 'default' is the landing spot for every unknown token (§5.2) — if it
-    // isn't listed, themes.js normalizes to a name it will then reject.
-    if (!names.includes('default')) fail("themes/index.json: must include 'default'");
+    // The fallback is the landing spot for every unknown token (§5.2) — if it
+    // isn't listed, themes.js normalizes to a name it will then reject. The
+    // engine owns the name, so a rename there is enforced here automatically.
+    const fallback = themesModule.FALLBACK_THEME || 'default';
+    if (!names.includes(fallback)) {
+      fail(`themes/index.json: must include '${fallback}' (the fallback theme)`);
+    }
     const dupes = names.filter((n, i) => names.indexOf(n) !== i);
     if (dupes.length) fail(`themes/index.json: duplicate entries: ${dupes.join(', ')}`);
     for (const n of names) {

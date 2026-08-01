@@ -33,7 +33,7 @@ const NTFY_LINE = "const NTFY_TOPIC = '';";
 
 export async function startPortal() {
   // live/theme drive the status endpoint; topic fills in §5.7's config edit.
-  const state = { live: false, theme: 'default', topic: '' };
+  const state = { live: false, theme: 'night', topic: '' };
 
   const server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(req.url.split('?')[0]));

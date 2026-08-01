@@ -8,13 +8,18 @@
 // Exported so tools/validate-assets.mjs can catch drift between these
 // fallbacks and the theme.json files they mirror — a silent divergence would
 // only show up as "the site looks different when the network is slow".
+// The landing spot for every unknown or empty token (§5.2). Renamed from
+// 'default' at the owner's request — call it what it is — and old 'default'
+// tokens resolve here through the unknown-token path, so nothing breaks.
+export const FALLBACK_THEME = 'night';
+
 export const BUILTIN = {
-  // Night sky. The reserved fallback used to sit at almost exactly cave's
-  // colour and behave like it, so the one theme a visitor sees if a fetch ever
-  // fails read as a duplicate of another mood. A sky is the right character
-  // for it: it is what is there before any weather arrives, it is legible at
-  // a glance, and nothing else in the set is looking upward.
-  default: {
+  // Night sky — and named for what it is. 'night' is also the fallback every
+  // unknown or empty token lands on (FALLBACK_THEME below): a sky is what is
+  // there before any weather arrives, and nothing else in the set looks up.
+  // Old 'default' tokens still arrive from cached phones and old metadata;
+  // they are simply unknown now, so they resolve here. That is the alias.
+  night: {
     // Midnight BLUE, not violet — cave owns the violet dark, and the two were
     // reading as siblings. The aurora and the onset meteors are what keep the
     // sky from being just another sparkle field: stars sit still and twinkle,
@@ -34,13 +39,17 @@ export const BUILTIN = {
   // and more frequent wisps, and a saturated canopy-green in the upper steps.
   // Audio: dapple shifts overhead with loudness, wisps swell, rays flare.
   forest: {
-    palette: ['#08130a', '#33301f', '#3f7a41', '#94c56a', '#f0f8d8'],
+    // Two different greens in the mid steps — teal-green shade into
+    // yellow-green light — so the shiftCentroid sweep wanders real hue
+    // instead of one green's brightness. Brown stays confined to the trunk
+    // step, which is what keeps this out of army-camo territory.
+    palette: ['#081409', '#332f20', '#2e6b4a', '#92bd5e', '#eef7d4'],
     // travel: a walk among the trees. Near trunks pass fastest, wisps at a
     // middle rate, the mist drifts with you, and the rays stay anchored to
     // the sky — the parallax is the depth. Loud playing quickens the walk.
     params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.55, drift: 0.35, travel: 0.55, travelX: 0.3 },
     motifs: { columns: 0.75, dapple: 0.85, rays: 0.5, wisps: 0.65 },
-    mappings: { warpBass: 0.5, brightRms: 0.75, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.2 },
+    mappings: { warpBass: 0.5, brightRms: 0.75, sparkleTreble: 1.2, pulseFlux: 1, shiftCentroid: 0.32 },
   },
   // Wet dark: a tunnel receding, crystal on its walls, and a drip now and then.
   // The low drips weight is the sparseness — see mDrips' duty cycle. crags is
@@ -50,7 +59,10 @@ export const BUILTIN = {
     palette: ['#05050a', '#12101d', '#2b2440', '#5f5280', '#d2dcef'],
     params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.8, gloss: 0.3, base: 0.5, drift: 0.05 },
     motifs: { columns: 0.2, drips: 0.15, tunnel: 0.75 },
-    mappings: { warpBass: 0.18, brightRms: 0.62, sparkleTreble: 1.4, pulseFlux: 0.7, shiftCentroid: 0.1 },
+    // brightRms cut low ON PURPOSE: a cavern that brightens when you play
+    // reads as a light bulb behind rock. The cave's whole answer to the music
+    // is its crystals (tunnel flare + face shimmer) and its drips.
+    mappings: { warpBass: 0.18, brightRms: 0.25, sparkleTreble: 1.4, pulseFlux: 1.1, shiftCentroid: 0.1 },
   },
   // Shards with lit seams — and the strike system: quiet ice is genuinely
   // still and dark, and every onset flash-illuminates a handful of whole
@@ -58,7 +70,10 @@ export const BUILTIN = {
   // that matters here; pulseFlux is raised so more of the playing registers.
   ice: {
     palette: ['#04101c', '#0d2b45', '#2f6f96', '#8fc8e0', '#f2fbff'],
-    params: { scale: 2.0, speed: 0.16, warp: 0.5, sparkle: 1.0, gloss: 0.6, base: 0.55, drift: 0.02 },
+    // travel feeds the FROST clock: frost creeps over the shards while the
+    // room is loud and thaws back on the same slow cycle. Playing frosts the
+    // glass; silence lets it clear.
+    params: { scale: 2.0, speed: 0.16, warp: 0.5, sparkle: 1.0, gloss: 0.6, base: 0.55, drift: 0.02, travel: 0.25 },
     motifs: { facets: 0.9 },
     mappings: { warpBass: 0.06, brightRms: 0.55, sparkleTreble: 1.6, pulseFlux: 1.3, shiftCentroid: 0.1 },
   },
@@ -105,8 +120,10 @@ export const BUILTIN = {
   // flare it: the beams dance rather than merely brighten.
   sunshine: {
     palette: ['#0d2340', '#2f5f8c', '#8fb6cf', '#f2a93b', '#ffd873'],
-    params: { scale: 1.3, speed: 0.26, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.3, drift: 0.3 },
-    motifs: { rays: 0.95, dapple: 0.3 },
+    // clouds: billows that build with loudness and drift one way on the
+    // travel clock, every sunward edge rimmed in the palette's gold.
+    params: { scale: 1.3, speed: 0.26, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.3, drift: 0.3, travel: 0.3, travelX: 0.2 },
+    motifs: { rays: 0.95, dapple: 0.3, clouds: 0.55 },
     mappings: { warpBass: 0.15, brightRms: 0.7, sparkleTreble: 1.0, pulseFlux: 1.15, shiftCentroid: 0.2 },
   },
 };
@@ -133,6 +150,7 @@ export const MOTIFS = Object.freeze({
   foam: 0,      // travelling swell with breaking white water on the crests
   stars: 0,     // fixed points of light, a faint band, meteors on onsets
   aurora: 0,    // curtains of light in a night sky, breathing with loudness
+  clouds: 0,    // billowing cumulus, sunward edges rimmed in the palette's gold
 });
 
 // Spread under every theme so each one carries every key. Morphing is then a
@@ -203,10 +221,10 @@ export function createThemeStore(baseUrl = 'assets/themes') {
     return names.slice();
   }
 
-  // Unknown or empty token → default. Never an error (§5.2).
+  // Unknown or empty token → the fallback. Never an error (§5.2).
   async function load(token) {
     let name = String(token || '').trim().toLowerCase();
-    if (!names.includes(name)) name = 'default';
+    if (!names.includes(name)) name = FALLBACK_THEME;
     if (cache.has(name)) return cache.get(name);
 
     const base = BUILTIN[name] || BUILTIN.default;

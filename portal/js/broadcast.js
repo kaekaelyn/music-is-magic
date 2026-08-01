@@ -417,7 +417,7 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
-applyTheme('default');
+applyTheme('night');
 // The panel is built from whatever index.json lists, so adding a theme folder
 // updates this page and the control page alike. init() falls back to the
 // built-in names if the fetch fails, so the panel is never empty.

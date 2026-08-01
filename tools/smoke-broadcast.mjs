@@ -104,8 +104,8 @@ try {
     check(true, 'relay carries a mood');
 
     await relaySend(page, { theme: 'not-a-real-theme' });
-    await themeIs(page, 'default');
-    check(true, 'unknown mood degrades to default, not an error');
+    await themeIs(page, 'night');
+    check(true, 'unknown mood degrades to night (the fallback), not an error');
 
     await relaySend(page, { theme: 'ice' });
     await themeIs(page, 'ice');

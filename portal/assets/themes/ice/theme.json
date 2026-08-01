@@ -16,7 +16,7 @@
     "slant": 0,
     "base": 0.55,
     "drift": 0.02,
-    "travel": 0,
+    "travel": 0.25,
     "travelX": 0,
     "travelY": 0
   },
@@ -41,7 +41,8 @@
     "wisps": 0,
     "foam": 0,
     "stars": 0,
-    "aurora": 0
+    "aurora": 0,
+    "clouds": 0
   },
   "textures": []
 }

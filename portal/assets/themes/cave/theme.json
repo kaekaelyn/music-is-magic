@@ -22,9 +22,9 @@
   },
   "mappings": {
     "warpBass": 0.18,
-    "brightRms": 0.62,
+    "brightRms": 0.25,
     "sparkleTreble": 1.4,
-    "pulseFlux": 0.7,
+    "pulseFlux": 1.1,
     "shiftCentroid": 0.1
   },
   "motifs": {
@@ -41,7 +41,8 @@
     "wisps": 0,
     "foam": 0,
     "stars": 0,
-    "aurora": 0
+    "aurora": 0,
+    "clouds": 0
   },
   "textures": []
 }

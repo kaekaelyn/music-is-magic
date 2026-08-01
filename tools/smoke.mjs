@@ -95,7 +95,7 @@ try {
   // === 1. the full ceremony ============================================
   {
     state.live = false;
-    state.theme = 'default';
+    state.theme = 'night';
     const page = await browser.newPage();
     const assertClean = watch(page, 'ceremony');
     await page.goto(`${BASE}/?fast=1`);
@@ -104,8 +104,8 @@ try {
     const kind = await page.evaluate(() => document.body.dataset.viz);
     check(['webgl', 'canvas2d'].includes(kind), `viz renderer selected (${kind})`, kind);
     check(
-      await page.evaluate(() => document.body.dataset.theme) === 'default',
-      'default theme applied at rest'
+      await page.evaluate(() => document.body.dataset.theme) === 'night',
+      'night (the fallback) applied at rest'
     );
     check(
       await page.evaluate(() => !document.getElementById('summon')),
@@ -149,7 +149,7 @@ try {
 
     // Unknown tokens fall back silently; a typo must never break a live stream.
     state.theme = 'definitely-not-a-theme';
-    await themeIs(page, 'default');
+    await themeIs(page, 'night');
     check(true, 'unknown token degrades to default, not an error');
 
     // D12 — drowse, then resume from drowse without going through sealed.
@@ -185,7 +185,7 @@ try {
   // === 2. the control page (§5.6) ======================================
   {
     state.live = false;
-    state.theme = 'default';
+    state.theme = 'night';
     const page = await browser.newPage();
     const assertClean = watch(page, 'control');
     await page.goto(`${BASE}/control.html?fast=1`);
@@ -263,7 +263,7 @@ try {
   // stays black for the rest of the visit.
   {
     state.live = false;
-    state.theme = 'default';
+    state.theme = 'night';
     const page = await browser.newPage();
     const assertClean = watch(page, 'context-loss');
     await page.goto(`${BASE}/?fast=1`);

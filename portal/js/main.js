@@ -46,7 +46,7 @@ function applyTheme(token) {
     if (seq !== themeSeq) return; // a newer token won the race
     viz.setTheme(theme);
     eye.setTheme(theme);
-    // The resolved name, not the raw token: unknown tokens land on 'default'.
+    // The resolved name, not the raw token: unknown tokens land on the fallback.
     document.body.dataset.theme = theme.name;
   });
 }
@@ -137,7 +137,7 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
-applyTheme('default');
+applyTheme('night');
 themes.init();
 resize();
 poller.start();

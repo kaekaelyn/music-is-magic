@@ -204,8 +204,9 @@ library of procedural motifs and a theme declares which ones it is made of:
 | `ridge` | layered ridgelines against the sky — a mountain's silhouette | mountain |
 | `wisps` | a few slow wandering lights, each on its own orbit | forest |
 | `foam` | swell travelling one direction, white water breaking on the crests | ocean |
-| `stars` | fixed points of light, a faint band, a meteor on a strong onset | default |
-| `aurora` | curtains of light, hem rippling, breathing with loudness | default |
+| `stars` | fixed points of light, a faint band, a meteor on a strong onset | night |
+| `aurora` | curtains of light, waking on high pitch, breathing with loudness | night |
+| `clouds` | billowing cumulus, sunward edges rimmed in the palette's gold | sunshine |
 
 ```json
 "motifs": { "rays": 0.85, "dapple": 0.25 },
@@ -226,7 +227,7 @@ moods feel different to PLAY, not just to look at:
 | mountain | a still landscape | spindrift off the near crest, cloud-light shouldered sideways |
 | forest | trunks in mist | dapple shifting overhead, wisps swelling |
 | cave | a rare drip | drips thicken; crystal faces carry the glints |
-| default | fixed stars | the aurora breathing; a strong onset sends one meteor |
+| night | fixed stars | the aurora waking on high pitch; a strong onset sends one meteor |
 
 **The three clocks.** Motifs read time from three uniforms, each earned
 differently:
@@ -622,6 +623,29 @@ the HUD fades to `pointer-events: none`, so a click test has to stir it with
 a real mouse move — forcing the click would have tested a panel no hand can
 hit — and the keyboard path deliberately survives that fade, which is the
 state the rig sits in for most of a set.
+
+### 2026-08-01 — fourth review: named for what it is
+
+'default' is 'night' now, and the fallback name is a single export
+(FALLBACK_THEME) that the loader, the validator and this document all obey —
+old tokens alias through the unknown-token path. The visual work is §14.6's
+list; the lessons worth keeping:
+
+- **Light on a dark ground must be ADDED, not mixed.** The aurora was
+  invisible at any gain while it was a mix toward palette blues that
+  nearly matched the sky behind it. Same family as "light of a colour is
+  a material": light on night is addition.
+- **A cyclical effect must start at the right phase.** Frost driven by
+  sin(flow) began mid-cycle and the eye opened onto half-frosted glass;
+  a −π/2 offset makes silence clear and playing the thing that frosts it.
+- **Composed motifs need composition rules.** Sky-crags, snow-through-crag
+  "holes", static texture under a moving silhouette, full-size drips in
+  front of a receding tunnel — every one was two correct motifs composed
+  without a shared convention. skyMask, per-layer advection and the
+  near-field drip mask are those conventions now.
+- **Response budgets are zero-sum.** Cave only got a voice when the rock's
+  brightRms was CUT — the crystals were answering all along, but the whole
+  field glowing over them drowned it.
 
 ### 2026-08-01 — the travel clock: motion that never gives back
 
@@ -1085,6 +1109,46 @@ Every note mapped to a mechanism; the signature table in §5.4 is the result.
 6. Rain: floor lower and curved with the lens; splashes answer; grey palette.
 7. Forest: light became the subject — more dapple/rays, visible wisps,
    saturated canopy steps, brighter base.
+
+### 14.6 Fourth review (2026-08-01) — physics, frost, clouds, and 'night'
+
+All nine notes taken. The rename: `default` is now **`night`** — the engine's
+fallback name lives in `FALLBACK_THEME` (themes.js), the validator enforces
+whatever that says, and old 'default' tokens resolve to night through the
+ordinary unknown-token path, so cached phones keep working.
+
+- **Night**: the aurora was invisible because it was MIXED at low opacity
+  into near-identical midnight blues; it is now added light from the
+  palette's bright end, wakes at a lower pitch gate, and pales as pitch
+  climbs.
+- **Cave**: the rock no longer glows with loudness (brightRms 0.25) — that
+  read as a light bulb behind stone. The response lives in crystal strikes
+  on the tunnel faces (onsets flash clusters, treble widens and shimmers)
+  and in the drips, which now fade toward the tunnel's far end instead of
+  falling full-size across geometry forty feet away.
+- **Ice**: frost. Feathery ridged-noise filaments seed from the seams and
+  creep over the shards on the flow clock's cycle — playing frosts the
+  glass, silence clears it. The cycle starts CLEAR (phase offset −π/2): the
+  first cut started mid-cycle and the eye opened onto half-frosted glass.
+- **Mountain**: three layering bugs fixed — crags masked out of the sky
+  (skyMask from ridge), crag texture advected at the near range's rate so
+  it rides its mountain, and crag faces no longer seed snow when a ridge is
+  running (sky-snow read as holes with drifts behind them).
+- **Ocean**: crests are the peaks of a travelling noise field now, not a
+  bent sine — a sine reads as horizontal bars no matter what. Surf appears
+  where a peak crosses the breaking line, and loudness lowers the line.
+- **Rain**: ground is a gentle hill cresting at centre (the bowl read as a
+  lens artifact); rainfall duty swings much wider with loudness; a strong
+  onset flashes storm light, gated by slant so cave's seep never flashes.
+- **Forest**: wisps carry per-wisp colours (bright pair of steps, the odd
+  cool one), drift slower than the trunks, and flare with TREBLE while bass
+  owns the mist; two distinct greens in the palette's mid steps so the
+  centroid sweep wanders hue. Brown stays confined to the trunk step.
+- **Sunshine**: `clouds` motif — billows that build with loudness, drift on
+  the travel clock, every sunward edge rimmed in gold (same-field sampled
+  one step toward the light).
+- **Engine**: the flow clock's idle floor dropped to 0.12 — a mountain
+  holds nearly still until the music moves it, and the sea rests slow.
 
 ### 14.5 Third review (2026-08-01) — the travel clock, and pitch
 
