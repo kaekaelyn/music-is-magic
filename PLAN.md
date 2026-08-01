@@ -634,6 +634,66 @@ hardware/          ← empty until the ESP32 day
 
 ## 13. Build log
 
+### 2026-08-01 — cave: a lattice was the wrong structure for a few big objects
+
+§14.8's P0, all three faults. Measured before and after, field alone at the
+broadcast frame's size: **401.6 ms → 220.7 ms per frame**, from 2.25x the
+cheapest mood to 1.22x, and cave is now mid-pack rather than worst by a
+distance.
+
+**The architecture was the bug, exactly as diagnosed.** `mCrystals` searched a
+3x3 neighbourhood with up to four spears per cell — 36 spear evaluations and 81
+sin-based hashes per fragment — to draw at most three lit clusters. A lattice
+makes every fragment pay for every cluster that *could* be near it. The
+clusters are enumerated now: four of them, at hashed positions in the rock's
+frame, three spears each, with a bounding test that rejects a whole cluster
+before its spear loop. That test is the part that pays: a cluster covers a
+contiguous patch of screen, so neighbouring fragments agree about it and the
+whole warp skips together.
+
+Also in that pass, and worth separating from the architecture:
+
+- **A cheap hash, confined to cave.** `ch1`/`ch2` are the usual fract-and-dot
+  bit mixing, no transcendental. §14.8 was right that a sin-free hash pays off
+  everywhere, and wrong that it is contained: every voronoi lattice in the
+  engine is seeded from `hash2`, so swapping it globally re-rolls the crag map,
+  the ice shards, the wisps and the rain lanes at once — and two moods are
+  finished. It is used by `mTunnel` and `mCrystals`, which are cave's alone.
+- **`pow(lam, 9.0)` is written out as five multiplies** — and softened to a
+  fifth power, see below.
+
+**Nothing was visible because two gates had to fire at once**, and neither was
+certain: a cluster had to be nominated by a hash AND a face had to fall inside
+that very tight lobe. The nomination is now a staggered envelope — each slot
+holds a cluster for a turn of the selection clock and hands over, and the hold
+is wider than the gap between slots, so *some* cluster is always fully
+nominated. On top of that the prism's rim survives any light angle, and the
+mass carries a small ambient of its own. What the playing changes is which
+seam is lit, never whether one is.
+
+**Cave had no `travel`, so the clock the whole design hangs off never
+advanced.** `u_flow` was pinned at 0: the light never swung past whatever the
+centroid gave it, and `floor(selClock)` never left its first epoch, so the same
+clusters were nominated forever. Cave now carries `travel: 0.5` and no current,
+so it moves nothing except the light and the selection. Worth checking for on
+any mood whose look depends on the flow clock — a clock that does not advance
+is not a clock, and nothing about a still frame says so.
+
+**The horizon arc was the floor, and a tunnel must not have one.** The passage
+already has a floor — its own lower wall, in its own perspective — and a
+silhouette drawn at a fixed height over that is a second space claiming the
+same pixels, which is why it appeared to bisect the crystals. The floor is
+asked for by `drips` now (things that fall need somewhere to arrive), and only
+where there is no passage. Crystals never wanted one: they grow out of a wall.
+
+Two notes for whoever looks at cave next. The crystals were also simply too
+big — a spear a full lattice cell long spans most of the aperture's radius at
+this scale, which is why "jagged shapes" was the owner's description rather
+than "crystals"; they are less than half that now. And the rock still reads
+more like petals than stone in a still, which is not in §14.8's list and was
+left alone deliberately, but it is the next thing to look at if cave still
+does not feel like a cave.
+
 ### 2026-08-01 — a number instead of an argument
 
 §14.8 asked for a frame-time readout before anything else in P0, and it was
@@ -1206,7 +1266,15 @@ with the diagnosis already done. Where a number is given it was measured or
 derived from the code, not guessed; verify before trusting, but do not
 re-derive from scratch.
 
-#### P0 — Cave is unusable, and it is a performance bug
+#### P0 — Cave is unusable, and it is a performance bug — DONE (2026-08-01)
+
+> Fixed: 401.6 → 220.7 ms/frame (2.25x the cheapest mood → 1.22x), crystals
+> always visible with the playing choosing which, and the floor gone from any
+> theme with a tunnel. The instrumentation this section asked for exists:
+> `frame` in the broadcast HUD, and `npm run perf`. Details in §13. Dynamic
+> resolution is still untaken and is now the only open item here — see the
+> note at the end of P1.
+
 
 > "Very, very laggy. Slowed down my whole computer. And I can't see any
 > crystals. Just a horizon type arc that weirdly bisects some jagged shapes."

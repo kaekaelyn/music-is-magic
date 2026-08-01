@@ -65,7 +65,11 @@ export const BUILTIN = {
   // front of the wall instead of a pattern printed on it.
   cave: {
     palette: ['#04040a', '#100f1c', '#282340', '#5d5480', '#d6e2f5'],
-    params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.8, gloss: 0.3, base: 0.3, drift: 0.05, glint: 0.3 },
+    // travel drives the crystals and nothing else: cave has no current, so
+    // nothing is advected by it. It is the clock the light swings on and the
+    // clock that nominates which seam is showing — "the longer you play". It
+    // was absent, which pinned u_flow at zero and left both of those frozen.
+    params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.8, gloss: 0.3, base: 0.3, drift: 0.05, glint: 0.3, travel: 0.5 },
     motifs: { drips: 0.16, tunnel: 0.7, crystals: 0.85 },
     // brightRms cut low ON PURPOSE: a cavern that brightens when you play
     // reads as a light bulb behind rock. The cave's whole answer to the music

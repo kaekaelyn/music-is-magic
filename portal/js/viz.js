@@ -70,6 +70,26 @@ float hash(vec2 p) {
 vec2 hash2(vec2 p) {
   return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
 }
+// The same job as hash/hash2 without the transcendental: bit-mixing done with
+// fract and a dot product instead of sin. A sin-based hash2 costs two sines,
+// and the crystal enumeration below wants a dozen of them per fragment, which
+// is a measurable part of why cave cost 2.25x the cheapest mood.
+//
+// Deliberately NOT a drop-in replacement for hash2 everywhere: every voronoi
+// lattice in the engine is seeded from it, so swapping it would re-roll the
+// crag map, the ice shards, the wisps and the rain lanes at once — and two
+// moods are finished. Used by mTunnel and mCrystals, which are cave's alone
+// and are being reworked here anyway.
+float ch1(vec2 p) {
+  vec3 v = fract(vec3(p.xyx) * 0.1031);
+  v += dot(v, v.yzx + 33.33);
+  return fract((v.x + v.y) * v.z);
+}
+vec2 ch2(vec2 p) {
+  vec3 v = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+  v += dot(v, v.yzx + 33.33);
+  return fract((v.xx + v.yz) * v.zy);
+}
 float noise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
   f = f * f * (3.0 - 2.0 * f);
@@ -387,10 +407,16 @@ float mCrags(vec2 p, out float upface, out float joint) {
 //
 // face: how much this fragment sits on a crystal plane facing the light —
 // where cave's glints belong, instead of scattered anywhere (§14.2).
+//
+// SIDES is file-scope because the crystals are grown in this motif's frame and
+// have to wrap the same way it does: a cluster sitting on the seam at angle 0
+// must still reach the fragments just the other side of it.
+const float TUNNEL_SIDES = 11.0;
+
 float mTunnel(vec2 uv, float t, float strike, float drive,
               out float face, out float joint, out float flare,
               out vec2 rockP, out float depthOut) {
-  const float SIDES = 11.0;
+  const float SIDES = TUNNEL_SIDES;
   // The vanishing point is off centre and low: a passage seen square-on is a
   // rosette, which is what the first pass looked like — the radial symmetry
   // was doing more work than the recession was.
@@ -426,13 +452,13 @@ float mTunnel(vec2 uv, float t, float strike, float drive,
       vec2 g = vec2(float(x), float(y));
       vec2 id = i + g;
       id.x = mod(id.x, SIDES);              // periodic around the tunnel
-      vec2 r = g + hash2(id) - f;
+      vec2 r = g + ch2(id) - f;
       float dd = dot(r, r);
       if (dd < d1) { d2 = d1; d1 = dd; cell = id; }
       else if (dd < d2) { d2 = dd; }
     }
   }
-  vec2 n = hash2(cell * 2.7) * 2.0 - 1.0;
+  vec2 n = ch2(cell * 2.7) * 2.0 - 1.0;
   n /= max(length(n), 0.001);
   float lit = clamp(0.34 + 0.5 * dot(n, vec2(-0.45, 0.89)), 0.0, 1.0);
   // ROUNDED, not flat. A constant value per cell is a pane of glass; wet
@@ -510,105 +536,158 @@ float mFrost(vec2 q, float t, float grow, float strike) {
 }
 
 // Quartz. Big thick spears in a few clusters, and — the point of the whole
-// motif — INVISIBLE until something lights them.
+// motif — nearly invisible until something lights them.
 //
 // The model is not "draw crystals, modulate their brightness". It is a dark
 // cave containing a lot of quartz, plus a light that moves: each face carries
-// a normal, the light direction swings with pitch and jumps as you play, and
-// a face only shows when it happens to be turned toward the light. On top of
-// that a slow selection clock — driven by the travel clock, so it advances
-// while you play and freezes in silence — nominates a couple of clusters at a
-// time. The result is one to three clusters glistening out of the dark at any
-// moment, from a different angle each time, and nothing at all between.
+// a normal, the light direction swings with pitch and travels while you play,
+// and a face shows when it is turned toward the light. A selection clock
+// nominates the clusters, one at a time, so the cave keeps revealing different
+// seams as the playing goes on.
+//
+// ENUMERATED, NOT A LATTICE — and that is the whole performance story of this
+// mood. This was a 3x3 neighbourhood search with up to four spears per cell:
+// 36 spear evaluations per fragment, and 81 sin-based hashes between them, to
+// draw at most three lit clusters. A lattice is the wrong structure for "a few
+// big objects" — it makes every fragment pay for every cluster that COULD be
+// near it, and cave paid nine cells' worth to show one. Now there are exactly
+// CRYSTAL_CLUSTERS clusters, at hashed positions, with a bounding test that
+// rejects the whole cluster BEFORE its spears. Twelve evaluations at the
+// absolute worst, none at all for most fragments, and no sin anywhere.
+//
+// They are still grown in the ROCK's frame (rockP, handed out by mTunnel), so
+// they are carried by the passage exactly as the stone is and inherit its
+// perspective for free: a cluster deep in the tunnel comes out small, one at
+// the mouth comes out large. Placing them in a frame of their own was the
+// mistake that made them read as shapes stuck on the wall.
 //
 // Structure is quartz, not a spike: parallel sides down the body, a blunt
-// pyramidal termination at the tip, and a couple of long facet bands running
-// the length, each catching the light at its own angle.
+// pyramidal termination at the tip, and facet bands running the length, each
+// catching the light at its own angle.
+#define CRYSTAL_CLUSTERS 4
+#define CRYSTAL_SPEARS 3
 float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
                 float strike, float drive, out float tint, out float faceGlow) {
   tint = 0.5;
   faceGlow = 0.0;
   float best = 0.0;
 
-  // A coarse lattice: few clusters, and big ones. Fine cells gave a gravel of
-  // little shards, which is the opposite of a quartz seam.
+  // Coarse: few clusters, and big ones. Fine cells gave a gravel of little
+  // shards, which is the opposite of a quartz seam.
   vec2 q = rockP * 0.42;
-  vec2 i = floor(q), f = fract(q);
-  for (int y = -1; y <= 1; y++) {
-    for (int x = -1; x <= 1; x++) {
-      vec2 g = vec2(float(x), float(y));
-      vec2 id = i + g;
-      vec2 h = hash2(id);
-      // There is quartz in plenty of the rock...
-      float hosts = step(0.35, hash(id * 2.3));
-      // ...but only a couple of clusters are lit at any moment. The clock
-      // advances with the playing, so the cave keeps revealing different
-      // seams as you go, and holds still when you stop.
-      float sel = hash(id * 3.11 + floor(selClock) * 1.7);
-      float chosen = smoothstep(0.86, 0.96, sel);
+  const float SPAN = TUNNEL_SIDES * 0.42;   // once around the passage
 
-      vec2 root = g + vec2(0.2 + h.x * 0.6, 0.15 + h.y * 0.5);
-      float count = 2.0 + floor(hash(id * 9.7) * 2.999);
+  for (int j = 0; j < CRYSTAL_CLUSTERS; j++) {
+    float fj = float(j);
+    // Each slot holds one cluster for a turn of the selection clock and then
+    // hands over: arrive, hold, fade. The slots are staggered evenly, and the
+    // hold is wider than the gap between them, so SOME cluster is always at
+    // full nomination.
+    //
+    // That guarantee is the fix for "I can't see any crystals". The reveal
+    // used to need two independent things to happen at once — a cluster
+    // nominated by a hash AND a face falling inside a pow(lam, 9.0) lobe —
+    // and when neither is certain, neither happens. What the playing changes
+    // now is WHICH seam is lit, never whether one is.
+    float ph = selClock + fj * (1.0 / float(CRYSTAL_CLUSTERS));
+    float e = floor(ph);
+    float u = fract(ph);
+    float env = smoothstep(0.0, 0.16, u) * (1.0 - smoothstep(0.58, 1.0, u));
+    if (env < 0.004) continue;
 
-      for (int k = 0; k < 4; k++) {
-        float fk = float(k);
-        if (fk >= count) break;
-        vec2 hk = hash2(id + fk * 7.1 + 2.0);
-        vec2 hj = hash2(id * 1.9 + fk * 3.3);
+    vec2 hc = ch2(vec2(fj * 17.3, e));
+    // Rooted at a hashed point on the wall. Depth is biased toward the mouth
+    // (hc.y squared) because a cluster forty feet down the passage is a few
+    // pixels of nothing — the perspective that makes deep crystals small also
+    // makes them not worth spending a slot on.
+    vec2 root = vec2(hc.x * SPAN, 0.30 + hc.y * hc.y * 1.5);
 
-        vec2 rnd = hk * 2.0 - 1.0;
-        vec2 dir = normalize(mix(rnd, vec2(0.0, 1.0), 0.25 + hj.x * 0.3)
-                             + vec2(0.001, 0.0));
-        vec2 side = vec2(-dir.y, dir.x);
+    vec2 d0 = q - root;
+    // The passage is a circle: a cluster near the seam at 0 must still reach
+    // the fragments just the other side of it.
+    d0.x -= SPAN * floor(d0.x / SPAN + 0.5);
+    // The early-out that pays for the rewrite. Reject the cluster here, not
+    // inside the spear loop: a cluster covers a contiguous patch of screen, so
+    // neighbouring fragments agree about this test and the whole warp skips.
+    // 0.76 is the longest spear, plus its widest half-width, plus how far
+    // a spear's own root may be offset from the cluster's.
+    if (dot(d0, d0) > 0.5776) continue;
 
-        vec2 d = f - root;
-        float along = dot(d, dir);
-        float across = dot(d, side);
+    float qtint = ch1(vec2(e, fj * 3.7));   // one mineral per cluster, not per spear
 
-        // Big: a spear, not a needle.
-        float len = 0.5 + hk.y * 0.55;
-        float wid = 0.06 + hk.x * 0.075;
+    for (int k = 0; k < CRYSTAL_SPEARS; k++) {
+      float fk = float(k);
+      // Three independent draws. Sharing one hash between the direction and
+      // the dimensions correlates them — every spear pointing one way is long,
+      // which the eye reads as one shape repeated (§14.7).
+      vec2 ha = ch2(vec2(fj * 5.1 + fk, e * 2.3 + 7.0));
+      vec2 hb = ch2(vec2(fj * 9.7 + fk * 3.3, e * 1.7 + 19.0));
+      vec2 hf = ch2(vec2(fj * 3.1 + fk * 7.7, e + 41.0));
+      float hj = ch1(vec2(fj * 11.0 + fk * 2.9, e));
 
-        float u = along / len;
-        // Parallel sides, then a pyramidal cap over the last fifth — that
-        // termination is what makes quartz read as quartz.
-        float capAt = 0.72 + hj.y * 0.16;
-        float w = wid * (u < capAt ? 1.0 : max(0.0, (1.0 - u) / (1.0 - capAt)));
-        float inside = hosts * step(0.0, u) * step(u, 1.0) * step(abs(across), w);
-        if (inside < 0.5) continue;
+      vec2 rnd = ha * 2.0 - 1.0;
+      // A third to two thirds toward +depth, the rest the seam's own hash.
+      // Bias it harder and every crystal points at the vanishing point, which
+      // turns the wall into a starburst.
+      vec2 dir = normalize(mix(rnd, vec2(0.0, 1.0), 0.35 + hj * 0.35)
+                           + vec2(0.001, 0.0));
+      vec2 side = vec2(-dir.y, dir.x);
 
-        // Facet bands down the length: the prism has several faces, and each
-        // one turns a slightly different way. Three bands is enough to read.
-        float band = floor((across / max(w, 0.001)) * 1.5 + 1.5);
-        float lean = (band - 1.0) * 0.55;      // -0.55, 0, +0.55
-        // The face normal: mostly the prism's side, tilted by which band.
-        vec2 n = normalize(side * sign(across + 0.0001) + dir * lean);
+      // Spears fan out of a shared seam rather than all growing from one
+      // point. Sharing the exact root fused the three into one lump — a
+      // cluster has to read as several crystals meeting at the rock, or the
+      // word cluster is doing no work.
+      vec2 d = d0 - (hf - 0.5) * vec2(0.16, 0.10);
+      float along = dot(d, dir);
+      float across = dot(d, side);
 
-        // Lambert against the moving light, sharpened hard so a face is
-        // either catching it or dark — quartz glints, it does not shade.
-        float lam = max(dot(n, lightDir), 0.0);
-        // Hard: a quartz face is either turned to the light or it is not.
-        // A soft falloff spreads every cluster into a smudge, and the whole
-        // effect depends on the silhouette arriving intact.
-        float glint = pow(lam, 9.0);
-        // The prism's edges catch a line of light whatever way it faces —
-        // that bright rim is most of how the eye reads a crystal as faceted
-        // rather than as a lozenge of glow.
-        float edge = smoothstep(0.82, 1.0, abs(across) / max(w, 0.001));
-        glint = clamp(glint + edge * lam * 0.55, 0.0, 1.5);
+      // A spear, not a needle — but shorter than the first cut, which grew
+      // them a full cell long. At this scale one unit of depth is most of the
+      // aperture's radius, so a crystal that big stops reading as a crystal
+      // and starts reading as terrain. ("Just a horizon type arc that weirdly
+      // bisects some jagged shapes" — the jagged shapes WERE the crystals.)
+      float len = 0.22 + hb.y * 0.34;
+      float wid = 0.05 + hb.x * 0.055;
 
-        // What you actually see: the chosen clusters, the faces turned to
-        // the light, and a flare on the attack itself. The tiny constant is
-        // all the ambient there is — enough to feel a mass in the dark
-        // without ever drawing the crystal outright.
-        float v = chosen * (glint * (0.35 + drive * 0.8) + glint * strike * 1.6)
-                + inside * 0.035;
+      float uu = along / len;
+      // Parallel sides, then a pyramidal cap over the last fifth — that
+      // termination is what makes quartz read as quartz.
+      float capAt = 0.7 + hj * 0.18;
+      float w = wid * (uu < capAt ? 1.0 : max(0.0, (1.0 - uu) / (1.0 - capAt)));
+      if (uu < 0.0 || uu > 1.0 || abs(across) > w) continue;
 
-        if (v > best) {
-          best = v;
-          faceGlow = chosen * glint;
-          tint = hash(id * 4.3);   // one mineral per cluster, not per spear
-        }
+      // Facet bands down the length: the prism has several faces, and each
+      // one turns a slightly different way. Three bands is enough to read.
+      float band = floor((across / max(w, 0.001)) * 1.5 + 1.5);
+      float lean = (band - 1.0) * 0.55;      // -0.55, 0, +0.55
+      // The face normal: mostly the prism's side, tilted by which band.
+      vec2 n = normalize(side * sign(across + 0.0001) + dir * lean);
+
+      // Lambert against the moving light, sharpened so a face is either
+      // catching it or dark — quartz glints, it does not shade. Softened from
+      // pow(lam, 9.0) to a fifth power: nine was a lobe so tight that the
+      // light had to be aimed almost exactly at a face, and it usually was
+      // not. Written out rather than pow() — three multiplies against a
+      // transcendental, in the motif that made this mood unusable.
+      float lam = max(dot(n, lightDir), 0.0);
+      float l2 = lam * lam;
+      float glint = l2 * l2 * lam;
+      // The prism's edges catch a line of light whatever way they face, and
+      // that rim is both how the eye reads a crystal as faceted and the floor
+      // that keeps a nominated cluster visible while the sweep is behind it.
+      float edge = smoothstep(0.76, 1.0, abs(across) / max(w, 0.001));
+      glint = clamp(glint + edge * (0.22 + 0.5 * lam), 0.0, 1.5);
+      // The mass itself: dim, but enough to feel quartz standing in the dark
+      // before anything lights it. Ambient was 0.035 and gated on nothing,
+      // which is a mass you cannot see; this is gated on the nomination, so
+      // it is one visible cluster rather than a haze over all of them.
+      float body = 0.05 + 0.11 * lam;
+
+      float v = env * (body + glint * (0.3 + drive * 0.85) + glint * strike * 1.5);
+      if (v > best) {
+        best = v;
+        faceGlow = env * glint;
+        tint = qtint;
       }
     }
   }
@@ -995,12 +1074,20 @@ void main() {
     spec += v * 1.5 + splash * 1.8;
   }
   // The ground. Any theme with something falling in it needs a surface for
-  // that thing to arrive on — the rain reads because the water lands, and
-  // the cave read as nothing in particular because its drips fell forever.
+  // that thing to arrive on — the rain reads because the water lands.
   // A gentle hill cresting at centre; below it, everything is cut hard
   // toward dark so it is a floor rather than more weather, with a wet sheen
   // at the line where the eye looks to see if water is standing.
-  float floorAmt = max(W_drips, W_crystals);
+  //
+  // A TUNNEL DOES NOT GET ONE. The passage already has a floor — its own lower
+  // wall, drawn in the passage's own perspective — and a second silhouette laid
+  // over that at a fixed height is a different space claiming the same pixels.
+  // What the owner saw was "a horizon type arc that weirdly bisects some jagged
+  // shapes": the arc is this line, and the jagged shapes it cut in half are the
+  // crystals, which are drawn over and through it. Crystals never wanted a
+  // floor anyway — they grow out of a wall, they do not fall onto one — so the
+  // drips are what asks for it, and only where there is no passage to land in.
+  float floorAmt = W_drips * (1.0 - step(0.001, W_tunnel));
   if (floorAmt > 0.0) {
     float groundY = -0.24 - uv.x * uv.x * 0.18;
     mass += smoothstep(groundY + 0.01, groundY - 0.04, uv.y) * floorAmt * 0.55;
@@ -1083,9 +1170,16 @@ void main() {
     // swings further as you keep playing. This is the whole mood: you are
     // not lighting the cave, you are catching different quartz with every
     // phrase.
+    //
+    // Both terms ride the travel clock, and cave carries a travel rate for
+    // this and nothing else (its current is zero, so nothing is advected). It
+    // had none, which quietly killed both halves of the design: u_flow was
+    // pinned at 0, so the light never swung past whatever the centroid gave
+    // it, and floor(selClock) never left its first epoch — the same clusters
+    // were nominated forever. A clock that does not advance is not a clock.
     float la = u_centroid * 4.2 + u_flow * 0.9;
     vec2 lightDir = vec2(cos(la), sin(la));
-    crystal = mCrystals(rockP, u_t, u_flow * 1.6, lightDir,
+    crystal = mCrystals(rockP, u_t, u_flow * 0.5, lightDir,
                         u_pulse, clamp(u_sparkle, 0.0, 1.0), crystalTint, faceGlow);
     // Fade into the passage with the rock they grow on.
     crystal *= mix(1.0, rockDepth, haveRock) * W_crystals;

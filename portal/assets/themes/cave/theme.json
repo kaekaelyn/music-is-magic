@@ -18,7 +18,7 @@
     "slant": 0,
     "base": 0.3,
     "drift": 0.05,
-    "travel": 0,
+    "travel": 0.5,
     "travelX": 0,
     "travelY": 0
   },
