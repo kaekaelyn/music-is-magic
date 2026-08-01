@@ -121,6 +121,19 @@ try {
     await eyeIs(page, 'communing');
     check(true, 'the eye reopens for a second set');
 
+    // The frame-time readout (§14.8). A mood too expensive for the machine it
+    // is running on is a bug the owner can only report usefully if the rig
+    // tells them a number, so the row has to fill itself in unprompted — an
+    // instrument that silently reads '—' forever is worse than no instrument,
+    // because it looks like a measurement.
+    const ms = await page
+      .waitForFunction(() => {
+        const m = /([\d.]+)\s*ms/.exec(document.getElementById('hFrame').textContent);
+        return m ? Number(m[1]) : false;
+      }, null, { timeout: 10000, polling: 200 })
+      .then((h) => h.jsonValue());
+    check(ms > 0 && ms < 10000, 'the HUD reports a frame time', `read ${ms}`);
+
     assertClean();
     await ctx.close();
   }

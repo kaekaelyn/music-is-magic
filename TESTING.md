@@ -294,7 +294,8 @@ http://localhost:8000/broadcast.html?nomic=1&relay=local
 - A sealed stone eye, noticeably **larger** than on the website — it is sized
   for a 16:9 frame.
 - A corner HUD reading `eye: sealed`, `audio: synthetic (?nomic=1)`,
-  `control: local`, `render: webgl`.
+  `control: local`, `render: webgl`, and a `frame` row that starts as `—` and
+  fills in with a millisecond figure once a second or two has passed.
 - No "click to arm" gate — `?nomic=1` skips it.
 
 **Click `wake` in the HUD.** Within about a second the stone begins to part,
@@ -313,6 +314,7 @@ disappears. Move the mouse — it comes back. Press `h` — it toggles.
 | If | Then |
 |---|---|
 | `render: canvas2d` | WebGL is off on this machine. It still works, the field is just simpler. Enable hardware acceleration in your browser settings |
+| `frame:` is amber or red | Frames are taking too long on this machine. Press `1`–`9` to step through the moods and note which ones do it — a mood that costs three times what its neighbours cost is a bug in that mood |
 | The eye is the same size as the website's | The `radius` option is not reaching `createEye` — Stage 1's "broadcast eye is scaled up" check should have caught this |
 | Nothing happens on `wake` | Open the browser console (F12). Any error there is a real bug |
 

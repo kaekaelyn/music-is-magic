@@ -204,6 +204,7 @@ The corner panel is the operator HUD. It reads:
 | `audio` | `live` = the mic is driving the visuals. Anything else, see troubleshooting |
 | `control` | `subscribed` (green) = your phone can reach this page. `this machine only` = local mode, and no phone will ever reach it. `connecting…` / `reconnecting` = not there yet |
 | `render` | `webgl` is good. `canvas2d` means this machine fell back — still works, looks simpler |
+| `frame` | how long each frame is taking. Green is smooth. Amber means frames are being dropped; red means it is running at half rate or worse, and that is what "laggy" feels like. It is per **mood** — flip through them with `1`–`9` and watch the number |
 
 The HUD fades out on its own after six seconds of no mouse movement, and the
 mouse cursor hides with it. Press `h` to toggle it. **It is not on the stream
@@ -394,6 +395,7 @@ stopping the stream. The ceremony is the point; do not cut it off.
 | YouTube sound is doubled or echoing | You have both Audio Input Capture and Desktop Audio on | Mute Desktop Audio in the OBS mixer |
 | HUD is visible on the stream | You are using Window Capture | Stop touching the mouse for six seconds, or press `h`, or add `&hud=0` to the URL |
 | Everything works but the stream is choppy | Bitrate or encoder | Drop to 30fps if you have not, and try a hardware encoder in Settings → Output |
+| One mood in particular drags, or the whole machine gets sluggish | That mood is too expensive for this machine's graphics | Check the HUD's `frame` row while it is showing: amber or red there is the confirmation. Report the number and the mood name — it is a bug in that mood, not in your computer, and the number is what makes it fixable |
 
 ---
 

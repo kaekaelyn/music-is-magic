@@ -59,6 +59,7 @@ const el = {
   audio: document.getElementById('hAudio'),
   relay: document.getElementById('hRelay'),
   viz: document.getElementById('hViz'),
+  frame: document.getElementById('hFrame'),
   meter: document.getElementById('meterFill'),
   wake: document.getElementById('bWake'),
   seal: document.getElementById('bSeal'),
@@ -383,9 +384,69 @@ const INTENSITY = {
 let intensity = 0;
 let meterAt = 0;
 
+// --- frame time -------------------------------------------------------------
+//
+// The engine shipped with no instrumentation of any kind, so every performance
+// claim about a mood was arithmetic over the shader source rather than a
+// measurement — including the one that said cave was too expensive to use.
+// This is the measurement, and it is deliberately the wall-clock gap between
+// animation frames rather than any GPU timer: what "laggy" means to a
+// broadcast is that the picture arrives late, whichever part of the machine
+// was busy making it.
+//
+// The MEDIAN of a rolling window, never the mean. One garbage collection or
+// one backgrounded second is not the cost of a mood, and a mean reports it as
+// if it were. A machine with work to spare reads its vsync interval (~16.7 ms)
+// whatever the shader is doing, so the number only starts moving once the
+// frame budget is actually gone — which is exactly when it is worth reading.
+//
+// The window is measured in SECONDS, not in frames, and that is not a detail.
+// A hundred-and-twenty-frame window is two seconds on a healthy machine and
+// half a minute on a struggling one — so the readout went stale precisely on
+// the machines it exists for, and a mood switched to seconds ago still
+// reported the cost of the mood before it. (Found by disbelieving the tool:
+// tools/perf.mjs walked the moods and reported a smooth ramp that followed
+// the order they were tested in rather than what was on screen.)
+const FRAME_WINDOW = 240;
+const FRAME_SPAN_MS = 2000;
+const FRAME_MIN = 12; // two seconds may only be a handful of frames down here
+const frameMs = new Float64Array(FRAME_WINDOW);
+const frameAt = new Float64Array(FRAME_WINDOW);
+const frameSorted = new Float64Array(FRAME_WINDOW);
+let frameCount = 0;
+let frameSaidAt = 0;
+
+function noteFrame(ms, now) {
+  const slot = frameCount % FRAME_WINDOW;
+  frameMs[slot] = ms;
+  frameAt[slot] = now;
+  frameCount++;
+  if (now - frameSaidAt < 500) return; // 2 Hz: readable, and free
+  frameSaidAt = now;
+  // Newest backwards: everything inside the span, and never fewer than
+  // FRAME_MIN samples — a median of three is a coin toss.
+  const have = Math.min(frameCount, FRAME_WINDOW);
+  let n = 0;
+  while (n < have) {
+    const j = (frameCount - 1 - n) % FRAME_WINDOW;
+    if (n >= FRAME_MIN && now - frameAt[j] > FRAME_SPAN_MS) break;
+    frameSorted[n++] = frameMs[j];
+  }
+  if (n < FRAME_MIN) return;
+  const win = frameSorted.subarray(0, n);
+  win.sort();
+  const med = win[n >> 1];
+  // 21 ms is a frame and a bit at 60 Hz — the point where dropped frames start
+  // being visible in motion. 33 ms is half rate, which is where the owner's
+  // word for it becomes "laggy".
+  say(el.frame, `${med.toFixed(1)} ms · ${Math.round(1000 / med)} fps`,
+      med > 33 ? 'bad' : med > 21 ? 'warn' : 'good');
+}
+
 let last = performance.now();
 function loop(now) {
-  const dt = Math.min(0.1, (now - last) / 1000);
+  const raw = now - last;
+  const dt = Math.min(0.1, raw / 1000);
   last = now;
   const t = now / 1000;
   const state = machine.state;
@@ -414,6 +475,7 @@ function loop(now) {
     el.meter.style.width = `${Math.min(100, rms * 100).toFixed(1)}%`;
   }
 
+  noteFrame(raw, now);
   requestAnimationFrame(loop);
 }
 

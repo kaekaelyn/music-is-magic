@@ -634,6 +634,48 @@ hardware/          ← empty until the ESP32 day
 
 ## 13. Build log
 
+### 2026-08-01 — a number instead of an argument
+
+§14.8 asked for a frame-time readout before anything else in P0, and it was
+right to: every performance claim in this document was arithmetic over the
+shader source, including the one that said cave was unusable. The broadcast HUD
+now carries a `frame` row (median ms and fps, amber past 21 ms, red past 33),
+and `tools/perf.mjs` reports ms/frame per mood.
+
+Measured, field alone at the broadcast frame's size (907x472), software
+renderer, so read the ratios and not the milliseconds:
+
+| mood | ms/frame | vs cheapest |
+|---|---|---|
+| cave | 401.6 | 2.25x |
+| forest | 239.9 | 1.35x |
+| mountain | 218.4 | 1.23x |
+| ice | 196.3 | 1.10x |
+| rain / sunshine | 188.0 | 1.05x |
+| night | 184.1 | 1.03x |
+| ocean | 178.2 | 1.00x |
+
+So cave costs 1.7x the next dearest mood and 2.25x the cheapest, on a field
+where the shared base field alone is most of what everything else pays. P0's
+diagnosis holds, and now it holds with evidence.
+
+Three things about measuring this, all learned by getting a wrong answer first:
+
+- **A frame-count window is a time window that lies.** The HUD's median started
+  as the last 120 frames — two seconds on a healthy machine, and thirty on a
+  struggling one. So the readout went stale exactly where it was needed, and
+  the first perf run reported a smooth ramp that tracked the ORDER the moods
+  were tested in rather than what was on screen. The window is two seconds now,
+  with a floor of twelve samples.
+- **Disabling vsync to escape the 16.7 ms quantization makes it worse.**
+  `requestAnimationFrame` then outruns the compositor, callbacks queue, and the
+  measured gap climbs through the run: whatever is tested last reads four times
+  whatever was tested first, whichever moods those are.
+- **End-to-end frame time saturates on a machine with no GPU.** With the eye's
+  compositing in the loop, every mood pinned at the same rate and the moods
+  became indistinguishable. `perf.mjs` therefore times the field on its own by
+  default (`--mode hud` is the end-to-end view, for a machine with a GPU).
+
 ### 2026-08-01 — a mood panel on the rig itself
 
 The broadcast HUD could wake and seal but not choose a mood, so judging eight
