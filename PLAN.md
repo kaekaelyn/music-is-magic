@@ -1178,6 +1178,12 @@ see §5.4) and one lesson that finally cracked cave:
 - **Forest.** Wisps are phosphorescent bodies in living colours (cold green,
   blue-cyan, a rare gold) with no hard core; the beams are broken by a canopy
   sampled in the travel frame, so the shafts open and close as you walk.
+  **`canopy` is a param, and it is 0 everywhere but forest** — the first cut
+  applied foliage break-up inside `mRays` for every theme, which hung a
+  forest above sunshine's open sky. What occludes an open sky is its own
+  weather: sunshine's shafts are cut by its own `clouds` and blaze at the
+  edges where they slip past, which is the actual reason sunbeams are
+  visible at all.
 - **Rain.** `storm`: a bolt is a noise-wandered path down the frame with a
   fork, plus the flash — which is most of what a storm looks like from inside
   one — and low dark playing keeps a blue-violet bruise in the air.

@@ -14,6 +14,7 @@
     "sparkle": 1,
     "gloss": 0.6,
     "glint": 0.35,
+    "canopy": 0,
     "slant": 0,
     "base": 0.55,
     "drift": 0.02,

@@ -19,7 +19,7 @@ const EYE = join(ROOT, 'portal/assets/eye');
 // scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
 const KNOWN_PARAMS = [
   'scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant', 'base', 'drift',
-  'travel', 'travelX', 'travelY', 'glint',
+  'travel', 'travelX', 'travelY', 'glint', 'canopy',
 ];
 // travelX/travelY are a direction: negative is a legitimate way to point.
 const SIGNED_PARAMS = ['travelX', 'travelY'];

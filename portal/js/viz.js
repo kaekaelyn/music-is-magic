@@ -53,6 +53,8 @@ uniform float u_flow;    // travel clock: CPU-integrated, ONLY ever advances,
                          // faster when loud. The lawful way to move with level.
 uniform vec2 u_cur;      // direction the texture-space frame is carried by u_flow
 uniform float u_centroid; // smoothed pitch/timbre brightness, 0..1
+uniform float u_canopy;  // how much foliage overhead breaks the shafts. 0 is
+                         // open sky, and open sky is most themes' situation
 
 // Motif weights (§5.4). Every theme sets all of them; most are 0. The branches
 // below are uniform-coherent — every fragment takes the same path — so an
@@ -119,7 +121,8 @@ float fbm(vec2 p) {
 // Shafts from a source above and to the left, drifting slowly.
 // uv.y increases upward, so the source's y is positive. Getting this backwards
 // lights the aperture from below and nothing about the still image says so.
-float mRays(vec2 uv, float t, float flow, float drive, float kick, float pitch) {
+float mRays(vec2 uv, float t, float flow, float drive, float kick, float pitch,
+            float canopyAmt) {
   vec2 d = uv - vec2(-0.18, 0.95);
   float a = atan(d.x, d.y);
   // Sample the noise around a CIRCLE, not along the raw angle. atan wraps from
@@ -138,14 +141,21 @@ float mRays(vec2 uv, float t, float flow, float drive, float kick, float pitch) 
   // is diffuse light, loud is defined beams — and a struck chord is a burst
   // of sun, not only a rearrangement.
   s = pow(clamp(s * 1.4, 0.0, 1.0), 3.4 - drive * 1.5);
-  // The canopy overhead. Beams do not arrive as a clean fan — they are
-  // broken by whatever is between the source and the ground, and as you
-  // travel, that something MOVES: the gaps slide, so the shafts open and
-  // close. Two scales, sampled in the travel frame, one lagging the other,
-  // so the pattern reorganizes rather than sliding rigidly past.
-  float canopy = smoothstep(0.28, 0.72, fbm(uv * 2.4 + vec2(flow * 0.8, 0.0)))
-               * (0.45 + 0.55 * smoothstep(0.3, 0.8, fbm(uv * 5.1 + vec2(flow * 0.5, 4.0))));
-  s *= 0.32 + 0.85 * canopy;
+  // Foliage overhead, where a theme has any. Beams under a canopy do not
+  // arrive as a clean fan — leaves break them, and as you walk the gaps
+  // slide, so the shafts open and close. Two scales sampled in the travel
+  // frame, one lagging the other, so the pattern reorganizes rather than
+  // sliding past as a rigid stencil.
+  //
+  // Gated by u_canopy, and OFF by default. Sunshine is open sky: breaking
+  // its shafts this way put a forest above a theme that has no trees in it.
+  // What occludes an open sky is its own weather, and that is applied to
+  // the rays in main() from the clouds motif instead.
+  if (canopyAmt > 0.0) {
+    float canopy = smoothstep(0.28, 0.72, fbm(uv * 2.4 + vec2(flow * 0.8, 0.0)))
+                 * (0.45 + 0.55 * smoothstep(0.3, 0.8, fbm(uv * 5.1 + vec2(flow * 0.5, 4.0))));
+    s *= mix(1.0, 0.32 + 0.85 * canopy, canopyAmt);
+  }
   return s * smoothstep(2.1 + drive * 0.45, 0.1, length(d))
        * (0.66 + drive * 0.65 + kick * 0.55);
 }
@@ -880,19 +890,25 @@ void main() {
   float site = 0.0;
   float own = 0.0;
 
+  if (W_clouds > 0.0) {
+    float rimv;
+    cloud = mClouds(uv, u_t, u_flow, u_rms, rimv) * W_clouds;
+    cloudRim = rimv * W_clouds;
+  }
   if (W_rays > 0.0) {
-    rays = mRays(uv, u_t, u_flow, u_rms, u_pulse, u_centroid) * W_rays;
+    rays = mRays(uv, u_t, u_flow, u_rms, u_pulse, u_centroid, u_canopy) * W_rays;
+    // Crepuscular rays: an open sky's shafts are cut by its own cloud, and
+    // they blaze where they slip past an edge. This is the real reason
+    // sunbeams look like sunbeams — the beam is only visible because
+    // something is in the way of the rest of the light.
+    rays *= 1.0 - clamp(cloud, 0.0, 1.0) * 0.8;
+    rays += cloudRim * 0.35;
     // Less lift than before: the shafts no longer need to climb the ramp to
     // be visible, because they get their own colour below.
     lift += rays * 0.3;
     spec += rays * 0.25;
   }
   if (W_dapple > 0.0) lift += mDapple(uv, u_t, u_flow, u_rms) * W_dapple * 0.55;
-  if (W_clouds > 0.0) {
-    float rimv;
-    cloud = mClouds(uv, u_t, u_flow, u_rms, rimv) * W_clouds;
-    cloudRim = rimv * W_clouds;
-  }
   if (W_caustics > 0.0) {
     float v = mCaustics(p, u_t);
     lift += v * W_caustics * 0.5;
@@ -1296,7 +1312,7 @@ const UNIFORM_NAMES = [
   'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
   'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
   'u_gloss', 'u_slant', 'u_base', 'u_drift', 'u_rms', 'u_glint',
-  'u_flow', 'u_cur', 'u_centroid', 'u_mw[0]',
+  'u_flow', 'u_cur', 'u_centroid', 'u_canopy', 'u_mw[0]',
 ];
 
 function createGL(canvas, reducedMotion) {
@@ -1473,6 +1489,7 @@ function createGL(canvas, reducedMotion) {
     gl.uniform1f(U.u_flow, flowAcc);
     gl.uniform2f(U.u_cur, th.params.travelX || 0, th.params.travelY || 0);
     gl.uniform1f(U.u_centroid, sm.shift);
+    gl.uniform1f(U.u_canopy, th.params.canopy || 0);
     gl.uniform1f(U.u_glint, (th.params.glint || 0) * 0.3);
     for (let i = 0; i < MOTIF_NAMES.length; i++) {
       motifBuf[i] = th.motifs?.[MOTIF_NAMES[i]] || 0;

@@ -52,7 +52,7 @@ export const BUILTIN = {
     // Earthy: no glint at all. The wisps are phosphorescent bodies, and the
     // beams are broken by a canopy that shifts as you walk — that unevenness
     // is where the light-and-dark contrast comes from now.
-    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.42, drift: 0.35, travel: 0.55, travelX: 0.3 },
+    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.42, drift: 0.35, travel: 0.55, travelX: 0.3, canopy: 0.95 },
     motifs: { columns: 0.85, dapple: 0.8, rays: 0.62, wisps: 0.6 },
     mappings: { warpBass: 0.5, sparkleTreble: 1.2, pulseFlux: 1, shiftCentroid: 0.32 },
   },
@@ -131,7 +131,9 @@ export const BUILTIN = {
   sunshine: {
     palette: ['#0d2340', '#2f5f8c', '#8fb6cf', '#f2a93b', '#ffd873'],
     // clouds: billows that build with loudness and drift one way on the
-    // travel clock, every sunward edge rimmed in the palette's gold.
+    // travel clock, every sunward edge rimmed in the palette's gold — and
+    // they are what breaks the shafts here. No canopy: this is open sky,
+    // and foliage overhead belongs to a theme that has trees in it.
     params: { scale: 1.3, speed: 0.26, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.3, drift: 0.3, travel: 0.42, travelX: 0.2 },
     motifs: { rays: 0.95, dapple: 0.3, clouds: 0.55 },
     mappings: { warpBass: 0.15, sparkleTreble: 1.0, pulseFlux: 1.15, shiftCentroid: 0.2 },
@@ -175,6 +177,8 @@ export const DEFAULT_PARAMS = Object.freeze({
   gloss: 0,   // hardens the palette ramp and lets specular through
   glint: 0,   // ambient scattered sparkles. Off by default: white specks
               // belong to ice and crystal and read as dust anywhere else
+  canopy: 0,  // foliage overhead breaking the shafts. Only a theme with trees
+              // in it should say anything here — an open sky has no canopy
   slant: 0,   // how far falling things lean from vertical — wind, basically
   base: 1,    // how much the shared fog field contributes; 0 leaves a dark floor
   drift: 1,   // how fast that field evolves; 0 freezes it into something solid
