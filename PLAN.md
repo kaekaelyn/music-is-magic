@@ -909,8 +909,13 @@ is what a visitor sees first if a `theme.json` fetch ever fails.
 ### 14.4 Still open from the same review
 
 - Cave drips: velocity was raised twice and needs eyes on it again.
-- Sunshine: the sky is right; the gold was pushed back into the beams in the
-  same pass and is unverified against real playing.
+- Sunshine: done, and the fix is worth knowing. Warming the palette's upper
+  steps did **not** put gold in the beams — it put gold *between* them. Colour
+  in this engine is assigned by value band, so a shaft's core climbs past the
+  top step and comes out white while the warm band decorates whatever the base
+  fog happens to be doing. Rays now carry their own colour after the ramp, the
+  way `snow` already did. **The general rule: light of a particular colour is a
+  material, not a brightness — do not try to reach it by moving palette steps.**
 - Everything in §14.1–14.3 above is unstarted.
 
 ### 14.5 What will bite you

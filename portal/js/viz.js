@@ -277,11 +277,14 @@ void main() {
   float mass = 0.0;
   float spec = 0.0;
   float snow = 0.0; // coverage, applied after the ramp rather than through it
+  float rays = 0.0; // ditto: light has a colour of its own, not a value
 
   if (u_mRays > 0.0) {
-    float v = mRays(uv, u_t, u_rms);
-    lift += v * u_mRays * 0.62;
-    spec += v * u_mRays * 0.3;
+    rays = mRays(uv, u_t, u_rms) * u_mRays;
+    // Less lift than before: the shafts no longer need to climb the ramp to
+    // be visible, because they get their own colour below.
+    lift += rays * 0.3;
+    spec += rays * 0.25;
   }
   if (u_mDapple > 0.0) lift += mDapple(uv, u_t) * u_mDapple * 0.55;
   if (u_mCaustics > 0.0) {
@@ -344,6 +347,14 @@ void main() {
   col = mix(col, u_c2, smoothstep(0.25, 0.6, g));
   col = mix(col, u_c3, smoothstep(0.5, 0.85, g));
   col = mix(col, u_c4, smoothstep(0.78, 1.0, g) * u_bright);
+  // Sunbeams carry their own colour instead of riding the value ramp. Routed
+  // through g, a shaft's core climbed past the top step and came out white,
+  // while the ramp's warm band stayed wherever the base fog happened to sit —
+  // so the gold appeared as blotches BETWEEN the rays rather than in them.
+  // Same reasoning as snow below: light of a particular colour is a material,
+  // not a brightness.
+  col = mix(col, mix(u_c3, u_c4, 0.3), clamp(rays * 1.15, 0.0, 1.0) * 0.9);
+
   // Snow lies over the palette, mixing the two brightest steps so it reads as
   // lit crust rather than blown-out highlight.
   col = mix(col, mix(u_c3, u_c4, 0.72), clamp(snow, 0.0, 1.0) * 0.88);
