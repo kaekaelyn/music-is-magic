@@ -45,6 +45,33 @@
       grid-template-columns: 1fr 1fr;
       gap: 0.8rem;
     }
+    /* §5.8 — only meaningful when a relay is configured, so the whole block
+       is removed rather than shown dead when it is not. */
+    #ceremony {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.8rem;
+    }
+    #ceremony button {
+      font-size: 1.05rem;
+      padding: 0.9rem 0.5rem;
+      border-radius: 0.7rem;
+      border: 1px solid #35304a;
+      background: #14121f;
+      color: #cfc9e0;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+    }
+    #ceremony button.on { background: #241f38; border-color: #8d80b8; }
+    #ceremony button.ok { border-color: #7fae62; }
+    #ceremony button.fail { border-color: #b05252; }
+    .label {
+      font-size: 0.72rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      opacity: 0.4;
+      margin-bottom: -0.6rem;
+    }
     #buttons button {
       font-size: 1.15rem;
       padding: 1.1rem 0.5rem;
@@ -74,12 +101,27 @@
 </head>
 <body>
   <header><span id="dot"></span><span id="statusText">waking…</span></header>
+  <div id="ceremonyWrap" hidden>
+    <p class="label">the eye</p>
+    <div id="ceremony">
+      <button id="bWake">wake</button>
+      <button id="bSeal">seal</button>
+    </div>
+  </div>
+  <p class="label">mood</p>
   <main id="buttons"></main>
   <footer><button id="forget">forget password</button></footer>
 
   <script type="module">
     import { CONFIG } from './js/config.js';
     import { createPoller } from './js/status.js';
+    import { createRelay, EYE_LIVE, EYE_SEALED } from './js/relay.js';
+
+    // §5.8 — the broadcast control channel. Independent of the Icecast path
+    // below: with both configured this page drives the website and the
+    // YouTube broadcast from the same taps, and with neither it is still a
+    // working mock. Nothing here can break the Icecast buttons.
+    const relay = createRelay({ mode: CONFIG.relayMode, topic: CONFIG.relayTopic });
 
     const AUTH_KEY = 'mim.adminAuth';
     let auth = null;
@@ -135,8 +177,19 @@
     }
 
     // §5.2 — the whole theme mechanism is one metadata GET.
+    // §5.8 adds a second, independent destination: the relay reaches the
+    // broadcast page, Icecast reaches the website, and one tap drives
+    // whichever of the two is configured.
     async function setTheme(token, b) {
-      if (!CONFIG.metadataUrl) { flashButton(b, 'ok'); markCurrent(token); return; } // mock
+      const relayed = relay.active ? relay.publish({ theme: token }) : null;
+
+      if (!CONFIG.metadataUrl) {
+        // Mock, or a broadcast-only setup with no Icecast at all.
+        const ok = relayed ? await relayed : true;
+        flashButton(b, ok ? 'ok' : 'fail');
+        if (ok) markCurrent(token);
+        return;
+      }
       const a = ensureAuth();
       if (!a) return;
       const url = `${CONFIG.metadataUrl}?mount=/live&mode=updinfo&song=${encodeURIComponent(token)}`;
@@ -160,6 +213,48 @@
       for (const [name, btn] of buttons) btn.classList.toggle('current', name === token);
     }
 
+    // §5.8 — wake/seal. These exist only for the broadcast build: on the
+    // website the eye follows the actual stream, so there is nothing to
+    // command. With no relay configured the block is removed, not disabled.
+    const ceremonyWrap = document.getElementById('ceremonyWrap');
+    const bWake = document.getElementById('bWake');
+    const bSeal = document.getElementById('bSeal');
+    let relayOk = relay.active;
+
+    function markEye(eye) {
+      bWake.classList.toggle('on', eye === EYE_LIVE);
+      bSeal.classList.toggle('on', eye === EYE_SEALED);
+    }
+
+    if (relay.active) {
+      ceremonyWrap.hidden = false;
+      const send = async (eye, b) => {
+        markEye(eye);
+        const ok = await relay.publish({ eye });
+        flashButton(b, ok ? 'ok' : 'fail');
+        if (!ok) flashStatus('control unreachable');
+      };
+      bWake.addEventListener('click', () => send(EYE_LIVE, bWake));
+      bSeal.addEventListener('click', () => send(EYE_SEALED, bSeal));
+
+      // Subscribing as well as publishing keeps a second device in sync and
+      // proves the channel round-trips.
+      relay.start({
+        onState: (s) => {
+          if (s.eye) markEye(s.eye);
+          if (s.theme) markCurrent(s.theme);
+        },
+        onCatchUp: (s) => {
+          if (!s) return;
+          if (s.eye) markEye(s.eye);
+          if (s.theme) markCurrent(s.theme);
+        },
+        onStatus: ({ ok }) => { relayOk = ok; },
+      });
+    } else {
+      ceremonyWrap.remove();
+    }
+
     // Same §5.1 poll as the portal; three straight failures = offline.
     let fails = 0;
     let lastStatusLine = 'waking…';
@@ -178,6 +273,9 @@
           lastStatusLine = 'unreachable';
         }
       }
+      // On a broadcast-only setup the Icecast line above is meaningless but
+      // harmless; the health that matters is the control channel's.
+      if (relay.active) lastStatusLine += relayOk ? ' · control ok' : ' · control down';
       statusText.textContent = lastStatusLine;
     }, { pollMs: CONFIG.pollMs, jitterMs: CONFIG.pollJitterMs }).start();
   </script>

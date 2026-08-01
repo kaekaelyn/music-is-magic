@@ -122,6 +122,9 @@ nothing but move audio bytes and answer a status poll.
 | D15 | Visitor notification transport | A link to the ntfy topic page (§5.7), not Web Push | Web Push needs VAPID keys, a service worker and a permission prompt — a backend and an interruption, for something ntfy already does. |
 | D17 | The eye's form | Carved stone (golem/idol) with a lens aperture; the visualization lives **inside** the aperture, not behind the eye | A stylized human eye — sclera, iris, lashes — reads as cartoon at full-screen scale. And a field behind a floating eye is wallpaper; a field seen *through* carved stone is the thing the site is about. Reverses the first implementation. See §2.1. |
 | D16 | Dev tooling | `tools/` holds a zero-dep asset validator and a headless smoke test; `tools/package.json` keeps npm out of the repo root | The portal must stay buildless and dependency-free (§12); the contracts in §5 still need something that fails loudly, because the portal is built to fail silently. |
+| D18 | Broadcast build | A **second page in the same portal** (`broadcast.html`), not a fork and not a second repo. It reuses `eye.js`, `viz.js`, `themes.js`, `state.js`, `features.js` unchanged and swaps only its audio source and its liveness source | The shader and the motif library are the expensive assets. Duplicating them means every future mood, every tuning pass, and every bug fix happens twice by hand and then drifts. The engine was already source-agnostic in the two places that mattered — `FeatureExtractor` takes an `AnalyserNode`, and the state machine takes poll results — so the split is config, not code. |
+| D19 | Broadcast control transport | ntfy.sh, publish by POST and subscribe by `EventSource`, on a topic **distinct from** D13's summons topic and **never committed** | Icecast metadata is the website's bus (D9) and there is no Icecast in a YouTube broadcast. A Cloudflare Worker + KV was the first candidate and was rejected: KV is eventually consistent at up to 60s, and a mood button that might take a minute is a broken mood button. ntfy is already this project's push transport, is free, needs no account and no backend, pushes in real time, and its threat model is one §5.7 already accepts. |
+| D20 | Broadcast video path | OBS Studio: Browser Source preferred, Window Capture as the fallback, and YouTube's **stream key** rather than its webcam flow | A web page cannot register itself as an OS camera device on any browser — "feed the eye in as a webcam" necessarily means a virtual camera driver, and OBS's is the free one. Once OBS is installed anyway, RTMPS costs one *fewer* moving part than the virtual camera and gives 1080p instead of the webcam flow's 720p. The webcam flow still works and is documented; it is just not the default. |
 
 ---
 
@@ -285,6 +288,88 @@ connects. The visitor side is the smallest thing that can work: a link.
   as read (§6). That is the accepted trade for having no backend; the worst case
   is a stranger sending a false "the eye opens" to subscribers.
 
+### 5.8 Control relay (M7, the broadcast bus)
+
+On the website the moods travel *inside the stream*: `control.html` writes a
+token into the Icecast mount's metadata and the portal reads it back out of
+`status-json.xsl` (D9). That bus does not exist in a YouTube broadcast, so the
+phone needs another way to reach the desktop. `portal/js/relay.js` is it,
+behind one interface with three transports (D19):
+
+| Mode | Transport | For |
+|---|---|---|
+| `local` | `BroadcastChannel` + a `localStorage` mirror | Same machine, two tabs. Zero setup, works offline. The test transport, and the way to try the design before committing to any infrastructure |
+| `ntfy` | POST to publish, `EventSource` on `/sse` to subscribe | The real thing: phone to desktop, over the open internet |
+| `none` | — | No channel; the broadcast page runs on its own defaults |
+
+Message shape — a **partial** state, so a mood tap says nothing about whether
+the eye should be open:
+
+```json
+{ "eye": "live" | "sealed", "theme": "<token>" }
+```
+
+Rules that are not negotiable:
+
+- **Everything inbound is sanitized.** The topic is public to anyone holding
+  it, and the theme token is concatenated into an asset path. `sanitize()`
+  admits only `live`/`sealed` and `^[a-z0-9_-]{1,32}$`, drops the rest, and
+  keeps the valid half of a half-valid message. Junk never half-applies.
+- **A dead relay changes nothing**, exactly as a failed status poll changes
+  nothing (§5.1). The eye holds its last state.
+- **Catch-up is asymmetric.** On connect, the last cached message is replayed.
+  Its *mood* is always adopted; its *eye state* only if the message is newer
+  than `catchUpMaxAgeMs` (120s). A page reloaded mid-set comes back open; a
+  page opened the next morning does not get woken by yesterday.
+- **The relay topic is not the summons topic**, and it is **never committed**.
+  `config.js` is served verbatim to every visitor, so a topic written there is
+  a published password. For any public deploy it travels as `?topic=` in two
+  bookmarks.
+
+### 5.9 Broadcast page (M7)
+
+`portal/broadcast.html` — the page OBS captures. Same eye, same shader, same
+themes; three things differ, and one deliberately does not.
+
+| | Website | Broadcast |
+|---|---|---|
+| Audio | Icecast stream via `<audio crossorigin>` | Local microphone via `getUserMedia` (`mic.js`) |
+| Liveness | §5.1 status poll | The operator, over §5.8 |
+| Audience gesture | The visitor clicks the eye to unlock audio | Nobody is watching; the page arms once and communes for itself |
+| **State machine** | **`state.js`, unchanged** | **`state.js`, unchanged** |
+
+That last row is the design. The eye's hygiene rules — two positive signals to
+open, always drowse before sealing, a failed signal changes nothing — are the
+brand, so the broadcast page reuses them verbatim by running a local ticker
+that feeds `machine.onPoll()` from the relay's desired state. Nothing reaches
+into the machine, and the ceremony is the same ceremony.
+
+Specifics worth not rediscovering:
+
+- **Never connect the mic to `ctx.destination`.** On the website that line is
+  what makes sound audible; here it feeds the microphone back into the
+  speakers. The analyser is a tap, not a monitor path — which is also why the
+  page emits no audio at all and OBS must capture the mic itself.
+- **Voice constraints ruin music.** `echoCancellation`, `noiseSuppression` and
+  `autoGainControl` are all forced off: AGC pumps the dynamics flat, noise
+  suppression eats sustained piano tails, and echo cancellation notches
+  whatever it decides is feedback.
+- **`deviceId` is matched with `exact`.** Silently landing on the laptop mic
+  when the interface is unplugged is a failure you discover in the archive.
+- **The mic keeps running through a seal**, unlike the website's audio element.
+  There is no bandwidth to save, and a live level meter while the eye is shut
+  is how you sound-check before waking it.
+- **A refused microphone is not fatal.** It falls back to synthetic features so
+  the eye still breathes. This is the most likely live failure — an OBS browser
+  source without media permission — and a broadcast that looks alive beats a
+  frozen frame.
+- **The eye is scaled up** (`radius` 0.42 vs the website's 0.3). A 16:9 frame
+  is sized off its height, so the website's composition strands the eye in a
+  field of black.
+- **The operator HUD must be able to vanish.** In Window Capture mode the page
+  *is* the broadcast frame. It fades after 6s idle (taking the cursor with it),
+  toggles on `h`, and `?hud=0` removes it from the DOM.
+
 ---
 
 ## 6. Server spec
@@ -324,6 +409,12 @@ Each is sized for one focused build session. **Done when** is the acceptance tes
 | M4 | **The Moods** | Theme system: `index.json`, `theme.json` loader, morph transition between themes, `/control.html` (§5.6). Seven themes defined with procedural looks (empty texture folders). | Tapping "cave" on the phone mid-stream morphs every viewer's visualization within one poll cycle. |
 | M5 | **The Gallery** | Owner generates AI texture banks + eye art separately and drops them in per §5.3/§5.4. Build session only assists: validates manifests (`tools/validate-assets.mjs`), tunes motif weights and mappings against `tools/shots.mjs`, optimizes images. | At least one theme runs on real textures with zero code edits — proving the plug. |
 | M6 | **The Summons** | ntfy on-connect hooks (§6); portal gets a subtle opt-in for notifications (§5.7). ESP32 lamp: someday, `hardware/`, subscribes to the same topic. | Phone buzzes "the eye opens" within seconds of the source connecting. |
+| M7 | **The Broadcast** | The YouTube build (D18/D19/D20): `broadcast.html` + `mic.js` + `relay.js`, wake/seal on `control.html`, §5.8 and §5.9 implemented, broadcast smoke suite, and the two operator docs. | Tapping *wake* on the phone opens the eye on a live YouTube stream, and tapping a mood changes it, with the piano driving the field. |
+
+M7 is independent of M2: the broadcast build needs no VPS, no Icecast and no
+domain, so it can run at $0/mo before the website's server ever exists. Where
+both exist they share one control page — a mood tap drives Icecast and the
+relay from the same button.
 
 ---
 
@@ -364,10 +455,17 @@ well past a hobby audience (bandwidth: ~86 MB/listener-hour at 192 kbps).
 ```
 PLAN.md            ← this file (single source of truth)
 README.md          ← one paragraph + pointer here
+TESTING.md         ← how to verify each piece, stage by stage (owner-facing)
+RUNNING.md         ← how to run the broadcast for real (owner-facing)
 portal/            ← static site → Cloudflare Pages
-  index.html
-  control.html
+  index.html       ← the website: visitors
+  broadcast.html   ← the YouTube build: what OBS captures (§5.9)
+  control.html     ← the phone: moods, and wake/seal for the broadcast
   js/  css/
+    main.js        ← wiring for index.html
+    broadcast.js   ← wiring for broadcast.html
+    relay.js       ← §5.8 control channel (local | ntfy | none)
+    mic.js         ← §5.9 local capture; audio.js's broadcast counterpart
   _headers         ← Pages response headers (Pages consumes, never serves)
   robots.txt
   assets/eye/      ← §5.3 plug
@@ -393,6 +491,10 @@ hardware/          ← empty until the ESP32 day
 | Confirm/adjust initial theme list (currently the 7 in §5.2) | Owner | M4 |
 | Generate the ntfy topic string, put it in `server/ntfy-on-connect.sh` **and** `NTFY_TOPIC` in `portal/js/config.js` (§5.7) | Owner | M6 |
 | USB audio interface vs phone mic for piano | Owner | Whenever sound quality itches |
+| Generate a **second, distinct** ntfy topic for the §5.8 relay; keep it in two bookmarks, not in `config.js` | Owner | M7 |
+| Install OBS, enable YouTube live streaming (24h first-time delay) | Owner | M7 |
+| Verify OBS's Browser Source grants microphone access on this machine; fall back to Window Capture if not (RUNNING.md Part 3) | Owner | M7 |
+| Decide the archive posture: YouTube keeps a VOD, comments and a subscriber count, all of which §1 deliberately does not have | Owner | Before the first public stream |
 
 ---
 
@@ -400,7 +502,8 @@ hardware/          ← empty until the ESP32 day
 
 - Read this file before writing code. Implement to the contracts in §5.
 - Keep the portal dependency-free: plain HTML/CSS/JS + WebGL. No frameworks, no build step, no npm. It must deploy to Pages as-is and still make sense in five years. Dev tooling is exempt but stays inside `tools/` (D16).
-- Run `cd tools && npm test` before committing portal changes. It is fast, it drives the real ceremony, and a console error fails it.
+- Run `cd tools && npm test` before committing portal changes. It is fast, it drives the real ceremony, and a console error fails it. It now runs three suites: the validator, the website's 34 checks, and the broadcast's 33. **The website count dropping is a regression, full stop** — `broadcast.html` shares its engine and must never cost it anything.
+- **`TESTING.md` and `RUNNING.md` are deliverables, not notes.** They are written for the owner at the machine, not for a build session, and they assume nothing is installed. If a change alters what the owner types, sees, installs, or clicks, update them **in the same commit as the code** — the same rule §4/§11 already have. A stale runbook is worse than no runbook, because it gets followed.
 - The portal is written to degrade silently — a bad asset, a missing file, a dead fetch all render *something*. That is correct for visitors and terrible for review, which is why the validator exists. Never "fix" a silent fallback by making it throw.
 - Placeholder art is real deliverable, not filler: every asset slot renders procedurally until the owner plugs files in (D11).
 - When a decision changes or an open item resolves, edit §4/§11 in the same commit as the code.
@@ -409,6 +512,58 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — M7, the YouTube broadcast build
+
+Owner wants to stream on YouTube from a desktop with a microphone and no
+webcam, feeding the eye in as the picture, still driving the moods from a
+phone. It works, and most of it was config rather than code — but one
+constraint shaped everything and is worth stating plainly:
+
+**A web page cannot register itself as an OS camera device.** There is no API
+for it on any browser. YouTube's webcam flow enumerates system devices, so
+"feed the eye in as a webcam" necessarily means a virtual camera *driver*, and
+OBS's is the free one. Once OBS is installed anyway, its stream key path is
+strictly better than the virtual camera (D20), so that became the default and
+the webcam flow is documented as the alternative the owner actually asked
+about.
+
+Built as a second page in the same portal (D18), not a fork. The engine turned
+out to be source-agnostic in exactly the two places that mattered:
+`FeatureExtractor` takes an `AnalyserNode` rather than an audio element, and
+the state machine takes poll results rather than reaching for the network. So
+`state.js` is reused **byte for byte** — the broadcast page runs a local ticker
+that feeds `machine.onPoll()` from the relay, and the 2-poll open rule, the
+drowse path and the auto-commune all fall out of code that already had tests.
+
+Findings worth not rediscovering:
+
+- **KV would have been the wrong bus.** The first sketch was a Cloudflare
+  Worker + KV for phone→desktop. KV is eventually consistent, advertised at up
+  to 60 seconds. ntfy (D19) pushes in real time, needs no account and no
+  deploy, and was already in the stack.
+- **The relay topic is a password, and `config.js` is public.** Baking it in
+  the way `NTFY_TOPIC` is baked in would publish the control surface to every
+  visitor. It travels as `?topic=` in two bookmarks instead, and the constant
+  stays empty with a warning on it.
+- **Voice audio constraints ruin music.** AGC, noise suppression and echo
+  cancellation are all off (§5.9). Left on, sustained piano gets eaten.
+- **A 16:9 frame strands the website's eye.** `R` is sized off `min(W, H)`, so
+  0.3 of a 1080-tall frame leaves the eye small in a lot of black. The radius
+  is now an option, default unchanged, and the smoke test asserts the website's
+  aperture is still exactly `2 × 0.3 × shortEdge` so the composition cannot
+  drift.
+- **Measure the aperture, not lit pixels.** The first attempt at that check
+  counted bright pixels and mostly measured stone, which covers the frame at
+  any scale. `#viz` is sized to the aperture box and is the honest signal.
+- **The HUD has to be able to vanish completely.** In Window Capture mode the
+  page is the broadcast frame.
+
+Left deliberately undone: nothing in `server/`. M7 needs no VPS, no Icecast and
+no domain — it runs at $0/mo, independent of M2.
+
+Also added `TESTING.md` and `RUNNING.md` (see §12), and a second smoke suite.
+The website's 34 checks still pass unchanged; the broadcast adds 33.
 
 ### 2026-07-25 — portal + server templates built
 

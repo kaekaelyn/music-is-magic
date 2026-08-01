@@ -6,8 +6,9 @@
   "scripts": {
     "validate": "node validate-assets.mjs",
     "smoke": "node smoke.mjs",
+    "smoke:broadcast": "node smoke-broadcast.mjs",
     "shots": "node shots.mjs",
-    "test": "npm run validate && npm run smoke"
+    "test": "npm run validate && npm run smoke && npm run smoke:broadcast"
   },
   "devDependencies": {
     "playwright": "^1.56.0"

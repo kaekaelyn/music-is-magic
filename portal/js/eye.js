@@ -63,7 +63,11 @@ function fbm2(x, y, octaves) {
   return v;
 }
 
-export function createEye(canvas, { reducedMotion = false, field = null } = {}) {
+// `radius` overrides EYE_RADIUS. The default is the website's composition and
+// must not drift; broadcast (§5.9) passes a larger value because a 16:9 frame
+// is sized off its height and would otherwise strand the eye in black.
+export function createEye(canvas, { reducedMotion = false, field = null, radius = EYE_RADIUS } = {}) {
+  const eyeRadius = radius;
   const ctx = canvas.getContext('2d');
   let W = 0;
   let H = 0;
@@ -109,7 +113,7 @@ export function createEye(canvas, { reducedMotion = false, field = null } = {}) 
     H = canvas.clientHeight;
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
-    R = Math.min(W, H) * EYE_RADIUS;
+    R = Math.min(W, H) * eyeRadius;
     hFull = R * APERTURE_RATIO;
     plate = buildPlate();
   }
@@ -204,7 +208,7 @@ export function createEye(canvas, { reducedMotion = false, field = null } = {}) 
     const lg = low.getContext('2d');
     const img = lg.createImageData(LW, LH);
     const d = img.data;
-    const unit = Math.min(cw, chh) * EYE_RADIUS;
+    const unit = Math.min(cw, chh) * eyeRadius;
     const halfDiag = Math.hypot(cw, chh) / 2;
 
     for (let y = 0; y < LH; y++) {

@@ -1,11 +1,25 @@
-// Runtime configuration. No build step, so production setup is two edits:
+// Runtime configuration. No build step, so production setup is three edits,
+// and only the third is needed for the broadcast build (§5.9):
 //
 //   STREAM_BASE  the real server, e.g. 'https://stream.example.com'   (M2)
 //   NTFY_TOPIC   the ntfy.sh topic from server/ntfy-on-connect.sh     (M6)
+//   RELAY_TOPIC  a DIFFERENT random ntfy topic, for phone control     (M7)
 //
-// Both are empty by default and both degrade to nothing: an empty STREAM_BASE
-// runs the portal in mock mode against portal/mock/*.json, and an empty
-// NTFY_TOPIC means the summons rune never appears (§5.7).
+// All three are empty by default and all three degrade to nothing: an empty
+// STREAM_BASE runs the portal in mock mode against portal/mock/*.json, an
+// empty NTFY_TOPIC means the summons rune never appears (§5.7), and an empty
+// RELAY_TOPIC leaves the broadcast page on local-only control (§5.8).
+//
+// RELAY_TOPIC must never equal NTFY_TOPIC. The summons topic is handed to
+// visitors; the relay topic is a control surface, and anyone holding it can
+// drive your broadcast.
+//
+// !! If portal/ is deployed anywhere public, LEAVE RELAY_TOPIC EMPTY. This
+// file is served verbatim to every visitor, so a topic written here is a
+// published password. Pass it as ?topic=<name> on broadcast.html and
+// control.html instead and keep those two URLs as bookmarks — the topic then
+// exists only on your own devices. The constant is here for a private or
+// local-only deploy, and that is the only case it is safe in.
 //
 // Dev/test overrides (query params, never visitor-facing):
 //   ?stream=https://host   point at a real server (persisted in localStorage)
@@ -14,9 +28,14 @@
 //   ?theme=cave            mock mode only: force a theme token
 //   ?fast=1                mock mode only: short poll/drowse timings for
 //                          automated tests (tools/smoke.mjs)
+//   ?relay=local|ntfy|none broadcast/control only: pick the control channel
+//   ?topic=<name>          broadcast/control only: relay topic for this load
+//   ?nomic=1               broadcast only: skip capture, run on synthetic
+//                          features (lets the page be tested with no mic)
 
 const STREAM_BASE = '';
 const NTFY_TOPIC = '';
+const RELAY_TOPIC = '';
 
 const qs = new URLSearchParams(location.search);
 let streamBase = STREAM_BASE;
@@ -35,6 +54,12 @@ const mockLive = mock && qs.get('mock') === 'live';
 // status endpoint or skipping the 90s grace window.
 const fast = mock && qs.get('fast') === '1';
 
+// The relay (§5.8) is only ever read by broadcast.html and control.html, both
+// owner-facing, so these overrides are not gated on mock mode the way the
+// visitor-facing ones are. index.html never touches them.
+const relayTopic = qs.get('topic') || RELAY_TOPIC;
+const relayMode = qs.get('relay') || (relayTopic ? 'ntfy' : 'none');
+
 export const CONFIG = {
   mock,
   mockTheme: mock ? qs.get('theme') : null,
@@ -48,4 +73,24 @@ export const CONFIG = {
   pollJitterMs: fast ? 100 : 1000,  // §5.1
   drowseMs: fast ? 3000 : 90000,    // §2.1 / D12
   stirMs: 2600,                     // §2.1 opening ceremony — never shortened
+
+  // --- broadcast build (§5.8, §5.9) ---------------------------------------
+  relayMode,
+  relayTopic,
+  // A 16:9 frame is sized off its height, so the website's 0.3 would strand
+  // the eye in a field of black. Tuned against tools/shots.mjs at 1920×1080.
+  broadcastRadius: 0.42,
+  // The relay is event-driven, but the eye's hygiene rules (§2.1) are written
+  // against a poll. A local ticker feeds the machine so the 2-poll open rule
+  // and the drowse path stay exactly the website's code, unmodified.
+  broadcastTickMs: fast ? 150 : 1000,
+  // Shorter than the website's 90s. D12's grace window exists to absorb cell
+  // dropouts between the phone and the VPS; on the broadcast machine there is
+  // no network in that path, so the only thing drowse still buys is the
+  // ceremony of falling asleep. 90s of it would be dead air on a live channel.
+  broadcastDrowseMs: fast ? 1500 : 12000,
+  // A broadcast page reloaded mid-set should come back live; one opened the
+  // next morning should not be woken by yesterday's last message.
+  catchUpMaxAgeMs: 120000,
+  skipMic: qs.get('nomic') === '1',
 };
