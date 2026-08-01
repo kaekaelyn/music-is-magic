@@ -135,7 +135,7 @@ float mDrips(vec2 uv, float t, float w, float slant, float drive) {
   // Both ends fall FAST. The first pass had dense drips slower than sparse
   // ones, on the theory that sheets drag — but rain does not drag, and at 0.4
   // the streaks crawled down the aperture and read as a meteor shower.
-  float speed = mix(1.9, 2.7, w);
+  float speed = mix(3.2, 2.9, w);
   float tail = mix(0.05, 0.34, w);   // and are short
   // Quadratic, so the sparse end is genuinely rare rather than merely thinner:
   // at w = 0.16 this is ~0.27 drips on screen at a time.

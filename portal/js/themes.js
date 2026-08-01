@@ -62,7 +62,7 @@ export const BUILTIN = {
   },
   // Shafts. Slow, wide, and the brightest thing in the set.
   sunshine: {
-    palette: ['#0d2340', '#2f5f8c', '#8fb6cf', '#f0d79a', '#fff6dd'],
+    palette: ['#0d2340', '#2f5f8c', '#8fb6cf', '#f5c257', '#fff0b8'],
     params: { scale: 1.3, speed: 0.26, warp: 1.2, sparkle: 0.5, gloss: 0.2, base: 0.45, drift: 0.35 },
     motifs: { rays: 0.95, dapple: 0.3 },
     mappings: { warpBass: 0.15, brightRms: 0.7, sparkleTreble: 1.0, pulseFlux: 1, shiftCentroid: 0.2 },

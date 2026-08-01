@@ -522,7 +522,9 @@ hardware/          ← empty until the ESP32 day
 
 - Read this file before writing code. Implement to the contracts in §5.
 - Keep the portal dependency-free: plain HTML/CSS/JS + WebGL. No frameworks, no build step, no npm. It must deploy to Pages as-is and still make sense in five years. Dev tooling is exempt but stays inside `tools/` (D16).
-- Run `cd tools && npm test` before committing portal changes. It is fast, it drives the real ceremony, and a console error fails it. It now runs three suites: the validator, the website's 34 checks, and the broadcast's 33. **The website count dropping is a regression, full stop** — `broadcast.html` shares its engine and must never cost it anything.
+- Run `cd tools && npm test` before committing portal changes. It is fast, it drives the real ceremony, and a console error fails it. It runs three suites: the validator, the website's 34 checks, and the broadcast's 49. **The website count dropping is a regression, full stop** — `broadcast.html` shares its engine and must never cost it anything.
+- **Working on the look? Read §14 first.** It is the standing art-direction backlog and the accumulated list of what has already been tried and why it failed.
+- **The owner is not a developer, and the docs assume that.** They report what the render *looks like*, not what is wrong with the code, and those reports have been reliable — "a grid" was a value-noise lattice, "a seam" was an `atan` wrap, "letterboxing" was the aperture opening past 1.0. Take the description literally and hunt for the mechanism. On the tooling side, assume nothing is installed and nothing about git is known: `TESTING.md` starts at cloning the repository because the first attempt at these instructions started at `cd music-is-magic` and stranded them on an empty folder.
 - **`TESTING.md` and `RUNNING.md` are deliverables, not notes.** They are written for the owner at the machine, not for a build session, and they assume nothing is installed. If a change alters what the owner types, sees, installs, or clicks, update them **in the same commit as the code** — the same rule §4/§11 already have. A stale runbook is worse than no runbook, because it gets followed.
 - The portal is written to degrade silently — a bad asset, a missing file, a dead fetch all render *something*. That is correct for visitors and terrible for review, which is why the validator exists. Never "fix" a silent fallback by making it throw.
 - Placeholder art is real deliverable, not filler: every asset slot renders procedurally until the owner plugs files in (D11).
@@ -532,6 +534,31 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — handoff
+
+Session ends with M7 working end to end: the owner has the eye running on
+their own machine, microphone driving the field, phone driving the moods over
+a paired ntfy channel. OBS and YouTube (§14 aside) are the only untouched
+parts of RUNNING.md, and they need the owner's hardware and account rather
+than any more code.
+
+What the next session should know, beyond §12 and §14:
+
+- **The ntfy path cannot be tested from a build sandbox** — outbound access to
+  ntfy.sh is blocked, so all 49 broadcast checks run against the `local`
+  relay. Both bugs that reached the owner were in the untested half: an
+  `EventSource` subscription that could never confirm itself, and custom
+  headers that turned every publish into a preflighted request. Reason about
+  that path with extra care, because nothing will catch you.
+- **The query string is not a place to keep configuration.** `serve` discards
+  it on its `.html` redirect, home-screen shortcuts drop it, OBS browser
+  sources drop it. The pairing code is typed into the page and stored per
+  device for exactly that reason; `?topic=` survives only as a shortcut.
+- **A confident wrong status costs more than no status.** Two indicators were
+  seeded optimistic and only ever downgraded, so both ends reported health on
+  the strength of nothing having failed yet — and sent the owner hunting in
+  the wrong place for an evening. Everything now starts at "connecting".
 
 ### 2026-08-01 — two rendering bugs, and motifs that answer the room
 
@@ -821,3 +848,90 @@ Portal implementation notes for future sessions:
 - In mock/no-analyser situations the viz runs on gentle synthetic features
   instead of freezing — also the graceful path if audio ever fails.
 - `prefers-reduced-motion` is honored (slower field, no blinks/ripples).
+
+---
+
+## 14. Art direction backlog (M5) — read this before touching the shader
+
+The engine works and the contracts hold. What is unfinished is that several
+moods do not yet read as their name. This section is the standing list, in the
+owner's own terms, plus what has already been learned about why each is hard.
+
+**How this list came about matters.** The owner reviews by watching it against
+live playing and reports what it looks like, not what is wrong with the code.
+Those reports have been reliable: "the pattern is very regular, like a grid"
+was a value-noise lattice; "a visible seam" was an `atan` wrap; "letterboxing"
+was the aperture opening past 1.0. Take the description literally and go
+looking for the mechanism — three for three so far.
+
+### 14.1 Needs a new motif
+
+Adding a motif is an engine change and §5.4 says to keep it rare, so these are
+batched rather than taken one at a time. All five are the same shape of
+problem: the motif library has no generator for the material.
+
+| Mood | Reads as | Wants |
+|---|---|---|
+| `forest` | "green fog, or worse, a toxic cloud" | dappling, grey-brown trunks peeking through mist, will-o-wisps |
+| `rain` | drips with nowhere to land | splashes where the drops arrive |
+| `cave` | stained glass | a circular / tunnel structure instead of `crags` |
+| `mountain` | stained glass, "not shaped like mountains" | an actual ridgeline silhouette; then snow that drifts with noise rather than sitting still |
+| `ocean` | acceptable | more wave and foam |
+
+`crags` is voronoi, and voronoi reads as stained glass — that is not tunable,
+it is what the generator is. Cave and mountain both need a different one. Note
+also (§5.4) that *finer* crags read as **more** mosaic, not less: the instinct
+to shrink the cells is wrong.
+
+### 14.2 Glints should belong to the geometry
+
+Three separate notes are really one request, and it is architectural:
+
+- ice — "sparkles should be affected by the craggy shape, so the structure is
+  glittering instead of random speckles"
+- cave — "sparkles should suggest crystals, not random white dots"
+- cave, earlier — "you'd expect the sparkles to be related to the shapes, and
+  they're quite obviously not"
+
+`mGlint` is currently a global overlay, multiplied by surface lightness as a
+first approximation. That is not enough. The direction is to derive glints
+*from* the motif that is running — on facet seams for ice, on crystal faces for
+cave — which probably means the glint becomes a per-motif highlight term rather
+than one pass at the end. Worth designing deliberately rather than patching.
+
+### 14.3 `default` needs to be a mood
+
+It currently sits at almost exactly cave's colour and behaves like it, so the
+reserved fallback reads as a duplicate. Owner's suggestion: a night sky. That
+would also give the shipped-with-no-theme state a character of its own, which
+is what a visitor sees first if a `theme.json` fetch ever fails.
+
+### 14.4 Still open from the same review
+
+- Cave drips: velocity was raised twice and needs eyes on it again.
+- Sunshine: the sky is right; the gold was pushed back into the beams in the
+  same pass and is unverified against real playing.
+- Everything in §14.1–14.3 above is unstarted.
+
+### 14.5 What will bite you
+
+- **Nothing here has an automated guard.** §5.4 says it about motif direction
+  and it is true of all of it: the composited output is dominated by the base
+  field and the socket shading, so no measurement isolates one motif. Two
+  attempts at a smoke check were too flaky to keep. `npm run shots` and
+  `tools/` render loops are the instrument; watching it move is the test.
+- **A still frame proves almost nothing now.** Since motifs answer `u_rms`,
+  most of what changed recently is invisible in a screenshot. Verify against
+  real audio or synthetic features in motion.
+- **`portal/js/themes.js` carries a built-in copy of every theme** so a failed
+  `theme.json` fetch can never blank the site. Edit one and you must edit the
+  other; `node tools/validate-assets.mjs` fails loudly when they drift, and it
+  has caught it twice.
+- **Smooth what moves geometry, leave what moves light alone** (§13,
+  2026-08-01). Features arrive with a 40 ms attack. On a colour ramp that is
+  correct; on a coordinate it is a twitch.
+- **The aperture must never open past 1.0.** The field is drawn at the fixed
+  full aperture box on purpose (D17), so anything beyond it shows the plane's
+  edge as a black band.
+- **Any angular coordinate needs sampling around a circle**, not fed to `fbm`
+  raw. `atan` wraps, and the wrap is a visible line.
