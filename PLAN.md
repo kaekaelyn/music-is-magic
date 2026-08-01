@@ -199,7 +199,12 @@ library of procedural motifs and a theme declares which ones it is made of:
 | `facets` | crystal shards with a lit seam where they meet | ice |
 | `caustics` | undulating light web | ocean |
 | `crags` | angular rock planes, each catching the light its own way | mountain |
-| `snow` | accumulation on whichever crag faces tilt skyward, below a snowline | mountain |
+| `snow` | accumulation on whichever faces tilt skyward, below a snowline | mountain |
+| `tunnel` | a passage receding into the dark, crystal faces on its walls | cave |
+| `ridge` | layered ridgelines against the sky — a mountain's silhouette | mountain |
+| `wisps` | a few slow wandering lights, each on its own orbit | forest |
+| `foam` | swell with white water breaking along the crests | ocean |
+| `stars` | fixed points of light and a faint band of them | default |
 
 ```json
 "motifs": { "rays": 0.85, "dapple": 0.25 },
@@ -246,9 +251,22 @@ Two findings worth not rediscovering:
   warped, looked like VHS scanlines inside a glowing aperture. It was replaced
   by `crags`. Anything with a repeating axis will have the same problem.
 - **Clean voronoi reads as mosaic.** `crags` warps its lattice with noise
-  before cells are found, and blends snow coverage with noise rather than
-  taking it per-cell — otherwise the facets tile like cracked glass, which is
-  `facets`' job, not rock's.
+  before cells are found — otherwise the facets tile like cracked glass, which
+  is `facets`' job, not rock's. The deeper lesson came from `tunnel`: voronoi's
+  mosaic character is not tunable, but it is not intrinsic either — the same
+  lattice found in *log-polar* space reads as a receding passage, because what
+  a generator looks like is decided as much by the space it is evaluated in as
+  by the generator. Reach for a coordinate change before a new generator.
+- **A mask times noise, never a mask plus noise.** `snow` summed its coverage
+  with a breakup noise, so snow appeared wherever the noise was high on its
+  own — in the valleys, and in the sky. Multiplying says snow may only lie
+  where there is something to lie on, and the noise only tears up its edge.
+- **Silhouettes are a few big decisions.** A ridgeline profile drawn with
+  five-octave fbm is a wavy line, which is the banding failure wearing a hat.
+  `ridge` uses two octaves and squares its peaks.
+- **Everything is drawn in a wide, short lens.** `uv.y` spans roughly ±0.3 of
+  what is visible, so a feature placed for a square canvas (a horizon at 0.5, a
+  splash floor at -0.4) lands outside the aperture entirely. Both happened.
 - **Check the sign of anything that moves.** `uv.y` increases upward, so
   `uv.y * k + t` falls and `uv.y * k - t` rises. Drips shipped rising and rays
   shipped lighting the aperture from below; neither is visible in a
@@ -534,6 +552,30 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — the art-direction batch: five motifs, and glints with a home
+
+§14 taken as one pass. The engine gained `tunnel`, `ridge`, `wisps`, `foam` and
+`stars`; drips gained a floor to land on; glints stopped being a global overlay.
+§14.1–14.3 are closed, §14.4 lists what is left.
+
+Four things worth not rediscovering, beyond §5.4's findings list:
+
+- **Motif weights are packed into a `vec4` array now.** Thirteen motifs is more
+  scalar uniforms than GLES2 guarantees exist. The `#define W_<name>` block is
+  generated from `MOTIFS` in themes.js, so a motif is still named in exactly
+  one place and a rename still fails validation rather than silently doing
+  nothing.
+- **The smoke check caught a real design mistake, not a false positive.** Making
+  `default` a night sky dropped the aperture below the "field shows through"
+  threshold, which is precisely the failure the check exists for: the fallback
+  theme has to look open. The palette was lifted; the check was not.
+- **Every mood was tuned from stills, at silence.** That is the weakest part of
+  this pass. Motifs answer `u_rms` now, so what a screenshot shows is the quiet
+  end of each one.
+- **A shader comment cannot contain a backtick.** The whole fragment source is
+  a JS template literal. This is written at the top of the motif block and was
+  still worth an error.
 
 ### 2026-08-01 — handoff
 
@@ -864,59 +906,51 @@ was a value-noise lattice; "a visible seam" was an `atan` wrap; "letterboxing"
 was the aperture opening past 1.0. Take the description literally and go
 looking for the mechanism — three for three so far.
 
-### 14.1 Needs a new motif
+### 14.1 Needs a new motif — DONE (2026-08-01)
 
-Adding a motif is an engine change and §5.4 says to keep it rare, so these are
-batched rather than taken one at a time. All five are the same shape of
-problem: the motif library has no generator for the material.
+Taken as one batch, as §5.4 asks. Five generators went in; every mood on the
+list now has a generator for its material.
 
-| Mood | Reads as | Wants |
+| Mood | Was | Now |
 |---|---|---|
-| `forest` | "green fog, or worse, a toxic cloud" | dappling, grey-brown trunks peeking through mist, will-o-wisps |
-| `rain` | drips with nowhere to land | splashes where the drops arrive |
-| `cave` | stained glass | a circular / tunnel structure instead of `crags` |
-| `mountain` | stained glass, "not shaped like mountains" | an actual ridgeline silhouette; then snow that drifts with noise rather than sitting still |
-| `ocean` | acceptable | more wave and foam |
+| `forest` | "green fog, or worse, a toxic cloud" | hard-edged trunks in front of a thinner mist, dapple, and `wisps` |
+| `rain` | drips with nowhere to land | drops end at a per-lane floor and throw a crown |
+| `cave` | stained glass | `tunnel` — voronoi in log-polar space, so it recedes |
+| `mountain` | "not shaped like mountains" | `ridge` supplies the silhouette; crags demoted to surface texture; snow drifts |
+| `ocean` | acceptable | `foam` on the swell crests |
 
-`crags` is voronoi, and voronoi reads as stained glass — that is not tunable,
-it is what the generator is. Cave and mountain both need a different one. Note
-also (§5.4) that *finer* crags read as **more** mosaic, not less: the instinct
-to shrink the cells is wrong.
+What actually fixed each one is in §5.4's findings list, and two of them are
+general: a mask must MULTIPLY its breakup noise, never sum with it, and a
+generator's character comes as much from the space it is evaluated in as from
+the generator itself — `crags` and `tunnel` are the same voronoi.
 
-### 14.2 Glints should belong to the geometry
+### 14.2 Glints belong to the geometry — DONE (2026-08-01)
 
-Three separate notes are really one request, and it is architectural:
+Motifs with structure worth catching light now nominate the sites — seams for
+ice, crystal faces for cave, foam crests for ocean, snow for mountain — and a
+per-theme `own` weight says how far to trust that over the old
+lightness-under-the-glint approximation. Density is raised where a theme has
+sites, because a site is a small part of the aperture and the same number of
+glints spread over it comes to nothing. A theme with no structural motif is
+bit-for-bit unchanged.
 
-- ice — "sparkles should be affected by the craggy shape, so the structure is
-  glittering instead of random speckles"
-- cave — "sparkles should suggest crystals, not random white dots"
-- cave, earlier — "you'd expect the sparkles to be related to the shapes, and
-  they're quite obviously not"
+### 14.3 `default` is a mood — DONE (2026-08-01)
 
-`mGlint` is currently a global overlay, multiplied by surface lightness as a
-first approximation. That is not enough. The direction is to derive glints
-*from* the motif that is running — on facet seams for ice, on crystal faces for
-cave — which probably means the glint becomes a per-motif highlight term rather
-than one pass at the end. Worth designing deliberately rather than patching.
+A night sky: fixed stars on a hashed lattice, a faint band, a dark still base.
+Note the constraint that shaped it — `default` is what a visitor sees if a
+`theme.json` fetch fails, so it cannot be as dark as a real night sky. The
+smoke check that says the field must show through the aperture at 3x sealed
+brightness caught exactly that, and the palette and base were lifted until it
+passed rather than the check being relaxed.
 
-### 14.3 `default` needs to be a mood
+### 14.4 Still open
 
-It currently sits at almost exactly cave's colour and behaves like it, so the
-reserved fallback reads as a duplicate. Owner's suggestion: a night sky. That
-would also give the shipped-with-no-theme state a character of its own, which
-is what a visitor sees first if a `theme.json` fetch ever fails.
-
-### 14.4 Still open from the same review
-
-- Cave drips: velocity was raised twice and needs eyes on it again.
-- Sunshine: done, and the fix is worth knowing. Warming the palette's upper
-  steps did **not** put gold in the beams — it put gold *between* them. Colour
-  in this engine is assigned by value band, so a shaft's core climbs past the
-  top step and comes out white while the warm band decorates whatever the base
-  fog happens to be doing. Rays now carry their own colour after the ramp, the
-  way `snow` already did. **The general rule: light of a particular colour is a
-  material, not a brightness — do not try to reach it by moving palette steps.**
-- Everything in §14.1–14.3 above is unstarted.
+- **Everything above wants eyes on it against live playing.** These were tuned
+  against `npm run shots` — stills, at silence. Cave in particular is now very
+  dark and its depth may want lifting; forest is still green-dominant even with
+  the trunks reading.
+- **Cave drips: velocity was raised twice and still needs a verdict.**
+- Sunshine and ice were not touched in this pass.
 
 ### 14.5 What will bite you
 

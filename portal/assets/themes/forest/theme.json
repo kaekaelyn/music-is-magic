@@ -1,11 +1,11 @@
 {
   "name": "forest",
   "palette": [
-    "#05130a",
-    "#0f3820",
-    "#2f6b3a",
-    "#7fae62",
-    "#e2f2c5"
+    "#050f0a",
+    "#2b2b23",
+    "#3f6b40",
+    "#8bb069",
+    "#e8f4d2"
   ],
   "params": {
     "scale": 1.8,
@@ -13,24 +13,31 @@
     "warp": 1.25,
     "sparkle": 0.45,
     "gloss": 0.1,
-    "slant": 0
+    "slant": 0,
+    "base": 0.46,
+    "drift": 0.35
   },
   "mappings": {
-    "warpBass": 0.9,
+    "warpBass": 0.5,
     "brightRms": 0.6,
     "sparkleTreble": 1,
     "pulseFlux": 1,
     "shiftCentroid": 0.2
   },
   "motifs": {
-    "rays": 0.3,
-    "columns": 0.6,
-    "dapple": 0.75,
+    "rays": 0.28,
+    "columns": 0.85,
+    "dapple": 0.55,
     "drips": 0,
     "facets": 0,
     "caustics": 0,
     "crags": 0,
-    "snow": 0
+    "snow": 0,
+    "tunnel": 0,
+    "ridge": 0,
+    "wisps": 0.5,
+    "foam": 0,
+    "stars": 0
   },
   "textures": []
 }

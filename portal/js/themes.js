@@ -9,25 +9,38 @@
 // fallbacks and the theme.json files they mirror — a silent divergence would
 // only show up as "the site looks different when the network is slow".
 export const BUILTIN = {
-  // The unadorned field: no motif, so the warped noise shows on its own. It is
-  // what every unknown token lands on, and it should read as "before weather".
+  // Night sky. The reserved fallback used to sit at almost exactly cave's
+  // colour and behave like it, so the one theme a visitor sees if a fetch ever
+  // fails read as a duplicate of another mood. A sky is the right character
+  // for it: it is what is there before any weather arrives, it is legible at
+  // a glance, and nothing else in the set is looking upward.
   default: {
-    palette: ['#070810', '#181a33', '#463d6b', '#8d80b8', '#e9e4f2'],
-    params: { scale: 1.5, speed: 0.3, warp: 1.1, sparkle: 0.5, gloss: 0 },
-    motifs: {},
+    // Not as dark as a real night sky, deliberately: this is the look a
+    // visitor gets if theme.json ever fails to load, and an aperture that
+    // barely differs from sealed stone reads as broken rather than as night.
+    palette: ['#050614', '#131b3d', '#2d3c6e', '#6274ab', '#f2f4ff'],
+    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.7, gloss: 0.1, base: 0.62, drift: 0.18 },
+    motifs: { stars: 0.9 },
+    mappings: { warpBass: 0.2, brightRms: 0.5, sparkleTreble: 1.3, pulseFlux: 1, shiftCentroid: 0.15 },
   },
-  // Light coming down through a canopy onto trunks.
+  // Light coming down through a canopy onto trunks, with wisps between them.
+  // The palette's second step is grey-brown rather than green on purpose: the
+  // columns subtract mass, so they take their colour from the ramp's low end —
+  // an all-green ramp made them green fog instead of trunks.
   forest: {
-    palette: ['#05130a', '#0f3820', '#2f6b3a', '#7fae62', '#e2f2c5'],
-    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1 },
-    motifs: { columns: 0.6, dapple: 0.75, rays: 0.3 },
+    palette: ['#050f0a', '#2b2b23', '#3f6b40', '#8bb069', '#e8f4d2'],
+    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.46, drift: 0.35 },
+    motifs: { columns: 0.85, dapple: 0.55, rays: 0.28, wisps: 0.5 },
+    mappings: { warpBass: 0.5, brightRms: 0.6, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.2 },
   },
-  // Wet dark: a drip now and then down the formations, high contrast, little
-  // light. The low drips weight is the sparseness — see mDrips' duty cycle.
+  // Wet dark: a tunnel receding, crystal on its walls, and a drip now and then.
+  // The low drips weight is the sparseness — see mDrips' duty cycle. crags is
+  // gone from here: voronoi on the flat plane is what read as stained glass,
+  // and `tunnel` is the same lattice in a space that recedes.
   cave: {
     palette: ['#05050a', '#12101d', '#2b2440', '#5f5280', '#d2dcef'],
-    params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.8, gloss: 0.3, base: 0.6, drift: 0.05 },
-    motifs: { columns: 0.38, drips: 0.13, crags: 0.4 },
+    params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.8, gloss: 0.3, base: 0.5, drift: 0.05 },
+    motifs: { columns: 0.2, drips: 0.15, tunnel: 0.75 },
     mappings: { warpBass: 0.18, brightRms: 0.62, sparkleTreble: 1.4, pulseFlux: 0.7, shiftCentroid: 0.1 },
   },
   // Shards with lit seams. The one theme where the field is hard-edged.
@@ -37,19 +50,20 @@ export const BUILTIN = {
     motifs: { facets: 0.9 },
     mappings: { warpBass: 0.06, brightRms: 0.6, sparkleTreble: 1.6, pulseFlux: 1, shiftCentroid: 0.1 },
   },
-  // Snow lying on broken rock, barely moving. The palette is cold on purpose:
-  // the old warm tan made snow impossible, since there was no cold white to
-  // put the crust on.
+  // Ranges against the sky with snow near the tops. `ridge` supplies the
+  // silhouette — the thing that was missing when this was crags alone, and
+  // the reason it read as stained glass rather than as mountains — and crags
+  // is now only the surface texture on it, at a much lower weight.
   mountain: {
     palette: ['#0a0d14', '#252d3a', '#525e6f', '#97aabe', '#f4f9ff'],
-    params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.5, gloss: 0.2 },
-    motifs: { crags: 0.8, snow: 0.72 },
+    params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.6, drift: 0.25 },
+    motifs: { ridge: 0.9, crags: 0.16, snow: 0.7 },
   },
-  // Caustics, as seen from under the surface.
+  // Caustics from under the surface, and the surface itself above them.
   ocean: {
     palette: ['#02101c', '#043a57', '#0b6d85', '#39ac9b', '#c9f2e2'],
     params: { scale: 1.6, speed: 0.4, warp: 1.6, sparkle: 0.4, gloss: 0.35 },
-    motifs: { caustics: 0.8 },
+    motifs: { caustics: 0.75, foam: 0.6 },
   },
   // The same drips as cave, dense and fast — that is what the weight means —
   // but blown off vertical, which is the difference between weather and a
@@ -85,6 +99,11 @@ export const MOTIFS = Object.freeze({
   caustics: 0,  // undulating light web — water
   crags: 0,     // angular rock planes, each catching light its own way
   snow: 0,      // accumulation on the upward faces of those layers
+  tunnel: 0,    // a passage receding into the dark, crystal on its walls
+  ridge: 0,     // layered ridgelines against the sky — a mountain's silhouette
+  wisps: 0,     // slow wandering lights — will-o-wisps between the trunks
+  foam: 0,      // swell with breaking white water on the crests
+  stars: 0,     // fixed points of light and a faint band of them — night sky
 });
 
 // Spread under every theme so each one carries every key. Morphing is then a

@@ -13,7 +13,9 @@
     "warp": 0.9,
     "sparkle": 0.5,
     "gloss": 0.2,
-    "slant": 0
+    "slant": 0,
+    "base": 0.6,
+    "drift": 0.25
   },
   "mappings": {
     "warpBass": 0.9,
@@ -29,8 +31,13 @@
     "drips": 0,
     "facets": 0,
     "caustics": 0,
-    "crags": 0.8,
-    "snow": 0.72
+    "crags": 0.16,
+    "snow": 0.7,
+    "tunnel": 0,
+    "ridge": 0.9,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0
   },
   "textures": []
 }
