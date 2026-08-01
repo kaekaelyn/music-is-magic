@@ -387,7 +387,9 @@ float mCrags(vec2 p, out float upface, out float joint) {
 //
 // face: how much this fragment sits on a crystal plane facing the light —
 // where cave's glints belong, instead of scattered anywhere (§14.2).
-float mTunnel(vec2 uv, float t, float strike, float drive, out float face, out float joint, out float flare) {
+float mTunnel(vec2 uv, float t, float strike, float drive,
+              out float face, out float joint, out float flare,
+              out vec2 rockP, out float depthOut) {
   const float SIDES = 11.0;
   // The vanishing point is off centre and low: a passage seen square-on is a
   // rosette, which is what the first pass looked like — the radial symmetry
@@ -409,6 +411,12 @@ float mTunnel(vec2 uv, float t, float strike, float drive, out float face, out f
   float wd = fbm(ring + vec2(dep * 0.35, 11.0));
   vec2 p = vec2((a / 6.2831853 + 0.5) * SIDES + (wa - 0.5) * 2.4,
                 dep + (wd - 0.5) * 1.7);
+  // Handed out so the crystals can be grown in the ROCK's frame rather than
+  // in a lattice of their own. This is the whole fix for "no correlation
+  // between the architecture of the cave and the crystals": they were being
+  // placed in screen space and merely masked by the geometry, so they sat in
+  // front of the wall instead of coming out of it.
+  rockP = p;
 
   vec2 i = floor(p), f = fract(p);
   float d1 = 8.0, d2 = 8.0;
@@ -452,6 +460,7 @@ float mTunnel(vec2 uv, float t, float strike, float drive, out float face, out f
   // what stops the far end from aliasing, since the cells there are smaller
   // than a pixel.
   float depth = smoothstep(0.015, 0.5, rad);
+  depthOut = depth;
   // Faces dim into the passage but never to nothing — a cave that only
   // glitters at its mouth reads as a lit doorway, not a crystal cave.
   face *= mix(0.35, 1.0, depth);
@@ -500,76 +509,80 @@ float mFrost(vec2 q, float t, float grow, float strike) {
   return smoothstep(front, front + 0.05, v);
 }
 
-// Crystal clusters. Prisms growing out of the rock, each a tapered spike
-// with a lit face and a shadowed one, biased to grow upward and outward the
-// way they do on a cave floor and wall.
+// Crystal clusters, grown IN the rock's own frame.
 //
-// This is what cave was missing. A voronoi wall — even one in log-polar
-// space — gives you FACETS, and facets read as stained glass no matter what
-// colour they are (the owner said it three times, and was right three
-// times). Crystals are not a pattern in a surface; they are OBJECTS in front
-// of it, with silhouettes, and they had to be modelled as such.
+// The coordinate handed in is the tunnel's warped log-polar point, so the
+// crystal lattice and the rock lattice are the same lattice: one cell of
+// stone hosts one cluster, rooted at that cell's near edge, so every crystal
+// visibly comes out of a seam between two masses of rock. Placed on their own
+// screen-space grid instead — which is what the first version did — they read
+// as shapes stuck on top of the wall, because that is exactly what they were.
 //
-// Directions come from a normalized hash rather than an angle, so there is
-// no trig in the loop: nine cells, one spike each, is cheap enough for a
-// phone.
-float mCrystals(vec2 p, float t, float strike, float drive,
+// Growth runs along +depth, which in this mapping is "toward the axis of the
+// passage": a crystal on a tunnel wall grows perpendicular to that wall, into
+// the open space. Perspective then comes for free, because the mapping
+// compresses with distance — a crystal deep in the passage is small and
+// crowded, one at the mouth is large, and neither needed a special case.
+//
+// (The frame is very nearly isotropic here: one angle unit spans
+// rad*2pi/SIDES of arc and one depth unit spans rad/1.55, a ratio of ~0.89,
+// so shapes defined in it are not visibly stretched on screen.)
+float mCrystals(vec2 rockP, float t, float strike, float drive,
                 out float faceLit, out float flare, out float tint) {
   faceLit = 0.0;
   flare = 0.0;
   tint = 0.5;
   float shape = 0.0;
-  vec2 i = floor(p), f = fract(p);
+
+  vec2 q = rockP;
+  vec2 i = floor(q), f = fract(q);
   for (int y = -1; y <= 1; y++) {
     for (int x = -1; x <= 1; x++) {
       vec2 g = vec2(float(x), float(y));
       vec2 id = i + g;
       vec2 h = hash2(id);
-      vec2 h2 = hash2(id + 3.7);
-      // Only some cells host anything. Crystals occur in CLUSTERS with bare
-      // rock between them — one spike per cell everywhere is confetti, which
-      // is exactly what the first cut looked like.
-      float hosts = step(0.42, hash(id * 2.3));
-      // ...and a cluster is not always three. A fixed count per cluster is
-      // as much of a tell as a fixed size: the eye reads the repetition long
-      // before it reads the shapes.
+      // Not every seam grows anything, and a cluster is 1-3 spikes: a fixed
+      // count is as much of a tell as a fixed size.
+      float hosts = step(0.45, hash(id * 2.3));
       float count = 1.0 + floor(hash(id * 9.7) * 2.999);
 
-      // A shared root: several prisms of different lengths springing from one
-      // point, which is how they actually grow.
-      vec2 root = g + vec2(0.2 + h.x * 0.6, 0.15 + h.y * 0.5);
+      // Rooted at the cell's near edge — the seam between this mass of rock
+      // and the one in front of it.
+      vec2 root = g + vec2(0.15 + h.x * 0.7, 0.08 + h.y * 0.22);
+
       for (int k = 0; k < 3; k++) {
         float fk = float(k);
         if (fk >= count) break;
         vec2 hk = hash2(id + fk * 7.1 + 2.0);
         vec2 hj = hash2(id * 1.9 + fk * 3.3);
 
-        // Angle: a wide fan off the root, only loosely biased upward. A
-        // tight bias made every cluster a bundle of parallel needles.
-        vec2 dir = normalize(mix(hk * 2.0 - 1.0, vec2(0.0, 1.0), 0.15 + hj.x * 0.4)
+        // Biased along +depth (out of the wall, into the passage) but only
+        // loosely: a hard radial bias points every crystal at the vanishing
+        // point and the wall turns into a starburst. Real crystal faces go
+        // where the seam lets them, so most of the direction is the seam's
+        // own hash and only a third to two thirds is the surface normal.
+        vec2 rnd = hk * 2.0 - 1.0;
+        vec2 dir = normalize(mix(rnd, vec2(0.0, 1.0), 0.3 + hj.x * 0.35)
                              + vec2(0.001, 0.0));
         vec2 side = vec2(-dir.y, dir.x);
-
-        // Size: length and stoutness vary independently, so a cluster holds
-        // one long needle beside a short fat one rather than three of the
-        // same crystal at three scales.
-        float len = 0.16 + hk.y * 0.62;
-        float wid = (0.035 + hk.x * 0.075) * (0.6 + hj.y * 0.9);
 
         vec2 d = f - root;
         float along = dot(d, dir);
         float across = dot(d, side);
 
+        // Size: length and stoutness vary independently.
+        float len = 0.24 + hk.y * 0.62;
+        float wid = (0.045 + hk.x * 0.075) * (0.6 + hj.y * 0.9);
+
         float u = along / len;
         // A curve toward the tip — crystals rarely grow dead straight, and
         // the bend is most of what stops these reading as thrown darts.
-        across += (hj.x - 0.5) * 0.12 * u * u;
+        across += (hj.x - 0.5) * 0.1 * u * u;
         // Taper varies: some come to a needle point, some end blunt.
         float taper = wid * (1.0 - u * (0.62 + hk.y * 0.36));
-        // And the two halves are not the same width, so the silhouette is
-        // asymmetric the way a real prism seen off-axis is.
-        // (halfW, not half: 'half' is a reserved word in GLSL ES and the
-        // compiler rejects it outright.)
+        // The two halves differ, so the silhouette is asymmetric the way a
+        // real prism seen off-axis is. (halfW, not half: 'half' is a
+        // reserved word in GLSL ES and the compiler rejects it outright.)
         float halfW = taper * mix(0.6 + hj.y * 0.8, 0.7 + hk.x * 0.7, step(0.0, across));
         float inside = hosts * step(0.0, u) * step(u, 1.0) * step(abs(across), halfW);
 
@@ -583,7 +596,6 @@ float mCrystals(vec2 p, float t, float strike, float drive,
         if (v > shape) {
           shape = v;
           faceLit = inside * step(0.0, across);
-          // Which crystal won here, so main can give it its own colour.
           tint = hash(id * 4.3 + fk * 1.7);
         }
         // A strike lights whole crystals, chosen fresh on a slow clock.
@@ -903,6 +915,9 @@ void main() {
   float boltFlash = 0.0;
   float crystal = 0.0;
   float crystalTint = 0.5;
+  vec2 rockP = uv * 3.4;   // the rock's frame, if a theme has rock
+  float rockDepth = 1.0;
+  float haveRock = 0.0;
   float skyMask = 0.0;  // where ridge says sky is; motifs must not paint weather there
   float ridgeLayer = 0.0; // which range is frontmost here, so its rock rides IT
 
@@ -1040,7 +1055,9 @@ void main() {
   }
   if (W_tunnel > 0.0) {
     float face, joint, flare;
-    float lit = mTunnel(uv, u_t, u_pulse, clamp(u_sparkle, 0.0, 1.0), face, joint, flare);
+    float lit = mTunnel(uv, u_t, u_pulse, clamp(u_sparkle, 0.0, 1.0),
+                        face, joint, flare, rockP, rockDepth);
+    haveRock = 1.0;
     lit = clamp(lit * (0.72 + 0.5 * f), 0.0, 1.0);
     // The rock now REPLACES the field rather than tinting it. Mixing left
     // the base fog glowing between the cells, and a lit field behind faceted
@@ -1054,20 +1071,11 @@ void main() {
   }
   if (W_crystals > 0.0) {
     float faceLit, flare;
-    // Kept in aperture space, not scaled space: crystals are objects at a
-    // definite size in the room, and should not shrink when a theme turns
-    // its grain up.
-    crystal = mCrystals(uv * 3.4 + vec2(0.0, 1.3), u_t, u_pulse,
+    crystal = mCrystals(rockP, u_t, u_pulse,
                         clamp(u_sparkle, 0.0, 1.0), faceLit, flare, crystalTint);
-    // They grow ON something. Away from the tunnel's vanishing point (the
-    // open passage — nothing grows in mid-air down the middle of it) and
-    // thickest low down, where a cave floor collects them. Without this they
-    // hung evenly across the whole opening like thrown darts.
-    if (W_tunnel > 0.0) {
-      float outFromVoid = smoothstep(0.1, 0.4, length(uv - vec2(-0.16, -0.07)));
-      float lowDown = 1.0 - smoothstep(-0.3, 0.28, uv.y);
-      crystal *= outFromVoid * (0.45 + 0.85 * lowDown);
-    }
+    // Fade into the passage with the rock they grow on, so the far end stays
+    // depth rather than a thicket of sub-pixel spikes.
+    crystal *= mix(1.0, rockDepth, haveRock);
     crystal *= W_crystals;
     // They stand in front of the wall: their own light, and their own mass
     // where a face turns away.

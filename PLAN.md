@@ -1148,6 +1148,18 @@ Every note mapped to a mechanism; the signature table in §5.4 is the result.
 Two engine-wide deletions (the ambient brightening and the ambient glints —
 see §5.4) and one lesson that finally cracked cave:
 
+- **Cave.** The crystals are grown in the ROCK's frame — `mTunnel` hands out
+  its warped log-polar point, and the crystal lattice IS the rock lattice, so
+  one cell of stone hosts one cluster rooted at its near edge and every
+  crystal comes out of a seam between two masses of rock. Placed on their own
+  screen-space grid and merely masked by the geometry (the first attempt),
+  they read as shapes stuck on the wall, because that is what they were.
+  Growth runs along +depth — perpendicular to the wall, into the passage —
+  which also buys perspective for nothing: deep crystals are small and
+  crowded, ones at the mouth are large. Bias that direction too hard and every
+  crystal points at the vanishing point, which turns the wall into a
+  starburst; a third to two thirds surface-normal and the rest the seam's own
+  hash is the balance.
 - **Cave.** Every dimension of a crystal is hashed per spike — count per
   cluster (1–3), length and stoutness independently, angle over a wide fan,
   taper from needle to blunt, an asymmetric silhouette, a curve toward the
