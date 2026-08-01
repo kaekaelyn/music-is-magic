@@ -77,7 +77,7 @@ terminal:
 
 ```sh
 cd path/to/music-is-magic        # Windows: cd C:\musicismagic
-npx --yes serve portal -l 8000
+npx --yes serve portal --listen 8000
 ```
 
 **Python** (built in on macOS and Linux; on Windows install from
@@ -349,7 +349,7 @@ path above is the recommendation. Everything else is identical.
 
 Once the setup above is done, every session is this:
 
-1. Start the file server (`npx --yes serve portal -l 8000` from the project
+1. Start the file server (`npx --yes serve portal --listen 8000` from the project
    folder) and leave its window open.
 2. Open `broadcast.html?topic=...` on the desktop, click once to arm, check the
    HUD says `audio: live`.

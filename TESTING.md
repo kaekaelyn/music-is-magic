@@ -193,7 +193,7 @@ Automated tests prove behavior, not beauty. Look at it too.
 ```sh
 # Anywhere Node is installed (including Windows) — no Python needed
 cd music-is-magic                 # Windows: cd C:\musicismagic
-npx --yes serve portal -l 8000
+npx --yes serve portal --listen 8000
 ```
 
 ```sh
@@ -214,6 +214,12 @@ Two things that look wrong and are not:
 
 **Leave that window open** — closing it stops the server and the page goes
 blank. To stop it deliberately, click the window and press `Ctrl+C`.
+
+| If | Then |
+|---|---|
+| `Path must be a string. Received undefined` | The `--listen` argument did not parse. Nearly always a mistyped flag — if you shortened it to `-l`, check you used a lowercase **L** and not the digit **1**. Safest is to spell out `--listen` |
+| `EADDRINUSE` / `address already in use` | Port 8000 is taken, usually by a server you already left running. Close that window, or pick another port (`--listen 8010`) and use it in the URLs too |
+| `'npx' is not recognized` | Node is not installed, or the terminal predates the install. See 0.3 and reopen the terminal |
 
 Open **http://localhost:8000/** — sealed stone eye, a slow ember in the seam,
 nothing clickable.
