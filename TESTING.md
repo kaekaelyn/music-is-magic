@@ -202,9 +202,18 @@ cd music-is-magic
 python3 -m http.server -d portal 8000
 ```
 
-It will print something like `Accepting connections at http://localhost:8000`.
-**Leave that window open** — closing it stops the server. To stop it later,
-click the window and press `Ctrl+C`.
+It prints a box with two addresses — **Local:** (this machine) and
+**Network:** (what your phone will use in Stage 6). Note the Network one down.
+
+Two things that look wrong and are not:
+
+- **Your prompt does not come back.** The window is busy being the server now.
+  That is correct — leave it alone, and open a second terminal if you need one.
+- **Windows may ask to allow Node.js through the firewall.** Tick **Private
+  networks** and Allow. Stage 6 needs it; Stages 2–5 do not.
+
+**Leave that window open** — closing it stops the server and the page goes
+blank. To stop it deliberately, click the window and press `Ctrl+C`.
 
 Open **http://localhost:8000/** — sealed stone eye, a slow ember in the seam,
 nothing clickable.
@@ -357,9 +366,19 @@ Desktop:  http://localhost:8000/broadcast.html?nomic=1&topic=mim-test-4kq9zx2
 Phone:    http://<your-lan-ip>:8000/control.html?topic=mim-test-4kq9zx2
 ```
 
-Find your LAN IP with `ipconfig getifaddr en0` (macOS),
-`hostname -I | awk '{print $1}'` (Linux), or `ipconfig` (Windows). The phone
-must be on the same WiFi.
+**You already have your LAN address**, if you started the server with
+`npx serve` — it printed a **Network:** line next to the Local: one. That is
+the phone's URL. Otherwise: `ipconfig getifaddr en0` (macOS),
+`hostname -I | awk '{print $1}'` (Linux), `ipconfig` (Windows).
+
+The phone must be on the **same WiFi**, not cell data.
+
+> **Windows: the firewall will block this** unless you let it through. The
+> first time the server starts, Windows pops up "Allow Node.js to communicate
+> on these networks" — tick **Private networks** and Allow. If you dismissed
+> that box, the phone page will simply never load: search Start for "Windows
+> Defender Firewall" → "Allow an app through firewall" → find Node.js → tick
+> **Private**.
 
 **What you should see:**
 
