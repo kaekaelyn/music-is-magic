@@ -1155,6 +1155,166 @@ Every note mapped to a mechanism; the signature table in §5.4 is the result.
 7. Forest: light became the subject — more dapple/rays, visible wisps,
    saturated canopy steps, brighter base.
 
+### 14.8 Sixth review — the standing work list (READ THIS FIRST)
+
+The owner reviewed against live playing again. Sunshine and forest are done
+("the gold standard", "hitting all the right notes") — **do not touch them**.
+Ocean and ice are liked. What follows is everything else, in priority order,
+with the diagnosis already done. Where a number is given it was measured or
+derived from the code, not guessed; verify before trusting, but do not
+re-derive from scratch.
+
+#### P0 — Cave is unusable, and it is a performance bug
+
+> "Very, very laggy. Slowed down my whole computer. And I can't see any
+> crystals. Just a horizon type arc that weirdly bisects some jagged shapes."
+
+Three separate faults, in the order they should be fixed.
+
+**1. The shader is doing absurd work per fragment.** Rough count for cave:
+the base field is 5 `fbm` calls (~100 `hash`), `mTunnel` adds 2 `fbm` for its
+warp plus a 9-cell voronoi (~40 `hash` + 10 `hash2`), and `mCrystals` runs
+**9 cells x up to 4 spears = 36 iterations**, each with two `hash2` calls —
+about 144 `sin` on its own. At the aperture's capped 1024px that is roughly
+440k fragments x 60fps of this. On integrated graphics it will fall off a
+cliff, and "slowed down my whole computer" is consistent with the driver
+thrashing or dropping to software.
+
+The architecture is the bug, not the constants. **Only one to three clusters
+are ever lit, but every fragment evaluates nine cells' worth of them.** A
+lattice is the wrong structure for "a few big objects" — enumerate a fixed
+small set (3 or 4 clusters at hashed positions, 3 spears each = ~12 SDF
+evaluations, no neighbourhood search) and the cost drops by 3-4x with no
+visual loss. Do that before tuning anything else about cave.
+
+Also worth doing while in there, in rough order of value:
+- Early-out on the cluster selection *before* the spear loop, not inside it.
+- `hash2` costs two `sin`; a cheaper integer-style hash would pay off
+  everywhere, and it is a contained change with a visual diff to check.
+- **Add a frame-time readout to the broadcast HUD.** There is no
+  instrumentation at all right now, so every performance claim in this
+  document is arithmetic rather than measurement. A ms/frame number per mood
+  would make the next round of this argument evidence-based.
+- **Consider dynamic resolution:** `MAX_EDGE` is a fixed 1024. Measuring
+  frame time and scaling the field's backing store down when it climbs would
+  protect every mood on weak hardware, not just this one.
+
+**2. Nothing is visible.** The reveal depends on `chosen` (a selection clock)
+AND the light angle happening to catch a face, with `pow(lam, 9.0)` — a very
+tight lobe. Two independent gates that both have to fire is why the owner saw
+nothing. Give it a floor: guarantee at least one cluster lit at all times
+(e.g. take the best of two light directions, or add a rim term that survives
+any angle), so the mood always has something in it and the playing changes
+*which* rather than *whether*.
+
+**3. The "horizon arc" is the floor.** `floorAmt = max(W_drips, W_crystals)`
+draws a hill silhouette at `groundY = -0.24 - uv.x*uv.x*0.18`, and the
+crystals are drawn over and through it, so it reads as an arc bisecting them.
+Either occlude crystals below the floor line and let them sit ON it, or drop
+the floor for cave and cluster the crystals low instead. Right now it is
+neither.
+
+#### P1 — Mountain: the crags still do not move with the mountains
+
+> "It is like we are viewing the moving mountains through a stationary craggy
+> window. If we can't make the crags look (and move as) one with the
+> mountains, we shouldn't have them at all."
+
+**This one is arithmetic, and the numbers are damning.** Ridge layer L shifts
+its profile by `flow * (0.05 + L*0.11)` in its own x-units, and its x-units
+are `uv.x * (1.5 - L*0.34)`, so its *screen* displacement is:
+
+| layer | ridge screen shift | crag screen shift | ratio |
+|---|---|---|---|
+| 0 (far) | 0.033 x flow | 0.0105 x flow | 32% |
+| 1 | 0.138 x flow | 0.0335 x flow | 24% |
+| 2 (near) | 0.329 x flow | 0.0566 x flow | 17% |
+
+The crag offset (`lrate = u_flow * (0.05 + L*0.11) * 2.2`) was written in the
+ridge's x-units and then applied in crag space, which is `uv * scale * grain`
+= `uv * 10.5`. The two spaces differ by that factor, so the rock crawls at a
+fifth of its mountain's speed. **The fix is to convert through screen space
+explicitly:** shift by `flow * (0.05 + L*0.11) / (1.5 - L*0.34) * (scale *
+grain)`. That is 0.35 x flow for the far layer and 3.45 x flow for the near
+one — 3x and 6x the current values.
+
+Take the owner at their word on the escape hatch: if it still does not read
+as one surface after that, **delete crags from mountain** rather than leaving
+a texture that betrays the illusion.
+
+Also mountain: **the peaks overcorrected.** "I didn't mean make the peaks
+look squished and cartoonish... adjust the lower end, don't exaggerate the
+upper." The `ridged *= ridged` squaring plus the `fine` octave plus the
+raised amplitude (`0.38 + fi*0.1`) compounded. Soften the squaring (try
+`pow(ridged, 1.3)`), bring the amplitude back toward the middle, and leave
+the *valleys* alone — the complaint was never that the low ground was wrong.
+
+#### P2 — Lightning is nearly right
+
+> "I'm in love with the lightning!" — with four faults:
+
+- **One bolt per strike.** `seed = floor(t * 0.37)` changes about every 4
+  real seconds at rain's speed, so every onset inside that window redraws the
+  *same* bolt. It needs an event counter, not a clock: **increment a
+  `u_strikeId` uniform in JS when the onset envelope re-triggers** and seed
+  from that. Cheap and exact.
+- **Far too curved.** `wander` amplitude is 0.55 in uv.x across a visible
+  uv.y span of ~0.6. Drop it to ~0.1-0.15 and raise the frequency: a bolt is
+  straight segments with sharp kinks, not a sine.
+- **The gaps.** Distance is measured horizontally (`abs(uv.x - px)`), so
+  wherever the path is steep the band thins to nothing and the channel
+  appears to break. Divide by the slope: `dist = abs(uv.x - px) /
+  sqrt(1.0 + slope*slope)`, with slope from a finite difference of the path
+  noise. This is the standard fix and it will close the gaps completely.
+- **The stormy sky colour is unreachable.** It is gated on
+  `1 - smoothstep(0.3, 0.62, u_centroid)`, i.e. it needs a *low* spectral
+  centroid, and piano — even in the bass — carries enough harmonics that the
+  centroid likely never gets there. The owner could not find anything to play
+  that triggered it, and they were probably right that nothing does. **Drive
+  it from bass energy instead.** `features.js` already extracts `bass`, and
+  nothing but the domain warp consumes it; adding a `u_bass` uniform gives
+  every mood a low-end axis it currently lacks.
+
+#### P3 — Night: the aurora is still too cautious
+
+> "Even at the very top end of the piano, the effect is pretty subtle."
+
+Suspect the *signal*, not the gain. Pitch reaches the shader through two
+smoothers in series: `features.js` smooths centroid with a 0.4s attack, then
+`SHIFT_TAU = 1.0` smooths it again — well over a second of lag, so a quick
+high run barely moves it. Consider giving pitch-driven *light* a faster path
+(a second, lightly-smoothed centroid) while leaving the slow one for anything
+that moves geometry — this is the same "smooth what moves, not what glows"
+split that §13 already established for loudness.
+
+Then, on top of that: more colour variance. The band currently runs green ->
+cyan -> violet on altitude plus pitch. Add variation *across* the curtain as
+well, so different columns burn different colours at once, and let the whole
+thing get genuinely bright when the playing is high and loud. The owner has
+twice said it is too subtle; they are not going to say it a third time.
+
+#### P4 — Nice to have
+
+- **Ocean seascapes.** The owner's idea: drift between stormier / greener /
+  brighter / darker seas. The right shape for this is a **slow state layer** —
+  a feature smoothed over ~30s (long-term loudness and brightness) driving
+  palette mix, foam threshold and travel rate — kept clearly separate from
+  per-frame response. That primitive would serve other moods later.
+- **Ice frost does not start clear**, because at `flow = 0` the per-patch
+  phase term means some patches are already grown. Owner explicitly does not
+  mind ("not a key design philosophy for me"), so this is optional; if you do
+  it, multiply the growth by a ramp like `1 - exp(-flow * k)` so every patch
+  starts at zero regardless of phase.
+- **Ice frost could be more feathery** while staying jagged — more branching
+  generations off the primary needles.
+
+#### Do not re-litigate
+
+Sunshine and forest are finished. The onset ring, the whole-field loudness
+brightening and ambient glints are gone deliberately (§5.4) — do not
+reintroduce a generic response. The three lawful audio couplings and the
+travel clock's scope (one visit to one mood) are settled; §5.4 has both.
+
 ### 14.7 Fifth review (2026-08-01) — objects, not patterns
 
 Two engine-wide deletions (the ambient brightening and the ambient glints —
