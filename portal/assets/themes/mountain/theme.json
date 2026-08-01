@@ -27,17 +27,18 @@
   "motifs": {
     "rays": 0,
     "columns": 0,
-    "dapple": 0,
+    "dapple": 0.4,
     "drips": 0,
     "facets": 0,
     "caustics": 0,
     "crags": 0.16,
-    "snow": 0.7,
+    "snow": 0.78,
     "tunnel": 0,
     "ridge": 0.9,
     "wisps": 0,
     "foam": 0,
-    "stars": 0
+    "stars": 0,
+    "aurora": 0
   },
   "textures": []
 }

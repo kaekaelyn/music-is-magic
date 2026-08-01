@@ -102,7 +102,7 @@ float fbm(vec2 p) {
 // Shafts from a source above and to the left, drifting slowly.
 // uv.y increases upward, so the source's y is positive. Getting this backwards
 // lights the aperture from below and nothing about the still image says so.
-float mRays(vec2 uv, float t, float drive) {
+float mRays(vec2 uv, float t, float drive, float kick) {
   vec2 d = uv - vec2(-0.18, 0.95);
   float a = atan(d.x, d.y);
   // Sample the noise around a CIRCLE, not along the raw angle. atan wraps from
@@ -110,11 +110,17 @@ float mRays(vec2 uv, float t, float drive) {
   // leaves a hard vertical seam there. Sunshine's own rays mostly disguised
   // it; forest's fainter ones did not, which is where it was spotted.
   vec2 ring = vec2(cos(a), sin(a)) * 2.6;
-  float s = fbm(ring + vec2(t * 0.09, 0.0));
+  // The fan dances: an onset kicks the sampling point sideways, so the beams
+  // leap to a new arrangement and settle back as the kick decays. This is a
+  // DISPLACEMENT by a decaying envelope, never a change of drift rate —
+  // scaling time by a live feature lurches the whole pattern (§13).
+  float s = fbm(ring + vec2(t * 0.09 + kick * 0.6, kick * 0.35));
   // Loudness sharpens the shafts rather than merely brightening them: quiet
-  // is diffuse light, loud is defined beams.
-  s = pow(clamp(s * 1.4, 0.0, 1.0), 3.4 - drive * 1.3);
-  return s * smoothstep(2.1 + drive * 0.45, 0.1, length(d)) * (0.72 + drive * 0.6);
+  // is diffuse light, loud is defined beams — and a struck chord is a burst
+  // of sun, not only a rearrangement.
+  s = pow(clamp(s * 1.4, 0.0, 1.0), 3.4 - drive * 1.5);
+  return s * smoothstep(2.1 + drive * 0.45, 0.1, length(d))
+       * (0.66 + drive * 0.65 + kick * 0.55);
 }
 
 // Irregular vertical masses, leaning very slightly.
@@ -130,8 +136,12 @@ float mColumns(vec2 uv, float t) {
 
 // Patches of light moving at their own rate, so they read as something passing
 // in front of the field rather than as part of it.
-float mDapple(vec2 uv, float t) {
-  return smoothstep(0.5, 0.87, fbm(uv * 3.4 + vec2(t * 0.11, -t * 0.06)));
+float mDapple(vec2 uv, float t, float drive) {
+  // Loudness shoulders the patches sideways and opens the threshold a hair —
+  // a swell in the music reads as light shifting overhead. Displacement, not
+  // speed: smoothed loudness cannot make a displaced pattern jump.
+  return smoothstep(0.5 - drive * 0.08, 0.87,
+                    fbm(uv * 3.4 + vec2(t * 0.11 + drive * 0.5, -t * 0.06)));
 }
 
 // Falling streaks. Weight sets how many lanes there are AND how often a lane
@@ -140,7 +150,7 @@ float mDapple(vec2 uv, float t) {
 //
 // The streak lives inside one cycle of the phase, so the per-cycle coin flip
 // can never chop a drip in half partway down.
-float mDrips(vec2 uv, float t, float w, float slant, float drive, out float splash) {
+float mDrips(vec2 uv, float t, float w, float slant, float drive, float kick, out float splash) {
   // Shear the lane coordinate rather than drifting the drops sideways: the
   // streaks themselves have to lean, or fast rain reads as vertical rain
   // sliding across the aperture.
@@ -183,7 +193,11 @@ float mDrips(vec2 uv, float t, float w, float slant, float drive, out float spla
   // gets its own floor height so the landing line is a wet uneven surface
   // rather than a ruled edge; a straight one would be the banding problem
   // again (§5.4), and the ground of a cave is not level anyway.
-  float floorY = -0.19 - h.y * 0.06;
+  // Curved to follow the lens: the aperture is pointed at its ends, so a
+  // flat floor low enough to feel like ground in the middle would sit below
+  // the opening entirely at the edges. A floor that rises toward the tips
+  // keeps every lane's splash visible AND reads as the bottom of the lens.
+  float floorY = -0.25 + uv.x * uv.x * 0.22 - h.y * 0.05;
   // The phase AT the floor tells us which drop is landing and how long ago:
   // the streak's head is at fract(phase) == 0, so fract of the floor's phase
   // is the age of the last arrival, in the same units the fall is measured in.
@@ -195,9 +209,12 @@ float mDrips(vec2 uv, float t, float w, float slant, float drive, out float spla
   float life = 1.0 - smoothstep(0.0, 0.16, age);
   // A low wide crown rather than a circle — water goes sideways when it hits.
   vec2 rel = vec2((fract(lx * lanes) - 0.5) / lanes, (uv.y - floorY) * 2.6);
-  float ring = age * 0.10;
+  float ring = age * (0.09 + kick * 0.05);
   float crown = smoothstep(0.028, 0.0, abs(length(rel) - ring));
-  splash = landed * life * crown * step(floorY - 0.02, uv.y);
+  // The splash answers the room: loudness widens the crowns, and an onset
+  // arrives as a burst of them — the rain playing along, not just falling.
+  splash = landed * life * crown * step(floorY - 0.02, uv.y)
+         * (0.5 + drive * 0.7 + kick * 0.9);
 
   // The streak itself stops at the floor instead of continuing through it.
   return falls * streak * thin * smoothstep(floorY - 0.03, floorY + 0.05, uv.y);
@@ -232,7 +249,7 @@ float mGlint(vec2 p, float t, float density, float drive) {
 // Crystal shards: a flat value per cell, and a lit seam where cells meet. The
 // seam comes from the gap between nearest and second-nearest, which is the
 // cheap way to get voronoi edges in one pass.
-float mFacets(vec2 p, float t, out float seam) {
+float mFacets(vec2 p, float t, float strike, float drive, out float seam, out float flare) {
   vec2 i = floor(p), f = fract(p);
   float d1 = 8.0, d2 = 8.0;
   vec2 cell = vec2(0.0);
@@ -248,6 +265,14 @@ float mFacets(vec2 p, float t, out float seam) {
     }
   }
   seam = smoothstep(0.2, 0.0, d2 - d1);
+  // A strike lights whole shards. Each onset nominates a handful of cells —
+  // which handful re-rolls on a slow clock, and treble widens it — and they
+  // flare with the pulse and go dark again. The music illuminates the ice;
+  // the ice never glitters on its own. This replaced ambient drift-and-
+  // subtle-sparkle, which read as stagnant: quiet is now genuinely still,
+  // and playing is lightning inside the shards.
+  float pick = hash(cell * 4.7 + floor(t * 0.9) * 0.37);
+  flare = step(1.0 - 0.09 - drive * 0.16, pick) * strike;
   return hash(cell * 1.7);
 }
 
@@ -377,9 +402,10 @@ float mTunnel(vec2 uv, float t, out float face, out float joint) {
 //
 // crest: the band immediately below whichever line is frontmost here — where
 // snow sits on a mountain, which is near the top and not on the valley floor.
-float mRidge(vec2 uv, float t, out float crest, out float sky) {
+float mRidge(vec2 uv, float t, float drive, out float crest, out float sky, out float plume) {
   float v = 0.0;
   float cover = 0.0;
+  float hN = 0.0;
   crest = 0.0;
   for (int i = 0; i < 3; i++) {
     float fi = float(i);
@@ -404,8 +430,18 @@ float mRidge(vec2 uv, float t, out float crest, out float sky) {
     v = mix(v, shade, below);
     crest = mix(crest, below * (1.0 - smoothstep(0.0, 0.07, h - uv.y)), below);
     cover = max(cover, below);
+    if (i == 2) hN = h; // the near ridge, where spindrift is torn off
   }
   sky = 1.0 - cover;
+  // Spindrift: snow blown off the near crest when the room is loud. Streaky,
+  // wind-sheared, gated entirely by drive — silence leaves the summits
+  // absolutely still. The landscape holding still is the point (owner's
+  // note); it is the WEATHER that answers the music.
+  float above = uv.y - hN;
+  float band = smoothstep(0.0, 0.015, above) * (1.0 - smoothstep(0.03, 0.13, above));
+  float gust = smoothstep(0.45, 0.8, noise(vec2(uv.x * 3.2 - t * 0.55, 7.7)))
+             * smoothstep(0.4, 0.75, noise(vec2(uv.x * 11.0 - t * 1.1, 2.3)));
+  plume = band * gust * drive;
   return v;
 }
 
@@ -414,8 +450,8 @@ float mRidge(vec2 uv, float t, out float crest, out float sky) {
 // Deliberately not glints. A glint is a surface catching light for an instant;
 // a wisp is a small body that drifts, hangs, and fades, and it has to be rare
 // enough to be an event. One candidate per cell, most of them switched off.
-float mWisps(vec2 uv, float t, float w) {
-  vec2 p = uv * 3.4;
+float mWisps(vec2 uv, float t, float w, float drive) {
+  vec2 p = uv * 2.7;
   vec2 i = floor(p), f = fract(p);
   float v = 0.0;
   for (int y = -1; y <= 1; y++) {
@@ -425,36 +461,42 @@ float mWisps(vec2 uv, float t, float w) {
       vec2 h = hash2(id);
       // Most cells hold nothing. The first pass lit a third of them and they
       // ran together into exactly the green cloud this motif was added to fix.
-      float on = step(1.0 - 0.16 * w, hash(id * 1.7));
+      float on = step(1.0 - 0.2 * w, hash(id * 1.7));
       // Its own slow orbit, its own period. Wisps that breathe together read
       // as a light rig; the whole illusion is that each one is a separate body.
       vec2 c = g + 0.5 + 0.34 * vec2(sin(t * (0.21 + h.x * 0.19) + h.y * 6.28),
                                      cos(t * (0.17 + h.y * 0.21) + h.x * 6.28));
-      float breath = 0.35 + 0.65 * (0.5 + 0.5 * sin(t * (0.5 + h.x * 0.5) + h.y * 6.28));
+      // Each wisp breathes on its own period, and all of them swell with the
+      // room — small lights leaning in when the music does.
+      float breath = (0.3 + 0.7 * (0.5 + 0.5 * sin(t * (0.5 + h.x * 0.5) + h.y * 6.28)))
+                   * (0.55 + drive * 0.9);
       // A soft body with a brighter core — a lantern, not a dot.
       float r = length(f - c);
-      v += on * breath * (smoothstep(0.17, 0.0, r) * 0.22 + smoothstep(0.04, 0.0, r));
+      v += on * breath * (smoothstep(0.26, 0.0, r) * 0.3 + smoothstep(0.065, 0.0, r) * 1.2);
     }
   }
   return clamp(v, 0.0, 1.5);
 }
 
-// Swell and foam. Caustics are what the water does to the light below it;
-// this is what the surface itself does — long crests that pass, breaking into
-// foam at the top. Curved, and noise-displaced along their length, because a
-// straight moving line is the banding problem in a wetsuit.
+// Surf. Caustics are what the water does to the light below it; this is the
+// surface itself: crest lines that travel steadily in ONE direction — down
+// the aperture, the way sets come on at a shore. uv.y increases upward, so
+// +t in the phase approaches (the drips rule). The bend noise drifts far
+// slower than the wave travels, so each swell passes THROUGH the shape
+// rather than carrying it — which is the difference between a sea and the
+// marbled fog this used to be.
 float mFoam(vec2 uv, float t, float drive, out float crestLine) {
-  float warp = fbm(uv * 1.5 + vec2(t * 0.06, -t * 0.03)) * 2.2;
-  // The crest travels; the noise it is bent by travels more slowly, so the
-  // wave passes through its own shape instead of sliding as a rigid object.
-  float s = sin(uv.x * 2.3 + uv.y * 5.2 + warp + t * 0.85);
-  float swell = 0.5 + 0.5 * s;
-  // Foam only on the top of the crest, and torn up: continuous foam is a
-  // painted line, and loudness decides how hard the sea is working.
-  float tear = fbm(uv * 7.0 + vec2(-t * 0.5, t * 0.2));
-  crestLine = smoothstep(0.86, 0.99, swell);
-  return crestLine * smoothstep(0.42, 0.72, tear) * (0.55 + drive * 0.9)
-       + swell * swell * 0.18;
+  float bend = fbm(vec2(uv.x * 1.7, uv.y * 0.8) + vec2(t * 0.03, 0.0)) * 1.5;
+  float phase = uv.y * 8.0 + bend + t * 0.7;
+  float swell = 0.5 + 0.5 * sin(phase);
+  // Sharpened toward the crest, harder when the room is loud.
+  swell = pow(swell, 1.7 + drive * 0.9);
+  crestLine = smoothstep(0.62, 0.96, swell);
+  // Foam is torn, never a painted line; loudness is the sea working harder,
+  // so more of each crest carries white and the breaks reach further down.
+  float tear = fbm(uv * vec2(6.5, 3.0) + vec2(t * 0.16, t * 0.45));
+  return crestLine * smoothstep(0.62 - drive * 0.28, 0.88, tear)
+       * (0.7 + drive * 0.65) + swell * 0.15;
 }
 
 // A night sky: fixed stars, a faint band of them, and the odd bright one.
@@ -464,7 +506,7 @@ float mFoam(vec2 uv, float t, float drive, out float crestLine) {
 // the position is hashed once per cell and stays put; only brightness moves,
 // slowly, and the scintillation is small. A sky where the stars wander is a
 // screensaver.
-float mStars(vec2 uv, float t, float w) {
+float mStars(vec2 uv, float t, float w, float strike) {
   vec2 p = uv * 26.0;
   vec2 i = floor(p), f = fract(p);
   vec2 o = hash2(i);
@@ -479,7 +521,35 @@ float mStars(vec2 uv, float t, float w) {
   // everything else, and kept faint — it is a suggestion of more stars, not
   // a cloud.
   float band = smoothstep(0.42, 0.72, fbm(uv * vec2(1.1, 3.4) + vec2(4.0, 0.0)));
-  return (star + band * 0.42) * w;
+  // A meteor on a strong onset. The streak TRAVELS as the pulse decays —
+  // strike is 1 at the hit and eases to 0, so (1 - strike) is distance flown,
+  // and the whole flight takes about a second for free. The path is hashed
+  // from a slow clock, so no two fall from the same place. strike^2 keeps
+  // soft onsets from spending meteors; they should be an event.
+  vec2 sh = hash2(vec2(floor(t * 0.31), 9.1));
+  vec2 head = vec2(sh.x * 1.4 - 0.7, 0.42 - sh.y * 0.2)
+            + vec2(0.872, -0.49) * (1.0 - strike) * 0.9;
+  vec2 rel = uv - head;
+  float along = dot(rel, vec2(0.872, -0.49));
+  float side = abs(dot(rel, vec2(0.49, 0.872)));
+  float meteor = smoothstep(0.012, 0.0, side)
+               * smoothstep(-0.24, -0.02, along) * smoothstep(0.02, 0.0, along)
+               * strike * strike * 1.6;
+  return (star + band * 0.42 + meteor) * w;
+}
+
+// Curtains of light in a night sky. The lower hem is a slow noise line and
+// the folds are vertical striations; loudness lifts the whole veil and an
+// onset ripples the hem. Deliberately made of the palette's MID steps when
+// composited (see main), so the stars stay the brightest points — an aurora
+// is a veil in front of the dark, not a light source outshining the sky.
+float mAurora(vec2 uv, float t, float drive, float kick) {
+  float x = uv.x * 1.3;
+  float hem = 0.02 + fbm(vec2(x * 1.1 + t * 0.05, 3.7)) * 0.3 + kick * 0.05;
+  float fold = fbm(vec2(x * 4.0 + t * 0.08, uv.y * 0.6));
+  float body = smoothstep(hem - 0.02, hem + 0.16, uv.y)
+             * (1.0 - smoothstep(0.3, 0.52, uv.y));
+  return body * (0.25 + smoothstep(0.35, 0.75, fold) * 0.75) * (0.35 + drive * 1.1);
 }
 
 void main() {
@@ -522,13 +592,13 @@ void main() {
   float own = 0.0;
 
   if (W_rays > 0.0) {
-    rays = mRays(uv, u_t, u_rms) * W_rays;
+    rays = mRays(uv, u_t, u_rms, u_pulse) * W_rays;
     // Less lift than before: the shafts no longer need to climb the ramp to
     // be visible, because they get their own colour below.
     lift += rays * 0.3;
     spec += rays * 0.25;
   }
-  if (W_dapple > 0.0) lift += mDapple(uv, u_t) * W_dapple * 0.55;
+  if (W_dapple > 0.0) lift += mDapple(uv, u_t, u_rms) * W_dapple * 0.55;
   if (W_caustics > 0.0) {
     float v = mCaustics(p, u_t);
     lift += v * W_caustics * 0.5;
@@ -549,7 +619,7 @@ void main() {
     // Weight controls density, not brightness: a cave's rare drip has to be
     // as bright as any of rain's, or the sparse case just disappears.
     float splash;
-    float v = mDrips(uv, u_t, W_drips, u_slant, u_rms, splash);
+    float v = mDrips(uv, u_t, W_drips, u_slant, u_rms, u_pulse, splash);
     // Flat, not scaled by weight — the comment above always said the sparse
     // case has to be as bright as the dense one, but the gain said otherwise
     // and a lone droplet arrived dimmer than the rain it stood in for.
@@ -559,12 +629,15 @@ void main() {
   if (W_columns > 0.0) mass += mColumns(uv, u_t) * W_columns * 0.62;
   float skyward = 0.0; // where snow can lie, filled in by crags or ridge
   if (W_ridge > 0.0) {
-    float crest, sky;
-    float v = mRidge(uv, u_t, crest, sky);
+    float crest, sky, plume;
+    float v = mRidge(uv, u_t, clamp(u_rms * 1.7, 0.0, 1.0), crest, sky, plume);
     // The silhouette replaces the field rather than tinting it: past the
     // ridgeline you are looking at rock, and what is above it is sky.
     g = mix(g, v, W_ridge * 0.88);
     skyward = max(skyward, crest);
+    // Spindrift is snow in the air, so it rides the same overlay snow does.
+    snow = max(snow, plume * W_ridge * 0.85);
+    spec += plume * W_ridge * 0.7;
   }
   if (W_crags > 0.0) {
     float upface, joint;
@@ -613,21 +686,28 @@ void main() {
     site = max(site, s);
     own = max(own, W_snow * 0.8);
   }
-  if (W_wisps > 0.0) wisp = mWisps(uv, u_t, W_wisps) * W_wisps;
+  if (W_wisps > 0.0) wisp = mWisps(uv, u_t, W_wisps, u_rms) * W_wisps;
   if (W_stars > 0.0) {
-    float s = mStars(uv, u_t, W_stars);
+    float s = mStars(uv, u_t, W_stars, u_pulse);
     lift += s * 0.42;
     spec += s * 1.2;
   }
+  float aur = 0.0;
+  if (W_aurora > 0.0) {
+    aur = mAurora(uv, u_t, u_rms, u_pulse) * W_aurora;
+    lift += aur * 0.3;
+  }
+  float iceFlash = 0.0;
   if (W_facets > 0.0) {
-    float seam;
-    float shard = mFacets(p * 1.4, u_t, seam);
+    float seam, flare;
+    float shard = mFacets(p * 1.4, u_t, u_pulse, clamp(u_sparkle, 0.0, 1.0), seam, flare);
     g = mix(g, shard, W_facets * 0.4); // flatten the field into shards
     lift += seam * W_facets * 0.3;
     // The seams are where ice catches light, so that is where the music goes:
-    // frozen geometry, moving highlights.
-    spec += seam * W_facets * (0.6 + u_rms * 2.2);
-    site = max(site, seam);
+    // frozen geometry, moving highlights — and on an onset, whole shards.
+    spec += seam * W_facets * (0.5 + u_rms * 1.8) + flare * W_facets * 1.6;
+    iceFlash = flare * W_facets;
+    site = max(site, max(seam, flare));
     own = max(own, W_facets);
   }
 
@@ -654,6 +734,12 @@ void main() {
   col = mix(col, mix(u_c3, u_c4, 0.72), clamp(snow, 0.0, 1.0) * 0.88);
   // Foam is white water, not bright water — same rule as snow and rays.
   col = mix(col, mix(u_c3, u_c4, 0.8), clamp(foam, 0.0, 1.0) * 0.75);
+  // A struck shard goes toward white in one step — lightning inside the ice,
+  // not a warmer shade of the ramp.
+  col = mix(col, mix(u_c3, u_c4, 0.85), clamp(iceFlash, 0.0, 1.0) * 0.85);
+  // The aurora is a veil of the palette's mid colour hung in front of the
+  // dark; taking c2/c3 rather than the white step keeps the stars on top.
+  col = mix(col, mix(u_c2, u_c3, 0.65), clamp(aur, 0.0, 1.0) * 0.6);
   col += u_c4 * clamp(spec, 0.0, 1.0) * (0.16 + u_gloss * 0.5);
   // Wisps are their own small light sources, added rather than mixed: they sit
   // in front of the trunks and the mist, and nothing behind them dims them.

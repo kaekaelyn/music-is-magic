@@ -15,23 +15,29 @@ export const BUILTIN = {
   // for it: it is what is there before any weather arrives, it is legible at
   // a glance, and nothing else in the set is looking upward.
   default: {
-    // Not as dark as a real night sky, deliberately: this is the look a
-    // visitor gets if theme.json ever fails to load, and an aperture that
-    // barely differs from sealed stone reads as broken rather than as night.
-    palette: ['#050614', '#131b3d', '#2d3c6e', '#6274ab', '#f2f4ff'],
-    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.7, gloss: 0.1, base: 0.62, drift: 0.18 },
-    motifs: { stars: 0.9 },
-    mappings: { warpBass: 0.2, brightRms: 0.5, sparkleTreble: 1.3, pulseFlux: 1, shiftCentroid: 0.15 },
+    // Midnight BLUE, not violet — cave owns the violet dark, and the two were
+    // reading as siblings. The aurora and the onset meteors are what keep the
+    // sky from being just another sparkle field: stars sit still and twinkle,
+    // the aurora breathes with loudness, and a strong onset sends one meteor.
+    // Still deliberately brighter than a real night: this is the face shown
+    // if a theme.json fetch ever fails, and an aperture that barely differs
+    // from sealed stone reads as broken rather than as night.
+    palette: ['#030714', '#101d40', '#1c3468', '#4467af', '#ecf3ff'],
+    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.7, gloss: 0.1, base: 0.66, drift: 0.18 },
+    motifs: { stars: 0.95, aurora: 0.65 },
+    mappings: { warpBass: 0.2, brightRms: 0.5, sparkleTreble: 1.3, pulseFlux: 1.1, shiftCentroid: 0.15 },
   },
-  // Light coming down through a canopy onto trunks, with wisps between them.
-  // The palette's second step is grey-brown rather than green on purpose: the
-  // columns subtract mass, so they take their colour from the ramp's low end —
-  // an all-green ramp made them green fog instead of trunks.
+  // Light through a canopy onto trunks, wisps drifting between them. The
+  // palette's second step stays grey-brown so the trunks read as wood, but
+  // the LIGHT is the subject now: the owner's screenshot showed a dim green
+  // murk because the mist was winning — so more dapple, more rays, brighter
+  // and more frequent wisps, and a saturated canopy-green in the upper steps.
+  // Audio: dapple shifts overhead with loudness, wisps swell, rays flare.
   forest: {
-    palette: ['#050f0a', '#2b2b23', '#3f6b40', '#8bb069', '#e8f4d2'],
-    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.46, drift: 0.35 },
-    motifs: { columns: 0.85, dapple: 0.55, rays: 0.28, wisps: 0.5 },
-    mappings: { warpBass: 0.5, brightRms: 0.6, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.2 },
+    palette: ['#08130a', '#33301f', '#3f7a41', '#94c56a', '#f0f8d8'],
+    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.55, drift: 0.35 },
+    motifs: { columns: 0.75, dapple: 0.85, rays: 0.5, wisps: 0.65 },
+    mappings: { warpBass: 0.5, brightRms: 0.75, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.2 },
   },
   // Wet dark: a tunnel receding, crystal on its walls, and a drip now and then.
   // The low drips weight is the sparseness — see mDrips' duty cycle. crags is
@@ -43,43 +49,58 @@ export const BUILTIN = {
     motifs: { columns: 0.2, drips: 0.15, tunnel: 0.75 },
     mappings: { warpBass: 0.18, brightRms: 0.62, sparkleTreble: 1.4, pulseFlux: 0.7, shiftCentroid: 0.1 },
   },
-  // Shards with lit seams. The one theme where the field is hard-edged.
+  // Shards with lit seams — and the strike system: quiet ice is genuinely
+  // still and dark, and every onset flash-illuminates a handful of whole
+  // shards (treble widens the handful). The music is the only light source
+  // that matters here; pulseFlux is raised so more of the playing registers.
   ice: {
     palette: ['#04101c', '#0d2b45', '#2f6f96', '#8fc8e0', '#f2fbff'],
     params: { scale: 2.0, speed: 0.16, warp: 0.5, sparkle: 1.0, gloss: 0.6, base: 0.55, drift: 0.02 },
     motifs: { facets: 0.9 },
-    mappings: { warpBass: 0.06, brightRms: 0.6, sparkleTreble: 1.6, pulseFlux: 1, shiftCentroid: 0.1 },
+    mappings: { warpBass: 0.06, brightRms: 0.55, sparkleTreble: 1.6, pulseFlux: 1.3, shiftCentroid: 0.1 },
   },
   // Ranges against the sky with snow near the tops. `ridge` supplies the
-  // silhouette — the thing that was missing when this was crags alone, and
-  // the reason it read as stained glass rather than as mountains — and crags
-  // is now only the surface texture on it, at a much lower weight.
+  // silhouette; crags is only surface texture on it. The landscape never
+  // moves — that stillness is the mood — but the WEATHER answers the music:
+  // spindrift tears off the near crest with loudness, dapple drifts past as
+  // cloud-light shouldered by the room, and the snowline shimmers.
   mountain: {
     palette: ['#0a0d14', '#252d3a', '#525e6f', '#97aabe', '#f4f9ff'],
     params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.6, drift: 0.25 },
-    motifs: { ridge: 0.9, crags: 0.16, snow: 0.7 },
+    motifs: { ridge: 0.9, crags: 0.16, snow: 0.78, dapple: 0.4 },
   },
-  // Caustics from under the surface, and the surface itself above them.
+  // Surf over caustics. The swell travels ONE way — down the aperture, sets
+  // coming on at a shore — and the base fog is turned well down so the waves
+  // are the subject rather than a marbled tint (the owner's note). Loudness
+  // is the sea working harder: sharper crests, more white water.
   ocean: {
     palette: ['#02101c', '#043a57', '#0b6d85', '#39ac9b', '#c9f2e2'],
-    params: { scale: 1.6, speed: 0.4, warp: 1.6, sparkle: 0.4, gloss: 0.35 },
-    motifs: { caustics: 0.75, foam: 0.6 },
+    params: { scale: 1.6, speed: 0.45, warp: 1.0, sparkle: 0.4, gloss: 0.35, base: 0.45, drift: 0.4 },
+    motifs: { caustics: 0.55, foam: 0.9 },
+    mappings: { warpBass: 0.35, brightRms: 0.65, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.15 },
   },
   // The same drips as cave, dense and fast — that is what the weight means —
   // but blown off vertical, which is the difference between weather and a
   // ceiling. Cave keeps slant at 0: nothing underground is windy.
+  // Grey, not blue — overcast is a colour of its own (owner's note). The
+  // floor sits lower and curves with the lens, and the splashes answer the
+  // room: loudness widens the crowns, an onset lands a burst of them.
   rain: {
-    palette: ['#0a0e12', '#1d2a33', '#3a5464', '#6f909f', '#d3e3ea'],
+    palette: ['#0b0d10', '#22272c', '#485056', '#87939b', '#e0e6ea'],
     params: { scale: 2.4, speed: 0.55, warp: 1.0, sparkle: 0.5, gloss: 0.25, slant: 0.34, base: 0.7, drift: 0.8 },
     motifs: { columns: 0.15, drips: 0.95 },
-    mappings: { warpBass: 0.4, brightRms: 0.6, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.2 },
+    mappings: { warpBass: 0.4, brightRms: 0.6, sparkleTreble: 1, pulseFlux: 1.1, shiftCentroid: 0.2 },
   },
-  // Shafts. Slow, wide, and the brightest thing in the set.
+  // Shafts. Slow, wide, and the brightest thing in the set. The top steps
+  // are saturated GOLD now, not cream — the rays carry their own colour after
+  // the ramp (mix of c3/c4), so golden light means golden steps, per the rule
+  // that light of a colour is a material. Onsets kick the fan sideways and
+  // flare it: the beams dance rather than merely brighten.
   sunshine: {
-    palette: ['#0d2340', '#2f5f8c', '#8fb6cf', '#f5c257', '#fff0b8'],
+    palette: ['#0d2340', '#2f5f8c', '#8fb6cf', '#f2a93b', '#ffd873'],
     params: { scale: 1.3, speed: 0.26, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.3, drift: 0.3 },
     motifs: { rays: 0.95, dapple: 0.3 },
-    mappings: { warpBass: 0.15, brightRms: 0.7, sparkleTreble: 1.0, pulseFlux: 1, shiftCentroid: 0.2 },
+    mappings: { warpBass: 0.15, brightRms: 0.7, sparkleTreble: 1.0, pulseFlux: 1.15, shiftCentroid: 0.2 },
   },
 };
 
@@ -102,8 +123,9 @@ export const MOTIFS = Object.freeze({
   tunnel: 0,    // a passage receding into the dark, crystal on its walls
   ridge: 0,     // layered ridgelines against the sky — a mountain's silhouette
   wisps: 0,     // slow wandering lights — will-o-wisps between the trunks
-  foam: 0,      // swell with breaking white water on the crests
-  stars: 0,     // fixed points of light and a faint band of them — night sky
+  foam: 0,      // travelling swell with breaking white water on the crests
+  stars: 0,     // fixed points of light, a faint band, meteors on onsets
+  aurora: 0,    // curtains of light in a night sky, breathing with loudness
 });
 
 // Spread under every theme so each one carries every key. Morphing is then a

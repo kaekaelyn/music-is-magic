@@ -203,13 +203,35 @@ library of procedural motifs and a theme declares which ones it is made of:
 | `tunnel` | a passage receding into the dark, crystal faces on its walls | cave |
 | `ridge` | layered ridgelines against the sky — a mountain's silhouette | mountain |
 | `wisps` | a few slow wandering lights, each on its own orbit | forest |
-| `foam` | swell with white water breaking along the crests | ocean |
-| `stars` | fixed points of light and a faint band of them | default |
+| `foam` | swell travelling one direction, white water breaking on the crests | ocean |
+| `stars` | fixed points of light, a faint band, a meteor on a strong onset | default |
+| `aurora` | curtains of light, hem rippling, breathing with loudness | default |
 
 ```json
 "motifs": { "rays": 0.85, "dapple": 0.25 },
 "params": { "gloss": 0.2, "slant": 0, "base": 1, "drift": 1, ... }
 ```
+
+**Each mood answers the room in its own voice.** Loudness and onsets reach
+the motifs as `u_rms` (smoothed) and `u_pulse` (a decaying envelope), and each
+motif spends them on its own gesture — that specialization is what makes two
+moods feel different to PLAY, not just to look at:
+
+| Mood | Quiet is | The music is |
+|---|---|---|
+| sunshine | diffuse gold haze | the fan of rays kicked sideways and flared by each onset — it dances |
+| ice | still, dark shards | onsets flash-lighting whole shards (treble widens the handful) |
+| ocean | slow swell | harder crests, more white water torn off each one |
+| rain | thin rain | wider splash crowns; an onset lands a burst of them |
+| mountain | a still landscape | spindrift off the near crest, cloud-light shouldered sideways |
+| forest | trunks in mist | dapple shifting overhead, wisps swelling |
+| cave | a rare drip | drips thicken; crystal faces carry the glints |
+| default | fixed stars | the aurora breathing; a strong onset sends one meteor |
+
+The engine-side rule that makes this safe: **audio may displace a pattern or
+scale its brightness, never scale its time.** An onset arrives as a decaying
+displacement kick, loudness as a smoothed offset — scaling a drift rate by a
+live feature makes the whole pattern lurch (§13).
 
 **`base` and `drift` are how a theme escapes the shared field.** Every theme
 was built on the same domain-warped fbm at full strength and full speed, and
@@ -552,6 +574,25 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — second review: each mood learns its own answer to the music
+
+All seven notes from the owner's live review, plus the standing direction:
+specialize how the mic reaches each mood. The mechanism inventory is the
+signature table in §5.4. Things learned:
+
+- **Audio may displace a pattern or scale its brightness — never scale its
+  time.** Every "dance"/"kick"/"shoulder" effect is a decaying-envelope
+  displacement (`u_pulse`) or a smoothed offset (`u_rms`). Time-scaling by a
+  live feature lurches the pattern; this is §13's warp lesson generalized.
+- **The onset envelope is a free animation clock.** The meteor and the ray
+  kick both ride (1 - pulse): the pulse decays over ~a second, so a streak
+  that moves by its value travels smoothly with zero added state.
+- **Ice was fixed by inversion, not addition.** The complaint was stagnation;
+  the answer was to make quiet MORE still (no ambient glitter) so that the
+  strike — whole shards flashed by an onset — has silence to land against.
+- **The aperture-brightness smoke check bit again, correctly:** the midnight
+  palette dipped default below 3x sealed. Low steps lifted; check unchanged.
 
 ### 2026-08-01 — the art-direction batch: five motifs, and glints with a home
 
@@ -943,14 +984,28 @@ smoke check that says the field must show through the aperture at 3x sealed
 brightness caught exactly that, and the palette and base were lifted until it
 passed rather than the check being relaxed.
 
-### 14.4 Still open
+### 14.4 Second review (2026-08-01) — all seven notes taken
 
-- **Everything above wants eyes on it against live playing.** These were tuned
-  against `npm run shots` — stills, at silence. Cave in particular is now very
-  dark and its depth may want lifting; forest is still green-dominant even with
-  the trunks reading.
+The owner reviewed against live playing and the general direction was set:
+per-mood audio specialization ("the way the mic input affects each mood").
+Every note mapped to a mechanism; the signature table in §5.4 is the result.
+
+1. Ocean: swell now travels one way and breaks; base fog turned well down.
+2. Sunshine: gold in the top palette steps; rays kicked and flared by onsets.
+3. Ice: inverted — quiet is still and dark, onsets flash whole shards.
+4. Mountain: landscape still; spindrift, cloud dapple and snowline answer.
+5. Default: midnight blue, aurora, meteors on strong onsets.
+6. Rain: floor lower and curved with the lens; splashes answer; grey palette.
+7. Forest: light became the subject — more dapple/rays, visible wisps,
+   saturated canopy steps, brighter base.
+
+### Still open
+
+- **Everything audio-driven wants eyes on it against live playing.** Stills
+  cannot show any of it (u_pulse and u_rms are zero at silence); the strike
+  sizes, kick distances and spindrift gains are reasoned, not seen.
 - **Cave drips: velocity was raised twice and still needs a verdict.**
-- Sunshine and ice were not touched in this pass.
+- Cave was untouched this round and is now the darkest mood by some margin.
 
 ### 14.5 What will bite you
 

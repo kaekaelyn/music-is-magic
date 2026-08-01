@@ -37,7 +37,8 @@
     "ridge": 0,
     "wisps": 0,
     "foam": 0,
-    "stars": 0
+    "stars": 0,
+    "aurora": 0
   },
   "textures": []
 }

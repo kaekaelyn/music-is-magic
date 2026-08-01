@@ -4,8 +4,8 @@
     "#0d2340",
     "#2f5f8c",
     "#8fb6cf",
-    "#f5c257",
-    "#fff0b8"
+    "#f2a93b",
+    "#ffd873"
   ],
   "params": {
     "scale": 1.3,
@@ -21,7 +21,7 @@
     "warpBass": 0.15,
     "brightRms": 0.7,
     "sparkleTreble": 1,
-    "pulseFlux": 1,
+    "pulseFlux": 1.15,
     "shiftCentroid": 0.2
   },
   "motifs": {
@@ -37,7 +37,8 @@
     "ridge": 0,
     "wisps": 0,
     "foam": 0,
-    "stars": 0
+    "stars": 0,
+    "aurora": 0
   },
   "textures": []
 }
