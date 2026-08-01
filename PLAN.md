@@ -1148,6 +1148,14 @@ Every note mapped to a mechanism; the signature table in §5.4 is the result.
 Two engine-wide deletions (the ambient brightening and the ambient glints —
 see §5.4) and one lesson that finally cracked cave:
 
+- **Cave.** Every dimension of a crystal is hashed per spike — count per
+  cluster (1–3), length and stoutness independently, angle over a wide fan,
+  taper from needle to blunt, an asymmetric silhouette, a curve toward the
+  tip, face contrast, and colour. A shape repeated at three scales still
+  reads as one shape: the eye finds the repetition long before it finds the
+  form. Also note `half` is a reserved word in GLSL ES — the compiler
+  rejects it outright, and the Canvas2D guard below is what turned that
+  into a dark aperture instead of a dead page.
 - **Cave.** Three reviews of "stained glass" had one cause: a lit field seen
   THROUGH faceted shapes is the definition of a window. The rock now replaces
   the field rather than tinting it (base 0.3), the walls are shaded round by
