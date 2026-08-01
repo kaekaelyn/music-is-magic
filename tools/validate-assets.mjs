@@ -19,14 +19,15 @@ const EYE = join(ROOT, 'portal/assets/eye');
 // scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
 const KNOWN_PARAMS = [
   'scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant', 'base', 'drift',
-  'travel', 'travelX', 'travelY',
+  'travel', 'travelX', 'travelY', 'glint',
 ];
 // travelX/travelY are a direction: negative is a legitimate way to point.
 const SIGNED_PARAMS = ['travelX', 'travelY'];
 const POSITIVE_PARAMS = ['scale', 'speed', 'warp'];
-const KNOWN_MAPPINGS = [
-  'warpBass', 'brightRms', 'sparkleTreble', 'pulseFlux', 'shiftCentroid',
-];
+// brightRms is deliberately absent: the whole-field loudness brightening was
+// removed (see §14), and leaving the key valid would let a theme carry a knob
+// that silently does nothing.
+const KNOWN_MAPPINGS = ['warpBass', 'sparkleTreble', 'pulseFlux', 'shiftCentroid'];
 const EYE_LAYERS = ['plate', 'socket', 'lid-lower', 'lid-upper', 'glow', 'frame'];
 const HEX = /^#[0-9a-f]{6}$/i;
 

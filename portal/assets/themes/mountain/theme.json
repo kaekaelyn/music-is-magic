@@ -13,6 +13,7 @@
     "warp": 0.9,
     "sparkle": 0.5,
     "gloss": 0.2,
+    "glint": 0.12,
     "slant": 0,
     "base": 0.6,
     "drift": 0.25,
@@ -22,7 +23,6 @@
   },
   "mappings": {
     "warpBass": 0.9,
-    "brightRms": 0.6,
     "sparkleTreble": 1,
     "pulseFlux": 1,
     "shiftCentroid": 0.2
@@ -34,15 +34,17 @@
     "drips": 0,
     "facets": 0,
     "caustics": 0,
-    "crags": 0.16,
-    "snow": 0.78,
+    "crags": 0.22,
+    "snow": 0.8,
     "tunnel": 0,
-    "ridge": 0.9,
+    "ridge": 0.92,
     "wisps": 0,
     "foam": 0,
     "stars": 0,
     "aurora": 0,
-    "clouds": 0
+    "clouds": 0,
+    "crystals": 0,
+    "storm": 0
   },
   "textures": []
 }

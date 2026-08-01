@@ -207,6 +207,8 @@ library of procedural motifs and a theme declares which ones it is made of:
 | `stars` | fixed points of light, a faint band, a meteor on a strong onset | night |
 | `aurora` | curtains of light, waking on high pitch, breathing with loudness | night |
 | `clouds` | billowing cumulus, sunward edges rimmed in the palette's gold | sunshine |
+| `crystals` | prisms growing in clusters off the rock, lit face and shadowed | cave |
+| `storm` | forked lightning, and the flash that follows it | rain |
 
 ```json
 "motifs": { "rays": 0.85, "dapple": 0.25 },
@@ -226,7 +228,7 @@ moods feel different to PLAY, not just to look at:
 | rain | thin rain | wider splash crowns; an onset lands a burst of them |
 | mountain | a still landscape | spindrift off the near crest, cloud-light shouldered sideways |
 | forest | trunks in mist | dapple shifting overhead, wisps swelling |
-| cave | a rare drip | drips thicken; crystal faces carry the glints |
+| cave | a rare drip in the dark | onsets strike whole crystals alight; treble shimmers their faces |
 | night | fixed stars | the aurora waking on high pitch; a strong onset sends one meteor |
 
 **The three clocks.** Motifs read time from three uniforms, each earned
@@ -240,8 +242,18 @@ differently:
   place you move through: ocean's rolling sets, forest's walk among the
   trunks, mountain's journey along the chain.
 - `u_centroid` — smoothed pitch/timbre brightness. The aurora wakes on high
-  playing; ice's strikes pick different shard families by register; sunshine's
-  fan leans with it.
+  playing AND slides along its colour band; ice's strikes pick different shard
+  families by register; sunshine's fan leans with it; rain's sky bruises when
+  the playing is low and dark.
+
+**Two responses were deleted, not tuned.** The onset ripple ring and the
+whole-field loudness brightening (`brightRms`) are both gone, and the mapping
+key with them — the validator rejects it now, so no theme can carry a knob
+that does nothing. Both were the engine's generic answer to the music from
+before motifs existed, and a generic answer competes with every specific one.
+Ambient glints went the same way: they are opt-in per theme (`params.glint`)
+and off everywhere except ice, cave and a trace on mountain's snow, because
+scattered white specks in a forest or a sunbeam read as dust on the lens.
 
 The engine-side law, refined the hard way (three lawful couplings, one
 forbidden):
@@ -623,6 +635,27 @@ the HUD fades to `pointer-events: none`, so a click test has to stir it with
 a real mouse move — forcing the click would have tested a panel no hand can
 hit — and the keyboard path deliberately survives that fade, which is the
 state the rig sits in for most of a set.
+
+### 2026-08-01 — fifth review: objects, not patterns
+
+The cave lesson is the general one, and it took three rounds to see: **a
+pattern in a surface cannot read as an object in front of it.** Every attempt
+to make crystals out of the wall's own voronoi produced stained glass, because
+a lit field seen through faceted shapes IS a window. Crystals became geometry —
+tapered prisms with two faces, clustered, growing off the rock — and the mood
+arrived immediately. Watch for the same shape of problem anywhere a motif is
+asked to be a THING rather than a texture.
+
+Deletions worth noting as a pattern of their own: the ambient loudness
+brightening followed the onset ring out, along with its mapping key. Both were
+the engine's pre-motif answer to the music, and a generic response competes
+with every specific one — the moods got louder, not quieter, for losing them.
+Ambient glints are now opt-in and off nearly everywhere for the same reason.
+
+Also fixed, found while chasing a shader that would not compile: `createViz`
+fell back to Canvas2D on a canvas that had already been given a WebGL context,
+where `getContext('2d')` returns null — so the fallback threw on every frame
+and took the eye down with it. It degrades to a dark aperture now.
 
 ### 2026-08-01 — fourth review: named for what it is
 
@@ -1109,6 +1142,45 @@ Every note mapped to a mechanism; the signature table in §5.4 is the result.
 6. Rain: floor lower and curved with the lens; splashes answer; grey palette.
 7. Forest: light became the subject — more dapple/rays, visible wisps,
    saturated canopy steps, brighter base.
+
+### 14.7 Fifth review (2026-08-01) — objects, not patterns
+
+Two engine-wide deletions (the ambient brightening and the ambient glints —
+see §5.4) and one lesson that finally cracked cave:
+
+- **Cave.** Three reviews of "stained glass" had one cause: a lit field seen
+  THROUGH faceted shapes is the definition of a window. The rock now replaces
+  the field rather than tinting it (base 0.3), the walls are shaded round by
+  their own distance field instead of flat per cell, and the crystals are
+  `crystals` — actual tapered prisms in clusters, with a lit face and a
+  shadowed one, growing off the rock away from the passage and thickest near
+  the floor. A pattern in a surface can never read as an object in front of
+  it; it had to be modelled as geometry. Cave also has a floor now, for the
+  same reason rain does: things that fall need somewhere to arrive.
+- **Ice.** Frost grows as needles along three fixed axes 60° apart (hexagonal
+  habit, no trig), in patches on their own phases, cracking further out on
+  every onset. Note the threshold: a max of three ridged noises sits near 1
+  almost everywhere, so the front has to ride at 0.75–1.03 — anywhere lower
+  and the whole field crazes over, which is the white-sheet-with-ink-blots
+  the first cut produced.
+- **Mountain.** Each range now samples its OWN patch of the crag map at its
+  own parallax rate (`layer` out of `mRidge`), the grain is much finer under
+  a ridge (cell-scale rock reads as cobbles at that distance), and peaks are
+  taller with a third ridged octave for spurs — rolling hills otherwise.
+- **Ocean.** The current is applied in aperture space and scaled afterwards,
+  so a theme's `scale` can no longer change how fast it appears to run: the
+  fog was drifting at 1/scale of the speed its own surf travelled. Same
+  direction, different pace — which is precisely "not the same physics".
+- **Night.** Aurora colour is the motif's own (green low, cyan, red-violet
+  high — that gradient is altitude), with pitch sliding the whole curtain
+  along the band. A palette-tinted aurora over a blue sky is a slightly
+  bluer blue, which is why it was invisible at any gain.
+- **Forest.** Wisps are phosphorescent bodies in living colours (cold green,
+  blue-cyan, a rare gold) with no hard core; the beams are broken by a canopy
+  sampled in the travel frame, so the shafts open and close as you walk.
+- **Rain.** `storm`: a bolt is a noise-wandered path down the frame with a
+  fork, plus the flash — which is most of what a storm looks like from inside
+  one — and low dark playing keeps a blue-violet bruise in the air.
 
 ### 14.6 Fourth review (2026-08-01) — physics, frost, clouds, and 'night'
 

@@ -13,6 +13,7 @@
     "warp": 1,
     "sparkle": 0.5,
     "gloss": 0.25,
+    "glint": 0,
     "slant": 0.34,
     "base": 0.7,
     "drift": 0.8,
@@ -22,7 +23,6 @@
   },
   "mappings": {
     "warpBass": 0.4,
-    "brightRms": 0.6,
     "sparkleTreble": 1,
     "pulseFlux": 1.1,
     "shiftCentroid": 0.2
@@ -42,7 +42,9 @@
     "foam": 0,
     "stars": 0,
     "aurora": 0,
-    "clouds": 0
+    "clouds": 0,
+    "crystals": 0,
+    "storm": 0.85
   },
   "textures": []
 }
