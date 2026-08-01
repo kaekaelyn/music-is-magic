@@ -29,7 +29,67 @@ Node. Stages 7–9 need OBS and a YouTube account.
 
 ---
 
-## Stage 0 — prerequisites for the automated tests
+## Stage 0 — get the project onto your computer
+
+**Start here even if that seems obvious.** Every command in this file assumes
+the project's files already exist on your machine. Making an empty folder is
+not enough — the files have to be downloaded into it.
+
+### 0.1 — install git, if you do not have it
+
+Type `git --version`. If you get a version number, skip ahead.
+
+- **Windows**: download and run the installer from
+  [git-scm.com/download/win](https://git-scm.com/download/win). Accept every
+  default. Then **close and reopen** your terminal.
+- **macOS**: `xcode-select --install`, or `brew install git`.
+- **Linux**: `sudo apt install git`.
+
+### 0.2 — download the project
+
+Pick the folder you want it to live in, then run **one** command. It creates
+the project folder for you — do **not** make the folder yourself first, and do
+not run this inside a folder you already made.
+
+**Windows** (Command Prompt):
+
+```
+cd C:\
+git clone --branch claude/youtube-desktop-eye-streaming-go1do0 https://github.com/kaekaelyn/music-is-magic.git musicismagic
+```
+
+**macOS / Linux:**
+
+```sh
+cd ~
+git clone --branch claude/youtube-desktop-eye-streaming-go1do0 https://github.com/kaekaelyn/music-is-magic.git music-is-magic
+```
+
+The `--branch` part matters: it puts you on the broadcast version rather than
+the website-only one. The repository is public, so **no sign-in is needed** —
+if something asks you to log in, you have mistyped the URL.
+
+**Check it worked.** Run `dir C:\musicismagic` (Windows) or
+`ls ~/music-is-magic` (macOS/Linux). You should see:
+
+```
+PLAN.md   README.md   RUNNING.md   TESTING.md   portal   server   tools
+```
+
+If you see those seven things, you are done with the hard part.
+
+| If | Then |
+|---|---|
+| `fatal: destination path already exists and is not an empty directory` | You made the folder first. Delete it — `rmdir /s /q C:\musicismagic` on Windows, `rm -rf ~/music-is-magic` otherwise — and run the clone again |
+| `fatal: not a git repository` | You are running git in a folder that has no project in it. Do 0.2 above |
+| `'git' is not recognized` | Git is not installed, or you did not reopen the terminal after installing it. See 0.1 |
+| It asks for a username and password | The repository is public and needs neither. Check the URL for a typo — it is `https://github.com/kaekaelyn/music-is-magic.git` |
+| `Remote branch ... not found in upstream origin` | The `--branch` value is mistyped. It is `claude/youtube-desktop-eye-streaming-go1do0` |
+
+> **From here on**, wherever this file says `cd music-is-magic`, Windows users
+> should type `cd C:\musicismagic`.
+
+### 0.3 — install Node.js
 
 You need **Node.js 18 or newer**. Check:
 
@@ -37,7 +97,8 @@ You need **Node.js 18 or newer**. Check:
 node --version
 ```
 
-Nothing? Install the LTS build from [nodejs.org](https://nodejs.org/), or:
+Nothing, or a number below 18? Install the **LTS** build from
+[nodejs.org](https://nodejs.org/), or:
 
 ```sh
 # macOS
@@ -46,22 +107,36 @@ brew install node
 sudo apt install nodejs npm
 ```
 
-Then install the test tooling once. This installs into `tools/` only — the
-portal itself has no dependencies and never will:
+On Windows, **close and reopen your terminal** after installing, or `node`
+will still look missing.
+
+### 0.4 — install the test tooling
+
+Once only. This installs into `tools/` and nowhere else — the portal itself
+has no dependencies and never will:
 
 ```sh
-cd music-is-magic/tools
+cd music-is-magic/tools      # Windows: cd C:\musicismagic\tools
 npm install
 npx playwright install chromium
 ```
 
-`npx playwright install chromium` downloads a headless browser (~150 MB). If
-your machine already has a Chromium you would rather use, point at it instead
-and skip the download:
+`npm install` should print something like `added 3 packages`. If it instead
+says **`ENOENT: no such file or directory, open '...\tools\package.json'`**,
+you are in a folder that is not the real `tools` folder — go back to 0.2.
+
+`npx playwright install chromium` downloads a headless browser (~150 MB) used
+only by the automated tests. If your machine already has a Chromium you would
+rather use, point at it instead and skip the download:
 
 ```sh
-export MIM_CHROMIUM=/path/to/chromium
+export MIM_CHROMIUM=/path/to/chromium        # macOS / Linux
+set MIM_CHROMIUM=C:\path\to\chrome.exe       # Windows
 ```
+
+> **In a hurry?** You can skip 0.4 entirely and jump to
+> [Stage 3](#stage-3--the-broadcast-eye-alone) to just *look* at the eye. Only
+> Stage 1 needs Playwright.
 
 ---
 
@@ -112,12 +187,23 @@ real art in (M5).
 
 Automated tests prove behavior, not beauty. Look at it too.
 
-**Run:**
+**Run** one of these, whichever suits your machine:
 
 ```sh
+# Anywhere Node is installed (including Windows) — no Python needed
+cd music-is-magic                 # Windows: cd C:\musicismagic
+npx --yes serve portal -l 8000
+```
+
+```sh
+# macOS / Linux, if you prefer Python
 cd music-is-magic
 python3 -m http.server -d portal 8000
 ```
+
+It will print something like `Accepting connections at http://localhost:8000`.
+**Leave that window open** — closing it stops the server. To stop it later,
+click the window and press `Ctrl+C`.
 
 Open **http://localhost:8000/** — sealed stone eye, a slow ember in the seam,
 nothing clickable.
@@ -130,15 +216,18 @@ Try **`?mock=live&theme=cave`**, then `ice`, `rain`, `sunshine`, `forest`,
 fog in a new color.
 
 **If the site looks broken:** you have changed something shared. Compare
-against the frozen copy:
+against the original website, which is a separate branch and always one
+command away:
 
 ```sh
-git stash                          # park your changes
-git checkout website-v1-snapshot   # the known-good website
-# ...look...
-git checkout -                     # come back
-git stash pop
+git checkout claude/discussion-next-steps-cshpet   # the original website
+# ...look at it...
+git checkout claude/youtube-desktop-eye-streaming-go1do0   # come back
 ```
+
+Those two commands are a light switch — flip it as often as you like. Neither
+one deletes anything. (If git refuses because you have edited files, run
+`git stash` first to park your edits, and `git stash pop` to get them back.)
 
 ---
 

@@ -12,6 +12,10 @@ There are two builds, sharing one engine:
 Everything — vision, architecture, contracts, milestones — lives in
 [PLAN.md](PLAN.md). Read that first.
 
+**Never run this before?** Start at
+[TESTING.md Stage 0](TESTING.md#stage-0--get-the-project-onto-your-computer) —
+it begins at downloading the project and assumes nothing is installed.
+
 To run the broadcast: [RUNNING.md](RUNNING.md).
 To check any of it works: [TESTING.md](TESTING.md).
 

@@ -34,9 +34,34 @@ browser page never plays any sound, so there is no echo and no doubled audio.
 
 ---
 
-## Part 0 — the four things you need
+## Part 0 — the five things you need
 
 Work through these once. Later runs skip straight to [Part 5](#part-5--the-going-live-routine).
+
+### 0. The project, on your computer
+
+Everything below assumes the project's files are on your machine. Creating an
+empty folder is not enough — the files have to be downloaded into it. If you
+have not done this yet, do
+[TESTING.md Stage 0](TESTING.md#stage-0--get-the-project-onto-your-computer)
+first; it is four short steps and it covers what to do when each one goes
+wrong.
+
+The short version, if git is already installed — run this **without** making
+the folder first:
+
+```sh
+# Windows
+cd C:\
+git clone --branch claude/youtube-desktop-eye-streaming-go1do0 https://github.com/kaekaelyn/music-is-magic.git musicismagic
+
+# macOS / Linux
+cd ~
+git clone --branch claude/youtube-desktop-eye-streaming-go1do0 https://github.com/kaekaelyn/music-is-magic.git music-is-magic
+```
+
+Wherever this file says `cd path/to/music-is-magic`, Windows users type
+`cd C:\musicismagic`.
 
 ### 1. A way to serve the eye files
 
@@ -45,6 +70,15 @@ The page must be served over `http://localhost` or `https://` — opening the
 microphone access there.
 
 Pick whichever you already have:
+
+**Node** — the easier one on Windows. Install from
+[nodejs.org](https://nodejs.org/) (get the **LTS** build), then reopen your
+terminal:
+
+```sh
+cd path/to/music-is-magic        # Windows: cd C:\musicismagic
+npx --yes serve portal -l 8000
+```
 
 **Python** (built in on macOS and Linux; on Windows install from
 [python.org/downloads](https://www.python.org/downloads/) and tick "Add
@@ -55,15 +89,12 @@ cd path/to/music-is-magic
 python3 -m http.server -d portal 8000
 ```
 
-**Node** (install from [nodejs.org](https://nodejs.org/) — get the LTS build):
+Either prints something like `Accepting connections at http://localhost:8000`.
+The eye is now at **http://localhost:8000/broadcast.html**.
 
-```sh
-cd path/to/music-is-magic
-npx --yes serve portal -l 8000
-```
-
-Either way the eye is now at **http://localhost:8000/broadcast.html**.
-Leave that terminal window open the whole time you are streaming.
+**Leave that terminal window open the whole time you are streaming** — closing
+it stops the server and the eye goes blank. To stop it deliberately, click the
+window and press `Ctrl+C`.
 
 > Already deployed the site to Cloudflare Pages? Then you can use
 > `https://yoursite/broadcast.html` instead and skip the local server. Both
@@ -318,7 +349,8 @@ path above is the recommendation. Everything else is identical.
 
 Once the setup above is done, every session is this:
 
-1. Start the file server (`python3 -m http.server -d portal 8000`).
+1. Start the file server (`npx --yes serve portal -l 8000` from the project
+   folder) and leave its window open.
 2. Open `broadcast.html?topic=...` on the desktop, click once to arm, check the
    HUD says `audio: live`.
 3. Open `control.html?topic=...` on the phone, check it says `control ok`.
