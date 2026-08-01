@@ -39,7 +39,7 @@ uniform float u_warp;    // effective warp (theme warp + bass drive)
 uniform float u_bright;  // rms-driven lift of the palette's top end
 uniform float u_sparkle; // treble drive for glint BRIGHTNESS
 uniform float u_sparkleDensity; // how many glints exist at all — fixed per theme
-uniform float u_pulse;   // decaying onset envelope -> expanding ripple
+uniform float u_pulse;   // decaying onset envelope; each motif spends it its own way
 uniform float u_shift;   // centroid-driven gradient shift
 uniform float u_open;    // overall intensity (drowse dims, commune blooms)
 uniform sampler2D u_tex;
@@ -761,10 +761,13 @@ void main() {
   float glint = mGlint(uv * 30.0, u_t, density, 0.35 + u_sparkle * 1.4);
   col += glint * u_c4 * where * 0.9;
 
+  // No onset ring here. An expanding circle was the whole of the engine's
+  // answer to an onset back when a theme was a palette and a fog, and it read
+  // as a generic ripple laid over everything. Now every mood spends the onset
+  // envelope on its own gesture — rays leap, shards flash, a meteor falls,
+  // splashes burst — and a circle on top of that is a leftover that fights
+  // them. u_pulse is still very much alive; only the overlay is gone.
   float d = length(uv);
-  float ring = (1.0 - u_pulse) * 1.15;
-  col += u_c3 * u_pulse * 0.35 * smoothstep(0.12, 0.0, abs(d - ring));
-
   col *= 1.0 - 0.28 * d * d;   // slight vignette; the eye's socket supplies the rest
   col *= u_open;
   col += (hash(gl_FragCoord.xy) - 0.5) / 255.0; // dither against banding

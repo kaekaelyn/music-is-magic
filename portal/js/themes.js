@@ -145,7 +145,7 @@ const DEFAULT_MAPPINGS = {
   warpBass: 0.9,      // bass energy deepens the domain warp
   brightRms: 0.6,     // loudness lifts the palette's bright end
   sparkleTreble: 1.0, // treble drives glints
-  pulseFlux: 1.0,     // onsets ripple outward
+  pulseFlux: 1.0,     // how readily an onset registers as a strike
   shiftCentroid: 0.2, // timbre brightness shifts the gradient
 };
 

@@ -575,6 +575,22 @@ hardware/          ← empty until the ESP32 day
 
 ## 13. Build log
 
+### 2026-08-01 — the onset ring is gone
+
+Removed the expanding circle that an onset drew over the whole field. It was
+the engine's entire answer to an onset back when a theme was a palette and a
+fog, and once every mood had its own gesture it was a generic ripple fighting
+eight specific ones. `u_pulse` itself is untouched and busier than ever — the
+ray kick, the ice strikes, the meteor and the splash bursts all ride it.
+
+**One consequence to watch.** `u_pulse` is forced to 0 under
+`prefers-reduced-motion`, which was right when it only drew a ripple. Now it
+also carries pure-brightness gestures (ice's shard strikes), so a
+reduced-motion visitor gets a noticeably quieter ice. Left as is — the
+accessibility promise is the stronger claim, and ice still answers loudness
+through its seams — but if that theme reads as dead to such a visitor, the fix
+is to pass a damped pulse rather than zero, not to restore the ring.
+
 ### 2026-08-01 — second review: each mood learns its own answer to the music
 
 All seven notes from the owner's live review, plus the standing direction:
@@ -930,7 +946,8 @@ Portal implementation notes for future sessions:
   mock mode, so no URL can retune a real deployment.
 - In mock/no-analyser situations the viz runs on gentle synthetic features
   instead of freezing — also the graceful path if audio ever fails.
-- `prefers-reduced-motion` is honored (slower field, no blinks/ripples).
+- `prefers-reduced-motion` is honored (slower field, no blinks, onset
+  envelope suppressed — see the note in §13, 2026-08-01).
 
 ---
 
