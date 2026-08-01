@@ -427,6 +427,16 @@ brand, so the broadcast page reuses them verbatim by running a local ticker
 that feeds `machine.onPoll()` from the relay's desired state. Nothing reaches
 into the machine, and the ceremony is the same ceremony.
 
+**The HUD carries a full mood panel**, filled from `assets/themes/index.json`
+exactly as the control page's is — add a theme folder and both update. It is
+not a duplicate of the phone: choosing a mood here also *publishes* over the
+relay, so a paired phone or an open control page follows, and the two panels
+stay two views of one state rather than two sources of truth. Moods are also
+bound to keys **1–9**, which is the path that matters while you are watching
+the field: no pointer to aim, and it keeps working after the HUD has faded,
+which is how a broadcast machine actually sits. Everything about the panel
+obeys the furniture rule below — it fades, `h` hides it, `?hud=0` removes it.
+
 Specifics worth not rediscovering:
 
 - **Never connect the mic to `ctx.destination`.** On the website that line is
@@ -598,6 +608,20 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — a mood panel on the rig itself
+
+The broadcast HUD could wake and seal but not choose a mood, so judging eight
+looks meant reaching for the phone eight times — which is how you stop trying
+them. It now has the same index.json-driven panel the control page has, plus
+1–9 keys. Choosing publishes as well as applies, so a paired phone stays in
+step; the panel is a second view of the relay's state, not a second source.
+
+Two things the smoke checks pin down, both learned by getting them wrong:
+the HUD fades to `pointer-events: none`, so a click test has to stir it with
+a real mouse move — forcing the click would have tested a panel no hand can
+hit — and the keyboard path deliberately survives that fade, which is the
+state the rig sits in for most of a set.
 
 ### 2026-08-01 — the travel clock: motion that never gives back
 

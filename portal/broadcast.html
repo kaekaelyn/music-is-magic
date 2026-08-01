@@ -57,6 +57,35 @@
     }
 
     #hud .btns { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+    /* The mood panel. §5.9's rig can be driven from a phone, but a mood is
+       the one control you reach for constantly while judging the look, and
+       walking to the phone to try eight of them is how you stop trying them.
+       Tighter type than the ceremony buttons: this is a palette, not a
+       decision, and it has to stay inside the HUD's width at eight moods. */
+    #moods {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+    #moods button {
+      padding: 0.26rem 0.45rem;
+      font-size: 0.74rem;
+      opacity: 0.72;
+    }
+    #moods button:hover { opacity: 1; }
+    #moods button.on {
+      opacity: 1;
+      border-color: #8d80b8;
+      background: #241f38;
+    }
+    /* The number that selects it, so the shortcut is discoverable without a
+       legend. Dimmed, because it is a label on a label. */
+    #moods button .n {
+      opacity: 0.4;
+      margin-right: 0.3rem;
+      font-variant-numeric: tabular-nums;
+    }
     #hud button {
       font: inherit;
       padding: 0.34rem 0.6rem;
@@ -131,6 +160,9 @@
       <button id="bSeal">seal</button>
       <select id="devices" hidden></select>
     </div>
+    <!-- Filled from assets/themes/index.json, like the control page's panel:
+         adding a theme folder updates both, with no edit here. -->
+    <div id="moods"></div>
     <!-- §5.8 pairing. A form so Enter submits, and so the phone's keyboard
          offers a "go" key rather than a newline. -->
     <form id="pair">
@@ -139,8 +171,8 @@
       <button type="submit">pair</button>
     </form>
     <div class="hint">
-      Type the same code here and on your phone. h hides this · it fades on its
-      own · ?hud=0 never shows it
+      Type the same code here and on your phone. Moods are 1–9 · h hides this ·
+      it fades on its own · ?hud=0 never shows it
     </div>
   </div>
 

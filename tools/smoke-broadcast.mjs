@@ -215,6 +215,39 @@ try {
     await eyeIs(stage, 'sealed');
     check(true, 'tapping seal closes the broadcast eye');
 
+    // §5.9's own mood panel. The operator judges the look from this machine,
+    // so the panel has to work with no phone in the loop at all — and it has
+    // to stay in step with one that IS in the loop, or the two panels become
+    // two sources of truth and the rig disagrees with itself on stage.
+    const moodCount = await stage.locator('#moods button').count();
+    check(moodCount >= 8, 'the broadcast HUD has a button per mood', `${moodCount} found`);
+
+    // The HUD fades to pointer-events:none when idle, so an operator wakes it
+    // by moving the mouse before clicking anything. Doing the same here keeps
+    // the check honest — forcing the click would test a panel no hand can hit.
+    await stage.mouse.move(40, 40);
+    await stage.click('#moods button:has-text("ocean")');
+    await themeIs(stage, 'ocean');
+    check(true, 'choosing a mood on the broadcast page applies it locally');
+
+    await phone.waitForFunction(
+      () => document.querySelector('#buttons button.current')?.textContent === 'ocean',
+      null,
+      { timeout: 8000 }
+    );
+    check(true, 'a mood chosen on the broadcast page reaches the control page');
+
+    // The keyboard path is the one that gets used while actually watching the
+    // field: no pointer to find a small target, and — unlike the buttons — it
+    // still works once the HUD has faded, which is how the rig mostly sits.
+    await stage.keyboard.press('2');
+    await stage.waitForFunction(
+      () => document.body.dataset.theme !== 'ocean',
+      null,
+      { timeout: 8000 }
+    );
+    check(true, 'number keys pick a mood on the broadcast page');
+
     assertStage();
     assertPhone();
     await ctx.close();

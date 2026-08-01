@@ -63,6 +63,7 @@ const el = {
   wake: document.getElementById('bWake'),
   seal: document.getElementById('bSeal'),
   devices: document.getElementById('devices'),
+  moods: document.getElementById('moods'),
 };
 
 // In window-capture mode this page is the broadcast frame, so the furniture
@@ -87,6 +88,15 @@ window.addEventListener('keydown', (e) => {
   stirHud();
   if (e.key === 'h' || e.key === 'H') {
     if (hud.isConnected) hud.hidden = !hud.hidden;
+    return;
+  }
+  // 1-9 pick a mood. Judging a look means flipping through them repeatedly,
+  // and a keystroke keeps your hands where they are. Ignored while typing a
+  // pairing code, or the digits would land in the field instead.
+  const typing = document.activeElement && document.activeElement.tagName === 'INPUT';
+  if (!typing && e.key >= '1' && e.key <= '9') {
+    const name = moodOrder[Number(e.key) - 1];
+    if (name) chooseTheme(name);
   }
 });
 stirHud();
@@ -106,7 +116,54 @@ function applyTheme(token) {
     eye.setTheme(theme);
     document.body.dataset.theme = theme.name;
     say(el.theme, theme.name);
+    // Mark by the RESOLVED name, not the token: an unknown mood lands on
+    // default (§5.2), and the panel should show where you actually are.
+    markMood(theme.name);
   });
+}
+
+// --- mood panel (§5.9) -----------------------------------------------------
+//
+// The rig can be driven from a paired phone, but a mood is the control you
+// reach for constantly while judging the look, and there is no reason to make
+// the operator walk to another device to see what a theme does. Choosing here
+// also PUBLISHES, so a phone or an open control page stays in step — the two
+// panels are two views of one state, never two sources of truth.
+
+const moodButtons = new Map();
+let moodOrder = [];
+
+function markMood(name) {
+  for (const [key, b] of moodButtons) b.classList.toggle('on', key === name);
+}
+
+function chooseTheme(name) {
+  applyTheme(name);
+  if (relay.active) relay.publish({ theme: name });
+}
+
+function buildMoodPanel(names) {
+  if (!el.moods) return;
+  moodOrder = names.slice();
+  el.moods.innerHTML = '';
+  moodButtons.clear();
+  names.forEach((name, i) => {
+    const b = document.createElement('button');
+    if (i < 9) {
+      const n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = String(i + 1);
+      b.appendChild(n);
+    }
+    b.appendChild(document.createTextNode(name));
+    b.addEventListener('click', () => {
+      chooseTheme(name);
+      b.blur(); // or the HUD cannot fade back out on a broadcast machine
+    });
+    el.moods.appendChild(b);
+    moodButtons.set(name, b);
+  });
+  if (currentToken) markMood(currentToken);
 }
 
 // --- liveness --------------------------------------------------------------
@@ -361,6 +418,9 @@ function loop(now) {
 }
 
 applyTheme('default');
-themes.init();
+// The panel is built from whatever index.json lists, so adding a theme folder
+// updates this page and the control page alike. init() falls back to the
+// built-in names if the fetch fails, so the panel is never empty.
+themes.init().then(buildMoodPanel);
 resize();
 requestAnimationFrame(loop);
