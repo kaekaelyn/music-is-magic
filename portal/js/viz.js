@@ -509,60 +509,55 @@ float mFrost(vec2 q, float t, float grow, float strike) {
   return smoothstep(front, front + 0.05, v);
 }
 
-// Crystal clusters, grown IN the rock's own frame.
+// Quartz. Big thick spears in a few clusters, and — the point of the whole
+// motif — INVISIBLE until something lights them.
 //
-// The coordinate handed in is the tunnel's warped log-polar point, so the
-// crystal lattice and the rock lattice are the same lattice: one cell of
-// stone hosts one cluster, rooted at that cell's near edge, so every crystal
-// visibly comes out of a seam between two masses of rock. Placed on their own
-// screen-space grid instead — which is what the first version did — they read
-// as shapes stuck on top of the wall, because that is exactly what they were.
+// The model is not "draw crystals, modulate their brightness". It is a dark
+// cave containing a lot of quartz, plus a light that moves: each face carries
+// a normal, the light direction swings with pitch and jumps as you play, and
+// a face only shows when it happens to be turned toward the light. On top of
+// that a slow selection clock — driven by the travel clock, so it advances
+// while you play and freezes in silence — nominates a couple of clusters at a
+// time. The result is one to three clusters glistening out of the dark at any
+// moment, from a different angle each time, and nothing at all between.
 //
-// Growth runs along +depth, which in this mapping is "toward the axis of the
-// passage": a crystal on a tunnel wall grows perpendicular to that wall, into
-// the open space. Perspective then comes for free, because the mapping
-// compresses with distance — a crystal deep in the passage is small and
-// crowded, one at the mouth is large, and neither needed a special case.
-//
-// (The frame is very nearly isotropic here: one angle unit spans
-// rad*2pi/SIDES of arc and one depth unit spans rad/1.55, a ratio of ~0.89,
-// so shapes defined in it are not visibly stretched on screen.)
-float mCrystals(vec2 rockP, float t, float strike, float drive,
-                out float faceLit, out float flare, out float tint) {
-  faceLit = 0.0;
-  flare = 0.0;
+// Structure is quartz, not a spike: parallel sides down the body, a blunt
+// pyramidal termination at the tip, and a couple of long facet bands running
+// the length, each catching the light at its own angle.
+float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
+                float strike, float drive, out float tint, out float faceGlow) {
   tint = 0.5;
-  float shape = 0.0;
+  faceGlow = 0.0;
+  float best = 0.0;
 
-  vec2 q = rockP;
+  // A coarse lattice: few clusters, and big ones. Fine cells gave a gravel of
+  // little shards, which is the opposite of a quartz seam.
+  vec2 q = rockP * 0.42;
   vec2 i = floor(q), f = fract(q);
   for (int y = -1; y <= 1; y++) {
     for (int x = -1; x <= 1; x++) {
       vec2 g = vec2(float(x), float(y));
       vec2 id = i + g;
       vec2 h = hash2(id);
-      // Not every seam grows anything, and a cluster is 1-3 spikes: a fixed
-      // count is as much of a tell as a fixed size.
-      float hosts = step(0.45, hash(id * 2.3));
-      float count = 1.0 + floor(hash(id * 9.7) * 2.999);
+      // There is quartz in plenty of the rock...
+      float hosts = step(0.35, hash(id * 2.3));
+      // ...but only a couple of clusters are lit at any moment. The clock
+      // advances with the playing, so the cave keeps revealing different
+      // seams as you go, and holds still when you stop.
+      float sel = hash(id * 3.11 + floor(selClock) * 1.7);
+      float chosen = smoothstep(0.86, 0.96, sel);
 
-      // Rooted at the cell's near edge — the seam between this mass of rock
-      // and the one in front of it.
-      vec2 root = g + vec2(0.15 + h.x * 0.7, 0.08 + h.y * 0.22);
+      vec2 root = g + vec2(0.2 + h.x * 0.6, 0.15 + h.y * 0.5);
+      float count = 2.0 + floor(hash(id * 9.7) * 2.999);
 
-      for (int k = 0; k < 3; k++) {
+      for (int k = 0; k < 4; k++) {
         float fk = float(k);
         if (fk >= count) break;
         vec2 hk = hash2(id + fk * 7.1 + 2.0);
         vec2 hj = hash2(id * 1.9 + fk * 3.3);
 
-        // Biased along +depth (out of the wall, into the passage) but only
-        // loosely: a hard radial bias points every crystal at the vanishing
-        // point and the wall turns into a starburst. Real crystal faces go
-        // where the seam lets them, so most of the direction is the seam's
-        // own hash and only a third to two thirds is the surface normal.
         vec2 rnd = hk * 2.0 - 1.0;
-        vec2 dir = normalize(mix(rnd, vec2(0.0, 1.0), 0.3 + hj.x * 0.35)
+        vec2 dir = normalize(mix(rnd, vec2(0.0, 1.0), 0.25 + hj.x * 0.3)
                              + vec2(0.001, 0.0));
         vec2 side = vec2(-dir.y, dir.x);
 
@@ -570,42 +565,54 @@ float mCrystals(vec2 rockP, float t, float strike, float drive,
         float along = dot(d, dir);
         float across = dot(d, side);
 
-        // Size: length and stoutness vary independently.
-        float len = 0.24 + hk.y * 0.62;
-        float wid = (0.045 + hk.x * 0.075) * (0.6 + hj.y * 0.9);
+        // Big: a spear, not a needle.
+        float len = 0.5 + hk.y * 0.55;
+        float wid = 0.06 + hk.x * 0.075;
 
         float u = along / len;
-        // A curve toward the tip — crystals rarely grow dead straight, and
-        // the bend is most of what stops these reading as thrown darts.
-        across += (hj.x - 0.5) * 0.1 * u * u;
-        // Taper varies: some come to a needle point, some end blunt.
-        float taper = wid * (1.0 - u * (0.62 + hk.y * 0.36));
-        // The two halves differ, so the silhouette is asymmetric the way a
-        // real prism seen off-axis is. (halfW, not half: 'half' is a
-        // reserved word in GLSL ES and the compiler rejects it outright.)
-        float halfW = taper * mix(0.6 + hj.y * 0.8, 0.7 + hk.x * 0.7, step(0.0, across));
-        float inside = hosts * step(0.0, u) * step(u, 1.0) * step(abs(across), halfW);
+        // Parallel sides, then a pyramidal cap over the last fifth — that
+        // termination is what makes quartz read as quartz.
+        float capAt = 0.72 + hj.y * 0.16;
+        float w = wid * (u < capAt ? 1.0 : max(0.0, (1.0 - u) / (1.0 - capAt)));
+        float inside = hosts * step(0.0, u) * step(u, 1.0) * step(abs(across), w);
+        if (inside < 0.5) continue;
 
-        // Two faces meeting at the spine, with a per-crystal contrast: some
-        // catch the light hard, some are dull and wet and barely there.
-        float lit = mix(0.22 + hj.y * 0.2, 0.75 + hk.x * 0.35, step(0.0, across));
-        lit *= 0.45 + hj.x * 0.65;
-        lit *= 0.6 + 0.55 * u;   // brighter toward the tip
+        // Facet bands down the length: the prism has several faces, and each
+        // one turns a slightly different way. Three bands is enough to read.
+        float band = floor((across / max(w, 0.001)) * 1.5 + 1.5);
+        float lean = (band - 1.0) * 0.55;      // -0.55, 0, +0.55
+        // The face normal: mostly the prism's side, tilted by which band.
+        vec2 n = normalize(side * sign(across + 0.0001) + dir * lean);
 
-        float v = inside * lit;
-        if (v > shape) {
-          shape = v;
-          faceLit = inside * step(0.0, across);
-          tint = hash(id * 4.3 + fk * 1.7);
+        // Lambert against the moving light, sharpened hard so a face is
+        // either catching it or dark — quartz glints, it does not shade.
+        float lam = max(dot(n, lightDir), 0.0);
+        // Hard: a quartz face is either turned to the light or it is not.
+        // A soft falloff spreads every cluster into a smudge, and the whole
+        // effect depends on the silhouette arriving intact.
+        float glint = pow(lam, 9.0);
+        // The prism's edges catch a line of light whatever way it faces —
+        // that bright rim is most of how the eye reads a crystal as faceted
+        // rather than as a lozenge of glow.
+        float edge = smoothstep(0.82, 1.0, abs(across) / max(w, 0.001));
+        glint = clamp(glint + edge * lam * 0.55, 0.0, 1.5);
+
+        // What you actually see: the chosen clusters, the faces turned to
+        // the light, and a flare on the attack itself. The tiny constant is
+        // all the ambient there is — enough to feel a mass in the dark
+        // without ever drawing the crystal outright.
+        float v = chosen * (glint * (0.35 + drive * 0.8) + glint * strike * 1.6)
+                + inside * 0.035;
+
+        if (v > best) {
+          best = v;
+          faceGlow = chosen * glint;
+          tint = hash(id * 4.3);   // one mineral per cluster, not per spear
         }
-        // A strike lights whole crystals, chosen fresh on a slow clock.
-        flare = max(flare,
-                    inside * step(0.8 - drive * 0.16,
-                                  hash(id * 5.1 + fk + floor(t * 0.7) * 0.29)) * strike);
       }
     }
   }
-  return shape;
+  return best;
 }
 
 // Lightning. A bolt is a path down the frame, jittered by noise, with a fork
@@ -1070,19 +1077,21 @@ void main() {
     own = max(own, W_tunnel);
   }
   if (W_crystals > 0.0) {
-    float faceLit, flare;
-    crystal = mCrystals(rockP, u_t, u_pulse,
-                        clamp(u_sparkle, 0.0, 1.0), faceLit, flare, crystalTint);
-    // Fade into the passage with the rock they grow on, so the far end stays
-    // depth rather than a thicket of sub-pixel spikes.
-    crystal *= mix(1.0, rockDepth, haveRock);
-    crystal *= W_crystals;
-    // They stand in front of the wall: their own light, and their own mass
-    // where a face turns away.
-    lift += crystal * 0.55;
-    spec += crystal * (0.35 + u_sparkle * 1.1) + flare * W_crystals * 2.0;
-    iceFlash = max(iceFlash, flare * W_crystals);
-    site = max(site, faceLit * crystal);
+    float faceGlow;
+    // The light that finds them. Its ANGLE is pitch — so the low end of the
+    // keyboard lights a different set of faces than the top does — and it
+    // swings further as you keep playing. This is the whole mood: you are
+    // not lighting the cave, you are catching different quartz with every
+    // phrase.
+    float la = u_centroid * 4.2 + u_flow * 0.9;
+    vec2 lightDir = vec2(cos(la), sin(la));
+    crystal = mCrystals(rockP, u_t, u_flow * 1.6, lightDir,
+                        u_pulse, clamp(u_sparkle, 0.0, 1.0), crystalTint, faceGlow);
+    // Fade into the passage with the rock they grow on.
+    crystal *= mix(1.0, rockDepth, haveRock) * W_crystals;
+    lift += crystal * 0.5;
+    spec += faceGlow * W_crystals * (0.6 + u_sparkle * 1.4 + u_pulse * 1.8);
+    site = max(site, faceGlow);
     own = max(own, W_crystals);
   }
   if (W_snow > 0.0) {
@@ -1177,12 +1186,16 @@ void main() {
   // A struck shard goes toward white in one step — lightning inside the ice,
   // not a warmer shade of the ramp.
   col = mix(col, mix(u_c3, u_c4, 0.85), clamp(iceFlash, 0.0, 1.0) * 0.85);
-  // Crystals are their own material: cold and pale against the wet rock,
-  // taking the palette's bright end rather than the wall's colour — but each
-  // one its own shade. A seam of crystal is not one mineral: some catch
-  // white, most sit in the cold middle, and a few stay dark and glassy.
-  vec3 crystalCol = mix(mix(u_c2, u_c3, 0.7), u_c4, smoothstep(0.35, 1.0, crystalTint));
-  col = mix(col, crystalCol, clamp(crystal, 0.0, 1.0) * 0.72);
+  // Quartz colour is the mineral's own, not the palette's — the same licence
+  // the aurora and the snow take. A seam is not one mineral: amethyst,
+  // clear, smoky, citrine, a rare aqua, and which one a cluster is stays
+  // fixed while the light swings across it.
+  vec3 qz = mix(vec3(0.62, 0.45, 0.95), vec3(0.88, 0.93, 1.0),
+                smoothstep(0.0, 0.35, crystalTint));
+  qz = mix(qz, vec3(0.55, 0.5, 0.58), smoothstep(0.45, 0.6, crystalTint));
+  qz = mix(qz, vec3(1.0, 0.85, 0.5), smoothstep(0.68, 0.8, crystalTint));
+  qz = mix(qz, vec3(0.5, 0.9, 0.92), smoothstep(0.9, 0.97, crystalTint));
+  col += qz * clamp(crystal, 0.0, 1.4) * 0.95;
   // Storm. The bolt is very nearly white; the flash lifts the whole sky and
   // leaves the bruised blue-violet that says a big one just went off behind
   // the cloud, and low, dark playing keeps that bruise in the air.

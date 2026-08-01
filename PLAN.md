@@ -1148,6 +1148,18 @@ Every note mapped to a mechanism; the signature table in §5.4 is the result.
 Two engine-wide deletions (the ambient brightening and the ambient glints —
 see §5.4) and one lesson that finally cracked cave:
 
+- **Cave, the model.** Quartz is not "crystals whose brightness is
+  modulated" — it is **invisible rock that a moving light finds**. Big thick
+  spears with parallel sides and a pyramidal cap, most of them dark at any
+  moment; a light whose ANGLE is pitch (and which swings further the longer
+  you play) picks out whichever faces happen to be turned toward it; and a
+  selection clock running off the travel clock nominates one to three
+  clusters at a time. Ambient contribution is 0.035 — just enough to feel a
+  mass in the dark. Every earlier version failed because it drew the
+  crystals and then tried to make them interesting; this one draws almost
+  nothing and lets the playing do the revealing. Quartz colour is the
+  mineral's own (amethyst, clear, smoky, citrine, a rare aqua), fixed per
+  cluster while the light sweeps across it.
 - **Cave.** The crystals are grown in the ROCK's frame — `mTunnel` hands out
   its warped log-polar point, and the crystal lattice IS the rock lattice, so
   one cell of stone hosts one cluster rooted at its near edge and every
