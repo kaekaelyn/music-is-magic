@@ -519,6 +519,32 @@ hardware/          ← empty until the ESP32 day
 
 ## 13. Build log
 
+### 2026-08-01 — the field twitched, because geometry was on a 40 ms filter
+
+First owner review of a working broadcast: the fog "twitches back and forth
+instead of flowing fluidly". It was not a glitch — it was the mapping doing
+exactly what it said.
+
+`u_warp` is the domain warp, so it displaces the coordinate every sample in
+the field is read from. It was driven by `bass`, which §5.5 extracts with a
+**40 ms attack** so that hits land crisply. With the default mapping that put
+a 0.77→1.76 swing on the warp at very nearly frame rate: measured against a
+simulated piano bass, single-frame jumps of up to 0.87 on a span of 0.9. The
+field could not flow, because its coordinate space was being yanked.
+
+The rule this yields, now written into `viz.js`: **smooth what moves geometry,
+leave what only moves light alone.** Brightness, sparkle and the onset pulse
+are still instant — that is the audio being visible. Warp and palette shift now
+run through their own one-pole filters (0.35 s and 1.0 s). Same for the
+Canvas2D fallback's blob displacement and radius.
+
+Worth not rediscovering: past a ~0.15 s time constant the resulting warp
+*range* stops changing at all, so heavier filtering buys smoothness with
+latency and nothing else. The table of measurements is in the code next to the
+constant. There is no automated guard here — like the motif-direction problem
+in §5.4, nothing measurable in a still frame distinguishes flowing from
+twitching. Reason about it, then watch it move.
+
 ### 2026-08-01 — M7, the YouTube broadcast build
 
 Owner wants to stream on YouTube from a desktop with a microphone and no

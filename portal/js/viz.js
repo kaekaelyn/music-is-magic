@@ -316,6 +316,46 @@ const MAX_EDGE = 1024;
 
 const lerp = (a, b, k) => a + (b - a) * k;
 
+// --- feature smoothing for things that move -------------------------------
+//
+// Features that displace *geometry* need far heavier smoothing than features
+// that change *light*. `bass` is extracted with a 40 ms attack (§5.5) so a hit
+// lands crisply, which is right for a flash of brightness and wrong for the
+// domain warp: with the default mapping the warp swings 0.77→1.76, and every
+// one of those jumps moves the coordinate every sample is read from. The
+// field stops flowing and starts twitching back and forth.
+//
+// So: smooth what moves, leave what glows alone. Brightness, sparkle and the
+// onset pulse still react instantly — those are the audio being visible.
+// Measured against a simulated piano bass (onsets every 200 ms, decaying, plus
+// the per-frame noise the extractor actually produces), looking at the size of
+// the frame-to-frame jump in u_warp — which is what the eye reads as a twitch:
+//
+//   tau     mean jump   max jump   resulting warp range
+//   0       0.114       0.87       0.79–1.71     ← what shipped, visibly jerky
+//   0.15    0.020       0.067      0.86–1.35
+//   0.35    0.009       0.032      0.81–1.31     ← here
+//   0.8     0.004       0.016      0.79–1.29
+//
+// The range barely moves past 0.15, so heavier filtering costs latency and
+// nothing else — but the returns on smoothness flatten too. 0.35 puts the
+// largest single-frame jump at ~2% of the warp's span, which is below noticing,
+// and still settles in a third of a second. Turn it up if the field still
+// twitches on your material; turn it down if it feels dead. Watch it move.
+const GEOM_TAU = 0.35;  // domain warp, blob displacement
+const SHIFT_TAU = 1.0;  // palette shift: a drift across a piece, not a twitch
+
+// One per renderer instance; seeded to IDLE's values so the first frame after
+// a theme load does not lurch in from zero.
+function createMotionSmoother() {
+  const v = { warp: 0, shift: 0.4 };
+  return (f, dt) => {
+    v.warp += (f.bass - v.warp) * (1 - Math.exp(-dt / GEOM_TAU));
+    v.shift += (f.centroid - v.shift) * (1 - Math.exp(-dt / SHIFT_TAU));
+    return v;
+  };
+}
+
 function mixTheme(a, b, k) {
   const out = { paletteRGB: [], params: {}, mappings: {}, motifs: {} };
   for (let i = 0; i < 5; i++) {
@@ -483,11 +523,14 @@ function createGL(canvas, reducedMotion) {
     morph = 0;
   }
 
+  const smoothMotion = createMotionSmoother();
+
   function frame(t, dt, f, intensity) {
     if (morph < 1) morph = Math.min(1, morph + dt / MORPH_SECONDS);
     const th = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
     if (lost) return; // morph still advances; drawing waits for the restore
     const m = th.mappings;
+    const sm = smoothMotion(f, dt);
 
     const motion = reducedMotion ? 0.35 : 1;
     tAcc += dt * th.params.speed * motion * (0.6 + intensity * 0.6);
@@ -508,11 +551,11 @@ function createGL(canvas, reducedMotion) {
     gl.uniform3f(U.u_c3, ...pal[3]);
     gl.uniform3f(U.u_c4, ...pal[4]);
     gl.uniform1f(U.u_scale, th.params.scale);
-    gl.uniform1f(U.u_warp, th.params.warp * (0.7 + f.bass * m.warpBass));
+    gl.uniform1f(U.u_warp, th.params.warp * (0.7 + sm.warp * m.warpBass));
     gl.uniform1f(U.u_bright, 0.35 + f.rms * m.brightRms);
     gl.uniform1f(U.u_sparkle, th.params.sparkle * f.treble * m.sparkleTreble);
     gl.uniform1f(U.u_pulse, reducedMotion ? 0 : pulse);
-    gl.uniform1f(U.u_shift, (f.centroid - 0.4) * m.shiftCentroid);
+    gl.uniform1f(U.u_shift, (sm.shift - 0.4) * m.shiftCentroid);
     gl.uniform1f(U.u_open, intensity);
     gl.uniform1f(U.u_texAmt, texAmt);
     gl.uniform1f(U.u_gloss, th.params.gloss || 0);
@@ -566,9 +609,12 @@ function create2D(canvas, reducedMotion) {
   const css = (rgb, a) =>
     `rgba(${rgb[0] * 255 | 0},${rgb[1] * 255 | 0},${rgb[2] * 255 | 0},${a})`;
 
+  const smoothMotion = createMotionSmoother();
+
   function frame(t, dt, f, intensity) {
     if (morph < 1) morph = Math.min(1, morph + dt / MORPH_SECONDS);
     const th = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
+    const sm = smoothMotion(f, dt);
     const W = canvas.width;
     const H = canvas.height;
     const R = Math.min(W, H);
@@ -585,10 +631,10 @@ function create2D(canvas, reducedMotion) {
     ctx.globalCompositeOperation = 'lighter';
     for (const b of blobs) {
       b.angle += b.speed * dt * motion * (0.5 + f.rms);
-      const wob = 1 + 0.2 * Math.sin(t * 0.5 + b.phase) + f.bass * 0.35;
+      const wob = 1 + 0.2 * Math.sin(t * 0.5 + b.phase) + sm.warp * 0.35;
       const x = W / 2 + Math.cos(b.angle) * b.dist * R * wob * 0.5;
       const y = H / 2 + Math.sin(b.angle) * b.dist * R * wob * 0.42;
-      const rad = b.size * R * (0.8 + f.bass * 0.5 + pulse * 0.3);
+      const rad = b.size * R * (0.8 + sm.warp * 0.5 + pulse * 0.3);
       const col = th.paletteRGB[b.color];
       const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
       g.addColorStop(0, css(col, 0.1 * intensity * (0.5 + f.rms)));
