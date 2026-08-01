@@ -13,8 +13,10 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 
 const eyeCanvas = document.getElementById('eye');
 const vizCanvas = document.getElementById('viz');
-const eye = createEye(eyeCanvas, { reducedMotion });
+// The viz canvas is a source, never a sight: the eye composites it into its
+// aperture, so nothing of the field is visible outside the stone.
 const viz = createViz(vizCanvas, { reducedMotion });
+const eye = createEye(eyeCanvas, { reducedMotion, field: vizCanvas });
 const themes = createThemeStore();
 const machine = createEyeMachine({ stirMs: CONFIG.stirMs, drowseMs: CONFIG.drowseMs });
 const audio = createAudioEngine(CONFIG.streamUrl);
@@ -43,7 +45,7 @@ function applyTheme(token) {
   themes.load(token).then((theme) => {
     if (seq !== themeSeq) return; // a newer token won the race
     viz.setTheme(theme);
-    eye.setIris(theme);
+    eye.setTheme(theme);
     // The resolved name, not the raw token: unknown tokens land on 'default'.
     document.body.dataset.theme = theme.name;
   });
@@ -97,7 +99,8 @@ eyeCanvas.addEventListener('blur', () => eye.setFocus(false));
 
 function resize() {
   eye.resize();
-  viz.resize();
+  const box = eye.apertureSize();
+  viz.setSize(box.w, box.h);
 }
 window.addEventListener('resize', resize);
 

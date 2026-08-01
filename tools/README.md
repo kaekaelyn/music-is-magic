@@ -6,18 +6,30 @@ and not at the repo root (a root manifest would tempt Pages into an install
 step the portal doesn't have and doesn't want).
 
 ```sh
-node tools/validate-assets.mjs   # zero dependencies, run it anywhere
+node tools/validate-assets.mjs        # zero dependencies, run it anywhere
 
-cd tools && npm install && npm test   # validator + headless smoke test
+cd tools && npm install
+npm test                              # validator + headless smoke test
+npm run shots                         # photograph every state and theme
+npm run shots -- --themes ice,ocean --width 430 --height 932
 ```
+
+`mock-portal.mjs` serves `portal/` with a status endpoint the calling process
+owns, so flipping the stream live is a variable assignment. Both the smoke test
+and the screenshot tool run on it. The portal is served byte for byte as Pages
+would serve it; the only substitution is the one production edit an owner makes
+by hand (§5.7's `NTFY_TOPIC`), and it fails loudly if that line ever moves.
 
 ## `validate-assets.mjs`
 
 Checks the drop-in contracts — `index.json` against the theme folders,
-palettes, engine params and mappings against what the engine actually reads,
-texture paths, and the eye manifest's layers against the files they name. It
-also compares each `theme.json` with its built-in fallback in
+palettes, engine params, motif weights and mappings against what the engine
+actually reads, texture paths, and the eye manifest's layers against the files
+they name. It also compares each `theme.json` with its built-in fallback in
 `portal/js/themes.js`.
+
+Motif names come from `portal/js/themes.js` itself, so renaming a motif fails
+validation rather than silently becoming no motif at all.
 
 This exists because the portal is deliberately unbreakable: a bad palette, an
 unknown mapping key or a missing texture all degrade silently to something

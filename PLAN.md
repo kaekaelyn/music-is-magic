@@ -25,15 +25,27 @@ no consent banners. The site is a place, not a product.
 
 ### 2.1 Eye states
 
+The eye is **carved, not drawn**: a stone plate — golem, idol — with a
+lens-shaped aperture cut through it, in a dark room. Nothing about it is
+anatomical; a stylized human eye reads as cartoon at this scale, and stone
+does not blink.
+
+The aperture is a **window onto the visualization**, not a decoration over it.
+Where an iris and pupil would be, there is the moving field. Sealed, there is
+nothing to see but stone; open, you see what is inside the eye. That inversion
+is the design — everything else follows from it, including the fact that light
+spilling onto the surrounding stone is the only place a theme colors anything
+outside the aperture.
+
 The eye is a state machine, not a boolean. The names below are used in code.
 
 | State | Trigger | Look & feel |
 |---|---|---|
-| **Sealed** | No live source (steady state) | Closed eye. Slow ambient breathing pulse (~8s cycle) so the page feels alive, not broken. |
-| **Stirring** | Source detected (2 consecutive positive polls) | The opening ceremony: a deliberate 2–3s animation. This transition is the brand. |
-| **Open** | Live, but visitor hasn't interacted yet | Eye open, faint inviting glow. Autoplay is blocked by browsers — the eye itself is the click target that unlocks audio. |
-| **Communing** | Visitor clicked while live | Audio playing; visualization active, driven by the stream and the current theme. |
-| **Drowsing** | Signal lost while Open/Communing | Half-lidded grace state, up to **90 seconds**. Visualization dims and slows. If the source returns → resume (reload audio src, `play()`); if not → Sealed. |
+| **Sealed** | No live source (steady state) | Stone, and a carved slit where the aperture will part. Nothing inside. The life-sign is a slow ember in the seam (~8s cycle) rather than movement — the page must feel patient, not broken, and stone that breathes stops being stone. |
+| **Stirring** | Source detected (2 consecutive positive polls) | The opening ceremony: the stone parts over a deliberate 2–3s, and the field appears inside. This transition is the brand. |
+| **Open** | Live, but visitor hasn't interacted yet | Aperture open on a dim field, faint light spilling onto the stone. Autoplay is blocked by browsers — the eye itself is the click target that unlocks audio. |
+| **Communing** | Visitor clicked while live | Audio playing; the field inside the aperture is driven by the stream and the current theme, and the aperture widens slightly with the low end. |
+| **Drowsing** | Signal lost while Open/Communing | The aperture narrows to a slit, up to **90 seconds**. The field dims and slows. If the source returns → resume (reload audio src, `play()`); if not → Sealed. |
 
 State-change hygiene: **opening** requires 2 consecutive positive polls
 (no flicker on a fluke); **closing** goes through Drowsing (no slam on a
@@ -102,12 +114,13 @@ nothing but move audio bytes and answer a status poll.
 | D7 | Portal hosting | Cloudflare Pages (free) | Static, global, $0. |
 | D8 | Live detection | Portal polls `status-json.xsl` every 5s | No backend, no websocket infra. See §5.1. |
 | D9 | Theme control | Metadata "song" field carries a bare theme token; hidden `/control.html` sends it | See §5.2, §5.6. Zero extra backend. |
-| D10 | Visualization | One WebGL engine; themes are pure data (textures + palette + mappings). Canvas2D fallback for weak devices | Adding a theme = adding a folder. Engine code never changes per theme. |
+| D10 | Visualization | One WebGL engine; themes are pure data (palette + params + **motif weights** + mappings + textures). Canvas2D fallback for weak devices | Adding a theme = adding a folder. Engine code never changes per theme. Motifs (§5.4) are how a theme gets character without breaking that: the engine holds the library, the theme picks from it. |
 | D11 | Art pipeline | All visual assets are **drop-in plugs** per manifest contracts (§5.3, §5.4). Engine ships with procedural placeholders for every slot | Owner generates/refines AI art separately, on their own schedule, and swaps files — never code. |
 | D12 | Dropout posture | Drowse (90s half-lidded grace) then Sealed | Honest but forgiving of cell hiccups. |
 | D13 | Go-live alerting | Icecast per-mount `on-connect`/`on-disconnect` hooks curl an ntfy.sh topic | No watcher process, no cron. Visitors and (someday) an ESP32 lamp subscribe to the same topic. |
 | D14 | Analytics/privacy | None beyond Cloudflare's free aggregate stats | No cookies, no banners, fits the aesthetic. |
 | D15 | Visitor notification transport | A link to the ntfy topic page (§5.7), not Web Push | Web Push needs VAPID keys, a service worker and a permission prompt — a backend and an interruption, for something ntfy already does. |
+| D17 | The eye's form | Carved stone (golem/idol) with a lens aperture; the visualization lives **inside** the aperture, not behind the eye | A stylized human eye — sclera, iris, lashes — reads as cartoon at full-screen scale. And a field behind a floating eye is wallpaper; a field seen *through* carved stone is the thing the site is about. Reverses the first implementation. See §2.1. |
 | D16 | Dev tooling | `tools/` holds a zero-dep asset validator and a headless smoke test; `tools/package.json` keeps npm out of the repo root | The portal must stay buildless and dependency-free (§12); the contracts in §5 still need something that fails loudly, because the portal is built to fail silently. |
 
 ---
@@ -137,20 +150,25 @@ changing one means updating this file.
 ```
 portal/assets/eye/
   manifest.json      # ships with no layers → built-in procedural eye
+  plate.(svg|png)    # the stone face, aperture left transparent
+  socket.(svg|png)   # carved rim + inner shadow, over the field's edge
   lid-upper.(svg|png)
   lid-lower.(svg|png)
-  iris.(svg|png)
-  sclera.(svg|png)
   glow.(png)
   frame.(svg|png)    # surrounding druidic ornament, optional
 ```
 
-`manifest.json` declares which layer files exist, their pivot/anchor points,
-and per-layer motion hints (e.g. how far lids travel). The engine animates
-whatever layers are present and procedurally fills the rest. **Dropping art
-in never requires a code change**, and partial drops are fine (e.g. real
-iris + placeholder lids while iterating). The shipped manifest declares no
-layers — equivalent to having none, but without a 404 on every page load.
+`manifest.json` declares which layer files exist, the aperture the field is
+clipped to, and per-layer motion hints (e.g. how far lids travel). The engine
+animates whatever layers are present and procedurally fills the rest.
+**Dropping art in never requires a code change**, and partial drops are fine.
+The shipped manifest declares no layers — equivalent to having none, but
+without a 404 on every page load.
+
+There is no eyeball to author. See §2.1: the aperture is a window onto the
+visualization, so the art is stone and the hole in it. `aperture: {w, h}`
+(fractions of the shared square box) is the one value that must agree with
+the art, since it decides where the field is clipped.
 
 ### 5.4 Theme asset plug
 
@@ -164,6 +182,64 @@ portal/assets/themes/
 
 A theme with `theme.json` but no textures renders procedurally in its
 palette. Adding theme #8 later = new folder + one line in `index.json`.
+
+**Motifs.** A palette and four scalars only ever produced the same fog in
+different colors, which is not a mood. So the engine compiles in a fixed
+library of procedural motifs and a theme declares which ones it is made of:
+
+| Motif | What it is | Used by |
+|---|---|---|
+| `rays` | shafts of light from above | sunshine, forest |
+| `columns` | irregular vertical masses — trunks, formations | forest, cave, mountain |
+| `dapple` | patches of light drifting at their own rate | forest, sunshine |
+| `drips` | falling streaks | cave, rain |
+| `facets` | crystal shards with a lit seam where they meet | ice |
+| `caustics` | undulating light web | ocean |
+| `crags` | angular rock planes, each catching the light its own way | mountain |
+| `snow` | accumulation on whichever crag faces tilt skyward, below a snowline | mountain |
+
+```json
+"motifs": { "rays": 0.85, "dapple": 0.25 },
+"params": { "gloss": 0.2, "slant": 0, ... }
+```
+
+Weights are 0–1 and every theme carries every key (absent = 0), so morphing
+between two themes is a plain lerp and a motif the target lacks fades out
+rather than snapping off. Weight is not purely opacity: `drips` reads its own
+weight as **density** — both how many lanes exist and how often a lane fires —
+which is why a cave's occasional seep and hard rain are the same motif at two
+settings rather than two motifs. Brightness stays nearly constant across that
+range, or the sparse case just disappears. `gloss` hardens the palette ramp and
+lets specular highlights through — the difference between weather and ice.
+`slant` leans falling things off vertical: rain is wind-driven, a cave's seep
+is not, and that is a separate axis from density — deriving it from the drips
+weight would make heavier rain automatically windier, which is a different
+claim about the world.
+
+Params default (see `DEFAULT_PARAMS`) and are merged under every theme, so a
+theme only names what it changes and morphing stays a plain lerp.
+
+This keeps D10 intact: the motifs are engine code that never changes per
+theme, and a theme is still only data. Adding a *motif* is an engine change
+and should be rare — reserve it for a material the library genuinely lacks,
+the way `snow` was. Adding a theme is still a folder.
+
+Two findings worth not rediscovering:
+
+- **Regular banding reads as electronic.** A horizontal-strata motif, however
+  warped, looked like VHS scanlines inside a glowing aperture. It was replaced
+  by `crags`. Anything with a repeating axis will have the same problem.
+- **Clean voronoi reads as mosaic.** `crags` warps its lattice with noise
+  before cells are found, and blends snow coverage with noise rather than
+  taking it per-cell — otherwise the facets tile like cracked glass, which is
+  `facets`' job, not rock's.
+- **Check the sign of anything that moves.** `uv.y` increases upward, so
+  `uv.y * k + t` falls and `uv.y * k - t` rises. Drips shipped rising and rays
+  shipped lighting the aperture from below; neither is visible in a
+  screenshot. There is no automated guard — the composited output is dominated
+  by the base field's drift and the socket shading, so nothing measured from it
+  isolates one motif's motion. Two attempts at a smoke check were too flaky to
+  keep. Reason about the sign, then watch it move.
 
 ### 5.5 Audio features → visualization
 
@@ -246,7 +322,7 @@ Each is sized for one focused build session. **Done when** is the acceptance tes
 | M2 | **First Breath** | VPS + Caddy + Icecast per §6; Cool Mic streaming; swap the portal's endpoint config to the real server. **Go/no-go here:** verify Cool Mic MP3 sourcing; activate D6 (Liquidsoap) if not. Also verify metadata updates land on the mount. | A friend's iPhone hears live playing at the real domain, eye open, over cell data. |
 | M3 | **The Pulse** | Web Audio feature extraction (§5.5) + WebGL engine + `default` theme, all procedural. Canvas2D fallback. Drowse/resume audio handling. | Visualization visibly, pleasingly reacts to live playing on a mid-range phone at smooth framerate. |
 | M4 | **The Moods** | Theme system: `index.json`, `theme.json` loader, morph transition between themes, `/control.html` (§5.6). Seven themes defined with procedural looks (empty texture folders). | Tapping "cave" on the phone mid-stream morphs every viewer's visualization within one poll cycle. |
-| M5 | **The Gallery** | Owner generates AI texture banks + eye art separately and drops them in per §5.3/§5.4. Build session only assists: validates manifests, tunes mappings, optimizes images. | At least one theme runs on real textures with zero code edits — proving the plug. |
+| M5 | **The Gallery** | Owner generates AI texture banks + eye art separately and drops them in per §5.3/§5.4. Build session only assists: validates manifests (`tools/validate-assets.mjs`), tunes motif weights and mappings against `tools/shots.mjs`, optimizes images. | At least one theme runs on real textures with zero code edits — proving the plug. |
 | M6 | **The Summons** | ntfy on-connect hooks (§6); portal gets a subtle opt-in for notifications (§5.7). ESP32 lamp: someday, `hardware/`, subscribes to the same topic. | Phone buzzes "the eye opens" within seconds of the source connecting. |
 
 ---
@@ -359,6 +435,74 @@ do:
   theme.json fetch can never blank the site), ~2s morph transition,
   `control.html` with buttons generated from `index.json`. Remaining:
   acceptance mid-stream.
+
+### 2026-07-29 — motifs, so a theme is a mood and not a palette swap
+
+Owner review, second pass: the colors were fine but every theme was the same
+fog. Fair — `theme.json` carried a palette and four scalars, so there was
+nothing for a theme to *be*. Wanted sunshine to have rays, ice to glitter and
+be glossy, cave to drip, forest to have columns and dappled light.
+
+Fixed by giving the shader a **motif library** (§5.4) that themes weight as
+data, which keeps D10: the engine holds all seven motifs and never changes per
+theme; a theme still only picks from them. The branches are uniform-coherent,
+so an unused motif costs nothing but shader length.
+
+Tuning notes, since these were all found by looking rather than reasoning:
+
+- First pass blew out ice and sunshine and turned cave and mountain black.
+  Motif `mass` is now clamped — an all-mass theme would just be a shut
+  aperture, which is what Sealed is for.
+- `drips` takes its weight as density *and* strength, so a cave's slow seep
+  and hard rain are one motif at two settings. Brightness is `sqrt(weight)`
+  or the sparse case is invisible.
+- Frequencies tuned against a full screen do not survive the move into a
+  short aperture — a motif that looked right at fullscreen can arrive with one
+  and a half features visible.
+- Mountain went through three motifs before it worked, and both failures are
+  now recorded in §5.4: horizontal strata read as VHS scanlines, and clean
+  voronoi crags read as a mosaic. It needed a warped lattice, a noise-blended
+  snowline, and a cold palette — the old warm tan left no white to put snow on.
+- Watch for backticks in the GLSL comments. The whole shader is a JS template
+  literal, and one in a comment cost a confusing syntax error. Twice.
+
+Also landed `tools/shots.mjs` (every state × every theme at phone size, plus a
+contact sheet) and `tools/mock-portal.mjs`, now shared with the smoke test.
+The shots tool is the M5 loop: procedural looks leave nothing to inspect in
+the repo, so tuning art without it is guessing.
+
+### 2026-07-29 — the eye is carved, and the field moved inside it
+
+Owner review of the first build: the eye looked too human, and stylizing a
+human eye at that scale reads as cartoon. Wanted stone — golem, idol — with
+the moving pattern *inside*, where an iris and pupil would be. Sealed shows
+nothing; open shows what is inside. Locked as D17 and written into §2.1.
+
+Architecturally this inverts the two canvases. `#viz` was a full-screen field
+with the eye floating on top; it is now an offscreen **source**, sized to the
+aperture's bounding box, and `#eye` is the compositor — it draws the stone,
+clips to the aperture, and pulls the field in. Two consequences worth knowing:
+
+- Shading stopped at the aperture, so the fragment shader now covers a few
+  percent of the pixels it used to. This is a large win on exactly the
+  mid-range phone M3 has to pass on, not a cost.
+- The field is drawn at the *full* aperture box no matter how open the eye is,
+  so it stays a fixed plane seen through a changing gap rather than something
+  that stretches as the stone parts.
+
+On the stone itself, in case it ever gets retouched: it is shaded by the
+**slope** of a noise height field, not its value. Value alone gives clouds no
+matter how it is tuned — the first attempt looked like fog. Ridged noise cuts
+the fissures, one light direction (`LIGHT_X/Y`) governs the relief, the socket
+lip and the aperture bevel alike, and every carved line is a concentric vesica
+echoing the aperture. Concentric *circles* around a lens-shaped hole read as a
+targeting reticle at any opacity; that was the second attempt. A raised brow
+arc was the third, and it pulled the composition upward and started the face
+being a face again — dropped.
+
+§5.3's layer names changed with the design: `sclera`/`iris` no longer describe
+anything, so the plug is now `plate`/`socket`/`lid-*`/`glow`/`frame` plus a
+declared `aperture` the field is clipped to.
 
 ### 2026-07-25 — hardening, M6 visitor side, and a test that exists
 

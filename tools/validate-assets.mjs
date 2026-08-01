@@ -16,12 +16,20 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const THEMES = join(ROOT, 'portal/assets/themes');
 const EYE = join(ROOT, 'portal/assets/eye');
 
-const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle'];
+// scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
+const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant'];
+const POSITIVE_PARAMS = ['scale', 'speed', 'warp'];
 const KNOWN_MAPPINGS = [
   'warpBass', 'brightRms', 'sparkleTreble', 'pulseFlux', 'shiftCentroid',
 ];
-const EYE_LAYERS = ['frame', 'glow', 'sclera', 'iris', 'lid-lower', 'lid-upper'];
+const EYE_LAYERS = ['plate', 'socket', 'lid-lower', 'lid-upper', 'glow', 'frame'];
 const HEX = /^#[0-9a-f]{6}$/i;
+
+// The engine is the authority on what a motif is called; importing it here
+// means a renamed motif fails validation instead of silently doing nothing.
+const themesModule = await import(pathToFileURL(join(ROOT, 'portal/js/themes.js')));
+const MOTIF_NAMES = Object.keys(themesModule.MOTIFS);
+const PARAM_DEFAULTS = themesModule.DEFAULT_PARAMS;
 
 const errors = [];
 const warnings = [];
@@ -98,8 +106,20 @@ for (const name of names) {
   for (const [key, val] of Object.entries(t.params || {})) {
     if (!KNOWN_PARAMS.includes(key)) {
       fail(`${label}/theme.json: unknown param '${key}' (engine ignores it)`);
-    } else if (!Number.isFinite(val) || val <= 0) {
-      fail(`${label}/theme.json: params.${key} must be a positive number`);
+    } else if (!Number.isFinite(val) || val < 0) {
+      fail(`${label}/theme.json: params.${key} must be a non-negative number`);
+    } else if (POSITIVE_PARAMS.includes(key) && val <= 0) {
+      fail(`${label}/theme.json: params.${key} must be greater than zero`);
+    }
+  }
+  for (const [key, val] of Object.entries(t.motifs || {})) {
+    if (!MOTIF_NAMES.includes(key)) {
+      fail(
+        `${label}/theme.json: unknown motif '${key}' — the engine only has ` +
+        `${MOTIF_NAMES.join(', ')} (a typo here is silently no motif at all)`
+      );
+    } else if (!Number.isFinite(val) || val < 0 || val > 1) {
+      fail(`${label}/theme.json: motifs.${key} must be a number between 0 and 1`);
     }
   }
   for (const [key, val] of Object.entries(t.mappings || {})) {
@@ -131,10 +151,9 @@ for (const found of dirs(THEMES)) {
   }
 }
 
-// Drift between the built-in fallback palettes and theme.json. The built-ins
-// exist so a failed fetch can't blank the site; if they disagree with the
-// files, a slow network silently shows a different theme.
-const themesModule = await import(pathToFileURL(join(ROOT, 'portal/js/themes.js')));
+// Drift between the built-in fallbacks and theme.json. The built-ins exist so
+// a failed fetch can't blank the site; if they disagree with the files, a slow
+// network silently shows a different theme.
 for (const name of names) {
   const builtin = themesModule.BUILTIN[name];
   const file = join(THEMES, name, 'theme.json');
@@ -148,12 +167,22 @@ for (const name of names) {
   const a = JSON.stringify(builtin.palette);
   const b = JSON.stringify((t.palette || []).slice(0, 5));
   if (a !== b) fail(`themes/${name}: palette drift — js/themes.js ${a} vs theme.json ${b}`);
+  // Compare against the merged view the engine actually builds, or every
+  // param a theme leaves to its default would look like drift.
+  const effective = { ...PARAM_DEFAULTS, ...builtin.params };
   for (const key of KNOWN_PARAMS) {
-    if (t.params && t.params[key] !== undefined && builtin.params[key] !== t.params[key]) {
+    if (t.params && t.params[key] !== undefined && effective[key] !== t.params[key]) {
       fail(
-        `themes/${name}: params.${key} drift — js/themes.js ${builtin.params[key]} ` +
+        `themes/${name}: params.${key} drift — js/themes.js ${effective[key]} ` +
         `vs theme.json ${t.params[key]}`
       );
+    }
+  }
+  for (const key of MOTIF_NAMES) {
+    const bv = (builtin.motifs || {})[key] || 0;
+    const tv = (t.motifs || {})[key] || 0;
+    if (bv !== tv) {
+      fail(`themes/${name}: motifs.${key} drift — js/themes.js ${bv} vs theme.json ${tv}`);
     }
   }
 }
@@ -178,6 +207,16 @@ for (const [file, checkFiles] of [
   if (!m.layers || typeof m.layers !== 'object') {
     fail(`eye/${file}: needs a 'layers' object`);
     continue;
+  }
+  if (m.aperture !== undefined) {
+    for (const k of ['w', 'h']) {
+      const v = m.aperture[k];
+      if (v !== undefined && !(Number.isFinite(v) && v > 0 && v <= 0.5)) {
+        // Fractions of the shared square box, so anything over 0.5 would put
+        // the aperture's edge outside the art.
+        fail(`eye/${file}: aperture.${k} must be a number between 0 and 0.5`);
+      }
+    }
   }
   if (file === 'manifest.json' && !Object.keys(m.layers).length) {
     warn('eye/manifest.json: no layers declared — the procedural eye renders (intended default)');

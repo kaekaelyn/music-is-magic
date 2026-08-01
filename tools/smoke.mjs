@@ -3,7 +3,7 @@
 //
 //   cd tools && npm install && npm test
 //
-// Why a bespoke server instead of `python3 -m http.server`: the interesting
+// Why mock-portal.mjs instead of `python3 -m http.server`: the interesting
 // assertions are all *transitions* — sealed→stirring needs the status endpoint
 // to flip mid-run. Serving portal/ from this process makes `state.live = true`
 // the whole mechanism, with no control endpoint and no portal-side test hooks.
@@ -11,14 +11,7 @@
 // The portal itself stays dependency-free; Playwright is dev-only tooling and
 // nothing under portal/ knows this file exists.
 
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { existsSync, statSync } from 'node:fs';
-import { join, dirname, extname, normalize } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const PORTAL = join(ROOT, 'portal');
+import { startPortal, launch } from './mock-portal.mjs';
 
 let chromium;
 try {
@@ -28,76 +21,9 @@ try {
   process.exit(2);
 }
 
-// --- controllable mock server -------------------------------------------
-
-// What the status endpoint currently reports, and whether js/config.js is
-// served with a summons topic filled in (§5.7's production edit).
-const state = { live: false, theme: 'default', topic: '' };
-
-const TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.txt': 'text/plain; charset=utf-8',
-  '.webp': 'image/webp',
-  '.png': 'image/png',
-};
-
-function statusBody() {
-  if (!state.live) return { icestats: { host: 'smoke', server_id: 'smoke' } };
-  return {
-    icestats: {
-      host: 'smoke',
-      server_id: 'smoke',
-      source: {
-        listenurl: 'http://smoke:8000/live',
-        server_type: 'audio/mpeg',
-        listeners: 1,
-        title: state.theme,
-      },
-    },
-  };
-}
-
-const NTFY_LINE = "const NTFY_TOPIC = '';";
-
-const server = createServer(async (req, res) => {
-  const path = normalize(decodeURIComponent(req.url.split('?')[0]));
-  const send = (code, type, body) => {
-    res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
-    res.end(body);
-  };
-
-  // The live state, driven straight from this process.
-  if (path === '/mock/status.json' || path === '/mock/status-live.json') {
-    return send(200, TYPES['.json'], JSON.stringify(statusBody()));
-  }
-
-  const rel = path === '/' ? 'index.html' : path.replace(/^\/+/, '');
-  if (rel.includes('..')) return send(403, TYPES['.txt'], 'no');
-
-  try {
-    let body = await readFile(join(PORTAL, rel));
-    if (rel === 'js/config.js' && state.topic) {
-      const src = body.toString();
-      if (!src.includes(NTFY_LINE)) {
-        // Loud on purpose: a renamed constant must fail the test, not silently
-        // skip the summons assertions.
-        return send(500, TYPES['.txt'], `smoke: could not find ${NTFY_LINE} in config.js`);
-      }
-      body = src.replace(NTFY_LINE, `const NTFY_TOPIC = '${state.topic}';`);
-    }
-    send(200, TYPES[extname(rel)] || 'application/octet-stream', body);
-  } catch (_) {
-    send(404, TYPES['.txt'], 'not found');
-  }
-});
-
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const BASE = `http://127.0.0.1:${server.address().port}`;
+const portal = await startPortal();
+const { state } = portal;
+const BASE = portal.base;
 
 // --- harness -------------------------------------------------------------
 
@@ -132,7 +58,7 @@ const eyeIs = (page, want, timeout = 9000) =>
 const themeIs = (page, want, timeout = 5000) =>
   page.waitForFunction((w) => document.body.dataset.theme === w, want, { timeout, polling: 100 });
 
-// Sparse sample of the eye canvas: proves something was actually painted, and
+// Sparse sample of the whole eye canvas: proves something was painted, and
 // that it keeps changing (i.e. the render loop is alive).
 const sampleEye = (page) =>
   page.evaluate(() => {
@@ -148,22 +74,22 @@ const sampleEye = (page) =>
     return { sum, lit };
   });
 
-// Prefer a chromium that is already on the machine. CI images and sandboxes
-// often ship one whose build number doesn't match whatever npm resolved, and
-// Playwright's own resolution then insists on a download that may not be
-// permitted. MIM_CHROMIUM overrides; otherwise fall back to Playwright.
-function findChromium() {
-  if (process.env.MIM_CHROMIUM) return process.env.MIM_CHROMIUM;
-  const base = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  if (base) {
-    const link = join(base, 'chromium');
-    if (existsSync(link) && statSync(link).isFile()) return link;
-  }
-  return undefined;
-}
+// Mean brightness of the middle of the aperture. This is the assertion that
+// the whole design rests on (§2.1): stone when sealed, field when open.
+const sampleAperture = (page) =>
+  page.evaluate(() => {
+    const c = document.getElementById('eye');
+    const w = Math.round(c.width * 0.16);
+    const h = Math.round(c.height * 0.03);
+    const d = c.getContext('2d')
+      .getImageData(Math.round(c.width / 2 - w / 2), Math.round(c.height / 2 - h / 2), w, h)
+      .data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+    return sum / (d.length / 4) / 3;
+  });
 
-const executablePath = findChromium();
-const browser = await chromium.launch(executablePath ? { executablePath } : {});
+const browser = await launch(chromium);
 
 try {
   // === 1. the full ceremony ============================================
@@ -187,7 +113,9 @@ try {
     );
 
     const sealed = await sampleEye(page);
-    check(sealed.lit > 0, 'sealed sigil is painted', JSON.stringify(sealed));
+    check(sealed.lit > 0, 'sealed plate is painted', JSON.stringify(sealed));
+    const sealedAperture = await sampleAperture(page);
+    check(sealedAperture < 40, 'nothing shows through the sealed stone', `${sealedAperture.toFixed(1)}`);
 
     // Opening needs two consecutive positive polls (§2.1 hygiene).
     state.live = true;
@@ -204,6 +132,15 @@ try {
     await page.waitForTimeout(500);
     const b = await sampleEye(page);
     check(a.sum !== b.sum, 'render loop advances while communing', `${a.sum} vs ${b.sum}`);
+
+    // The field has to reach the visitor through the aperture, and only there.
+    await page.waitForTimeout(3500); // intensity eases in over ~1.5s tau
+    const openAperture = await sampleAperture(page);
+    check(
+      openAperture > sealedAperture * 3,
+      'the field shows through the open aperture',
+      `sealed ${sealedAperture.toFixed(1)} vs communing ${openAperture.toFixed(1)}`
+    );
 
     // §5.2 — a theme token arriving on the metadata field.
     state.theme = 'cave';
@@ -389,7 +326,7 @@ try {
   check(false, 'smoke run', err.message);
 } finally {
   await browser.close();
-  server.close();
+  portal.close();
 }
 
 for (const line of results) console.log(line);

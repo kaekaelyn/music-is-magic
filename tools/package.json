@@ -6,6 +6,7 @@
   "scripts": {
     "validate": "node validate-assets.mjs",
     "smoke": "node smoke.mjs",
+    "shots": "node shots.mjs",
     "test": "npm run validate && npm run smoke"
   },
   "devDependencies": {

@@ -9,16 +9,28 @@
   ],
   "params": {
     "scale": 1.8,
-    "speed": 0.28,
+    "speed": 0.22,
     "warp": 1.25,
-    "sparkle": 0.45
+    "sparkle": 0.45,
+    "gloss": 0.1,
+    "slant": 0
   },
   "mappings": {
     "warpBass": 0.9,
     "brightRms": 0.6,
-    "sparkleTreble": 1.0,
-    "pulseFlux": 1.0,
+    "sparkleTreble": 1,
+    "pulseFlux": 1,
     "shiftCentroid": 0.2
+  },
+  "motifs": {
+    "rays": 0.3,
+    "columns": 0.6,
+    "dapple": 0.75,
+    "drips": 0,
+    "facets": 0,
+    "caustics": 0,
+    "crags": 0,
+    "snow": 0
   },
   "textures": []
 }
