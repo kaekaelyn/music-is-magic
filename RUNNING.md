@@ -81,7 +81,7 @@ Pick whichever you already have:
 
 ```sh
 cd path/to/music-is-magic        # Windows: cd C:\musicismagic
-npx --yes serve portal --listen 8000
+npx --yes serve portal --listen 8000 --no-clean-urls
 ```
 
 **Python** (built in on macOS and Linux; on Windows install from
@@ -142,6 +142,13 @@ Your two URLs are now:
 
 Bookmark the first one on your desktop. For the phone, see
 [Part 2](#part-2--your-phone-drives-it).
+
+> **You only need `?topic=` once per device.** It is remembered in that
+> browser afterwards, so a plain `broadcast.html` keeps working. That matters
+> because query strings are easy to lose — `serve` strips them when it
+> rewrites `.html` URLs (hence `--no-clean-urls` above), and home-screen
+> shortcuts and OBS browser sources each drop them their own way.
+> `?topic=clear` forgets it.
 
 ### 3. OBS Studio
 
@@ -353,7 +360,7 @@ path above is the recommendation. Everything else is identical.
 
 Once the setup above is done, every session is this:
 
-1. Start the file server (`npx --yes serve portal --listen 8000` from the project
+1. Start the file server (`npx --yes serve portal --listen 8000 --no-clean-urls` from the project
    folder) and leave its window open.
 2. Open `broadcast.html?topic=...` on the desktop, click once to arm, check the
    HUD says `audio: live`.

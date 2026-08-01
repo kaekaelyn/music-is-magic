@@ -57,7 +57,22 @@ const fast = mock && qs.get('fast') === '1';
 // The relay (§5.8) is only ever read by broadcast.html and control.html, both
 // owner-facing, so these overrides are not gated on mock mode the way the
 // visitor-facing ones are. index.html never touches them.
-const relayTopic = qs.get('topic') || RELAY_TOPIC;
+// Persisted, the same way ?stream= is, and for a sharper reason: a query
+// string is not durable. `serve` rewrites /broadcast.html to /broadcast with
+// a redirect that discards the query, so a carefully typed ?topic= can be
+// gone before the page even runs — and the page then looks configured-wrong
+// rather than stripped. Bookmarks, home-screen shortcuts and OBS browser
+// sources lose it in their own ways too. Set it once per device; ?topic=clear
+// forgets it.
+let relayTopic = RELAY_TOPIC;
+try {
+  const q = qs.get('topic');
+  if (q === 'clear') localStorage.removeItem('mim.relayTopic');
+  else if (q) localStorage.setItem('mim.relayTopic', q);
+  relayTopic = localStorage.getItem('mim.relayTopic') || RELAY_TOPIC;
+} catch (_) {
+  relayTopic = qs.get('topic') || RELAY_TOPIC; // no storage: this load only
+}
 const qsRelay = qs.get('relay');
 // A topic wins over ?relay=local, rather than the other way round. The two
 // together are a contradiction — local is BroadcastChannel, which cannot

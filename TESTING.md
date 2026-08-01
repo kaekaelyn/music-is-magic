@@ -121,7 +121,7 @@ in the new window to confirm the number actually changed.
 <summary>What an old Node looks like when you skip this (click to expand)</summary>
 
 Node 8's `npx` does not understand `--yes`, so it misreads
-`npx --yes serve portal --listen 8000` and tries to download a package from
+`npx --yes serve portal …` and tries to download a package from
 the registry actually named `portal`. That package needs `fibers`, which is
 compiled C++, so you get a page of this instead of a web server:
 
@@ -184,7 +184,7 @@ npm test
 assets ok — 8 theme(s), 1 warning(s)
 
 34/34 checks passed      ← the website
-37/37 checks passed      ← the broadcast
+39/39 checks passed      ← the broadcast
 ```
 
 The one warning is expected and correct: it says the eye manifest declares no
@@ -221,7 +221,7 @@ Automated tests prove behavior, not beauty. Look at it too.
 ```sh
 # Anywhere Node is installed (including Windows) — no Python needed
 cd music-is-magic                 # Windows: cd C:\musicismagic
-npx --yes serve portal --listen 8000
+npx --yes serve portal --listen 8000 --no-clean-urls
 ```
 
 ```sh
@@ -245,6 +245,7 @@ blank. To stop it deliberately, click the window and press `Ctrl+C`.
 
 | If | Then |
 |---|---|
+| The address bar shows `/broadcast` and your `?topic=` has vanished | `serve` rewrites `.html` URLs and drops the query string doing it. Restart it with `--no-clean-urls`. The topic is also remembered per device now, so setting it once is enough even if a URL loses it later |
 | `Path must be a string. Received undefined` | The `--listen` argument did not parse. Nearly always a mistyped flag — if you shortened it to `-l`, check you used a lowercase **L** and not the digit **1**. Safest is to spell out `--listen` |
 | `EADDRINUSE` / `address already in use` | Port 8000 is taken, usually by a server you already left running. Close that window, or pick another port (`--listen 8010`) and use it in the URLs too |
 | `'npx' is not recognized` | Node is not installed, or the terminal predates the install. See 0.3 and reopen the terminal |
@@ -514,7 +515,8 @@ Use the checklist in [RUNNING.md Part 5](RUNNING.md#part-5--the-going-live-routi
 
 | Flag | Page | What it does |
 |---|---|---|
-| `?topic=NAME` | broadcast, control | Relay topic for this load. Keeps the secret out of deployed source |
+| `?topic=NAME` | broadcast, control | Relay topic. **Remembered per device** — set it once, and later loads keep it even with a bare URL. Keeps the secret out of deployed source |
+| `?topic=clear` | broadcast, control | Forget the remembered topic |
 | `?relay=local` | broadcast, control | Same-machine relay — two tabs in one browser, no internet. **Cannot reach a phone** |
 | `?relay=none` | broadcast, control | No control channel at all |
 | `?nomic=1` | broadcast | Skip microphone capture, run on synthetic features. Also skips the arm gate |

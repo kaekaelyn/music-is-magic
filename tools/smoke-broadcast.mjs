@@ -298,8 +298,11 @@ try {
       'a ?topic= overrides a leftover ?relay=local',
       `control row reads "${detail}"`
     );
-    // And local mode, when it is genuinely chosen, must not look healthy.
-    const solo = await ctx.newPage();
+
+    // A topic persists per origin now, so this has to be a clean context or
+    // it inherits the one above and stops testing local mode at all.
+    const soloCtx = await browser.newContext();
+    const solo = await soloCtx.newPage();
     await solo.goto(`${BASE}/broadcast.html?nomic=1&relay=local&fast=1`);
     await eyeIs(solo, 'sealed');
     const soloDetail = await solo.textContent('#hRelay');
@@ -308,6 +311,39 @@ try {
       /this machine/.test(soloDetail) && /warn/.test(soloClass || ''),
       'local mode says it cannot leave the machine, and is not shown as healthy',
       `control row reads "${soloDetail}" (${soloClass})`
+    );
+    await soloCtx.close();
+    await ctx.close();
+  }
+
+  // === 5c. the topic outlives the query string =======================
+  //
+  // `serve` redirects /broadcast.html to /broadcast and drops the query on
+  // the way, so a topic that only lived in the URL was gone before the page
+  // ran — and the page then reported "local only", which reads as a
+  // misconfiguration rather than as something having been taken away.
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/broadcast.html?nomic=1&topic=persist-me&fast=1`);
+    await eyeIs(page, 'sealed');
+
+    // Second load with a bare URL, exactly what the redirect leaves behind.
+    await page.goto(`${BASE}/broadcast.html?nomic=1&fast=1`);
+    await eyeIs(page, 'sealed');
+    const detail = await page.textContent('#hRelay');
+    check(
+      !/local only/.test(detail),
+      'a topic set once survives a URL that lost its query string',
+      `control row reads "${detail}"`
+    );
+
+    // And it must be forgettable, or a wrong topic is unfixable.
+    await page.goto(`${BASE}/broadcast.html?nomic=1&topic=clear&fast=1`);
+    await eyeIs(page, 'sealed');
+    check(
+      /local only/.test(await page.textContent('#hRelay')),
+      '?topic=clear forgets it again'
     );
     await ctx.close();
   }
