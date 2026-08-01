@@ -80,7 +80,8 @@ If you see those seven things, you are done with the hard part.
 
 | If | Then |
 |---|---|
-| `fatal: destination path already exists and is not an empty directory` | You made the folder first. Delete it — `rmdir /s /q C:\musicismagic` on Windows, `rm -rf ~/music-is-magic` otherwise — and run the clone again |
+| `fatal: destination path already exists and is not an empty directory` | You made the folder first. Delete it and re-run the clone. On Windows you must `cd C:\` **before** `rmdir /s /q C:\musicismagic`, because Windows cannot delete the folder your terminal is currently sitting in. On macOS/Linux, `rm -rf ~/music-is-magic` |
+| `The process cannot access the file because it is being used by another process` | Something is holding that folder. `cd C:\` first, close any other terminal or Explorer window showing it, then retry the `rmdir`. Still stuck? Skip the delete entirely — clone under a different name (`... music-is-magic.git mim` gives you `C:\mim`) and use that path everywhere instead |
 | `fatal: not a git repository` | You are running git in a folder that has no project in it. Do 0.2 above |
 | `'git' is not recognized` | Git is not installed, or you did not reopen the terminal after installing it. See 0.1 |
 | It asks for a username and password | The repository is public and needs neither. Check the URL for a typo — it is `https://github.com/kaekaelyn/music-is-magic.git` |
