@@ -228,10 +228,34 @@ moods feel different to PLAY, not just to look at:
 | cave | a rare drip | drips thicken; crystal faces carry the glints |
 | default | fixed stars | the aurora breathing; a strong onset sends one meteor |
 
-The engine-side rule that makes this safe: **audio may displace a pattern or
-scale its brightness, never scale its time.** An onset arrives as a decaying
-displacement kick, loudness as a smoothed offset — scaling a drift rate by a
-live feature makes the whole pattern lurch (§13).
+**The three clocks.** Motifs read time from three uniforms, each earned
+differently:
+
+- `u_t` — theme time, scaled by `speed`. Ambient evolution.
+- `u_flow` — the **travel clock**: integrated on the CPU at a rate set by the
+  theme's `travel` param times loudness. It only ever advances — faster when
+  the room is loud — and `travelX`/`travelY` give it a direction that carries
+  the whole texture-space frame (the current). This is how a theme becomes a
+  place you move through: ocean's rolling sets, forest's walk among the
+  trunks, mountain's journey along the chain.
+- `u_centroid` — smoothed pitch/timbre brightness. The aurora wakes on high
+  playing; ice's strikes pick different shard families by register; sunshine's
+  fan leans with it.
+
+The engine-side law, refined the hard way (three lawful couplings, one
+forbidden):
+
+1. **Onset gestures** displace by the decaying pulse — a kick that lands and
+   settles. Returning to rest is the design, so it reads as a gesture.
+2. **Level-driven motion reads `u_flow`.** Never offset a position by a level
+   directly: the offset retracts when the sound dies, and the owner watched
+   snow slide back and forth on exactly that mistake. Motion earned by
+   loudness must be kept — hence the integrator.
+3. **Level-driven light** (brightness, coverage, thresholds) reads `u_rms`
+   directly and freely.
+
+Forbidden always: multiplying `t` by a live feature inside the shader — the
+phase already elapsed gets rescaled and the pattern lurches (§13).
 
 **`base` and `drift` are how a theme escapes the shared field.** Every theme
 was built on the same domain-warped fbm at full strength and full speed, and
@@ -574,6 +598,28 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — the travel clock: motion that never gives back
+
+Third live review. The owner named the oscillation artifact precisely (snow
+"moves back and forth with the sound instead of always in one direction"),
+which exposed a doctrine error in the previous entry: displacement by a
+LEVEL is not safe — it retracts when the level falls. Displacement is only
+safe from a decaying envelope, where returning to rest is the point.
+
+The fix is the engine's third clock: `u_flow`, integrated on the CPU
+(`flowAcc += dt * travel * f(rms)`), monotonic by construction, with a
+per-theme direction that advects the whole texture-space frame. Ocean was
+the same bug in a second costume — crest phase sliding through
+aperture-anchored bend noise wriggled in place — fixed by building all of
+the surf's noises in one frame advected by the same clock. §5.4 now states
+the three lawful couplings; the table there maps every theme's use of them.
+
+Also: `u_centroid` (smoothed pitch) as groundwork — aurora wakes on high
+playing, ice strikes choose shard families by register, meteors vary their
+paths. And two regressions the owner caught: cave's glitter (site mask too
+strict, no ambient floor under sites — both corrected) and rain's ground
+(now a hard surface at the lens bottom with a wet sheen).
 
 ### 2026-08-01 — the onset ring is gone
 
@@ -1016,13 +1062,37 @@ Every note mapped to a mechanism; the signature table in §5.4 is the result.
 7. Forest: light became the subject — more dapple/rays, visible wisps,
    saturated canopy steps, brighter base.
 
+### 14.5 Third review (2026-08-01) — the travel clock, and pitch
+
+The owner caught a doctrine error live: level-driven position offsets
+oscillate ("the snow drifts move back and forth with the sound"), and ocean's
+surf slid through aperture-anchored noise ("cut off... wrong direction").
+Both are one mistake — motion driven by a level instead of by an integral.
+The fix is engine infrastructure, on the owner's explicit instruction to go
+deep ("let's just go full on crafting our own visualization engine"):
+
+- **`u_flow` travel clock** + `travel`/`travelX`/`travelY` params (§5.4).
+  Ocean rolls as one advected body (fog, caustics, surf together — the
+  watery fog the owner missed is back at base 0.62); forest walks among
+  two parallax stands of trunks with wisps at mid-distance; mountain
+  journeys along its chain; snow and spindrift stream one way, always.
+- **`u_centroid` pitch uniform.** Aurora wakes on bright playing and its
+  veil colour rises with pitch; ice strikes pick shard families by register;
+  sunshine's fan leans. Meteors now vary position, steepness and side.
+- **Cave's crystalline glitter restored** — the site mask was so strict it
+  passed almost nothing, and the site system had no ambient floor, so cave
+  lost every sparkle (owner: "did we give up on that?"). Mask widened,
+  a lightness floor kept under all site masks, and tunnel faces now carry
+  treble shimmer and onset twinkle directly.
+- **Rain's ground is a surface**: lowered to the lens bottom, mist cut hard
+  to dark below the landing line, wet sheen at it.
+
 ### Still open
 
-- **Everything audio-driven wants eyes on it against live playing.** Stills
-  cannot show any of it (u_pulse and u_rms are zero at silence); the strike
-  sizes, kick distances and spindrift gains are reasoned, not seen.
+- **Everything audio-driven wants eyes on it against live playing** — now
+  including travel rates: quiet walking pace vs loud is reasoned, not seen.
 - **Cave drips: velocity was raised twice and still needs a verdict.**
-- Cave was untouched this round and is now the darkest mood by some margin.
+- Ice is owner-approved for now; only the pitch-family selection was added.
 
 ### 14.5 What will bite you
 

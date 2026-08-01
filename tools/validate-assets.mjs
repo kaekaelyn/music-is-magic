@@ -17,7 +17,12 @@ const THEMES = join(ROOT, 'portal/assets/themes');
 const EYE = join(ROOT, 'portal/assets/eye');
 
 // scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
-const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant', 'base', 'drift'];
+const KNOWN_PARAMS = [
+  'scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant', 'base', 'drift',
+  'travel', 'travelX', 'travelY',
+];
+// travelX/travelY are a direction: negative is a legitimate way to point.
+const SIGNED_PARAMS = ['travelX', 'travelY'];
 const POSITIVE_PARAMS = ['scale', 'speed', 'warp'];
 const KNOWN_MAPPINGS = [
   'warpBass', 'brightRms', 'sparkleTreble', 'pulseFlux', 'shiftCentroid',
@@ -106,7 +111,7 @@ for (const name of names) {
   for (const [key, val] of Object.entries(t.params || {})) {
     if (!KNOWN_PARAMS.includes(key)) {
       fail(`${label}/theme.json: unknown param '${key}' (engine ignores it)`);
-    } else if (!Number.isFinite(val) || val < 0) {
+    } else if (!Number.isFinite(val) || (val < 0 && !SIGNED_PARAMS.includes(key))) {
       fail(`${label}/theme.json: params.${key} must be a non-negative number`);
     } else if (POSITIVE_PARAMS.includes(key) && val <= 0) {
       fail(`${label}/theme.json: params.${key} must be greater than zero`);

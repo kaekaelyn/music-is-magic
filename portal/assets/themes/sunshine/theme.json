@@ -15,7 +15,10 @@
     "gloss": 0.2,
     "slant": 0,
     "base": 0.3,
-    "drift": 0.3
+    "drift": 0.3,
+    "travel": 0,
+    "travelX": 0,
+    "travelY": 0
   },
   "mappings": {
     "warpBass": 0.15,

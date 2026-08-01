@@ -23,7 +23,7 @@ export const BUILTIN = {
     // if a theme.json fetch ever fails, and an aperture that barely differs
     // from sealed stone reads as broken rather than as night.
     palette: ['#030714', '#101d40', '#1c3468', '#4467af', '#ecf3ff'],
-    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.7, gloss: 0.1, base: 0.66, drift: 0.18 },
+    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.7, gloss: 0.1, base: 0.66, drift: 0.18, travel: 0.12, travelX: 0.08 },
     motifs: { stars: 0.95, aurora: 0.65 },
     mappings: { warpBass: 0.2, brightRms: 0.5, sparkleTreble: 1.3, pulseFlux: 1.1, shiftCentroid: 0.15 },
   },
@@ -35,7 +35,10 @@ export const BUILTIN = {
   // Audio: dapple shifts overhead with loudness, wisps swell, rays flare.
   forest: {
     palette: ['#08130a', '#33301f', '#3f7a41', '#94c56a', '#f0f8d8'],
-    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.55, drift: 0.35 },
+    // travel: a walk among the trees. Near trunks pass fastest, wisps at a
+    // middle rate, the mist drifts with you, and the rays stay anchored to
+    // the sky — the parallax is the depth. Loud playing quickens the walk.
+    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.55, drift: 0.35, travel: 0.55, travelX: 0.3 },
     motifs: { columns: 0.75, dapple: 0.85, rays: 0.5, wisps: 0.65 },
     mappings: { warpBass: 0.5, brightRms: 0.75, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.2 },
   },
@@ -66,17 +69,21 @@ export const BUILTIN = {
   // cloud-light shouldered by the room, and the snowline shimmers.
   mountain: {
     palette: ['#0a0d14', '#252d3a', '#525e6f', '#97aabe', '#f4f9ff'],
-    params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.6, drift: 0.25 },
+    // travel: a journey along the chain — each range passes at its own rate,
+    // near ones fastest, sped by the music. The snow streams one way on the
+    // same clock; nothing here ever slides back.
+    params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.6, drift: 0.25, travel: 0.4 },
     motifs: { ridge: 0.9, crags: 0.16, snow: 0.78, dapple: 0.4 },
   },
-  // Surf over caustics. The swell travels ONE way — down the aperture, sets
-  // coming on at a shore — and the base fog is turned well down so the waves
-  // are the subject rather than a marbled tint (the owner's note). Loudness
-  // is the sea working harder: sharper crests, more white water.
+  // The sea as one moving body. The watery fog is BACK (the owner missed
+  // it: it looked more like ocean than the bare surf did) — but now it, the
+  // caustics and the surf all ride the same current, down and slightly
+  // across, on the flow clock. One direction, always; the music sets the
+  // pace. Loudness also works the surf harder: sharper crests, more white.
   ocean: {
     palette: ['#02101c', '#043a57', '#0b6d85', '#39ac9b', '#c9f2e2'],
-    params: { scale: 1.6, speed: 0.45, warp: 1.0, sparkle: 0.4, gloss: 0.35, base: 0.45, drift: 0.4 },
-    motifs: { caustics: 0.55, foam: 0.9 },
+    params: { scale: 1.6, speed: 0.45, warp: 1.15, sparkle: 0.4, gloss: 0.35, base: 0.62, drift: 0.4, travel: 0.9, travelX: -0.05, travelY: 0.42 },
+    motifs: { caustics: 0.7, foam: 0.75 },
     mappings: { warpBass: 0.35, brightRms: 0.65, sparkleTreble: 1, pulseFlux: 1, shiftCentroid: 0.15 },
   },
   // The same drips as cave, dense and fast — that is what the weight means —
@@ -139,6 +146,10 @@ export const DEFAULT_PARAMS = Object.freeze({
   slant: 0,   // how far falling things lean from vertical — wind, basically
   base: 1,    // how much the shared fog field contributes; 0 leaves a dark floor
   drift: 1,   // how fast that field evolves; 0 freezes it into something solid
+  travel: 0,  // rate of the flow clock: how fast this theme journeys, sped by
+              // loudness. 0 = a place you stand in; >0 = a place you move through
+  travelX: 0, // direction the texture-space frame is carried by that clock —
+  travelY: 0, // the current. Motifs also read the clock along their own axes.
 });
 
 const DEFAULT_MAPPINGS = {
