@@ -13,7 +13,7 @@
 // changes nothing — are the brand, and they are reused verbatim by feeding
 // the machine from a local ticker instead of from the network.
 
-import { CONFIG } from './config.js';
+import { CONFIG, readRelayTopic, writeRelayTopic, isValidTopic } from './config.js';
 import { EyeState, createEyeMachine } from './state.js';
 import { createEye } from './eye.js';
 import { createViz } from './viz.js';
@@ -44,7 +44,8 @@ let savedDevice = null;
 try { savedDevice = localStorage.getItem(DEVICE_KEY); } catch (_) {}
 const mic = createMicEngine({ deviceId: savedDevice });
 
-const relay = createRelay({ mode: CONFIG.relayMode, topic: CONFIG.relayTopic });
+// Reassigned when the operator pairs a new code, so this cannot be const.
+let relay = createRelay({ mode: CONFIG.relayMode, topic: CONFIG.relayTopic });
 
 document.body.dataset.viz = viz.kind;
 
@@ -226,7 +227,7 @@ machine.on('change', (next) => {
 
 // --- control ---------------------------------------------------------------
 
-relay.start({
+const relayHandlers = {
   onState: (s) => {
     if (s.theme) applyTheme(s.theme);
     if (s.eye) setDesired(s.eye === EYE_LIVE);
@@ -246,13 +247,56 @@ relay.start({
   // gets spent looking for the fault somewhere else.
   onStatus: ({ ok, detail }) =>
     say(el.relay, detail, ok && relay.mode === 'ntfy' ? 'good' : 'warn'),
-});
+};
 
 // Say what is actually known. Until onStatus fires, "connecting" is the
 // truth — showing anything more confident sends you hunting for the fault
 // somewhere it is not.
-if (!relay.active) say(el.relay, 'local only', 'warn');
-else if (el.relay.textContent === '—') say(el.relay, 'connecting…', 'warn');
+function announceRelay() {
+  if (!relay.active) say(el.relay, 'local only', 'warn');
+  else if (relay.mode === 'ntfy') say(el.relay, 'connecting…', 'warn');
+}
+
+relay.start(relayHandlers);
+announceRelay();
+
+// --- pairing ---------------------------------------------------------------
+//
+// The code is typed on the page rather than carried in the URL. A query
+// string turned out to be the least durable place to keep the one piece of
+// configuration that matters: the dev server strips it on its .html redirect,
+// and home-screen shortcuts and OBS browser sources lose it too. Typing it
+// here also means no reload, so a mistyped code costs seconds.
+
+const pairForm = document.getElementById('pair');
+const codeInput = document.getElementById('code');
+
+if (pairForm && codeInput) {
+  codeInput.value = readRelayTopic();
+
+  const flash = (cls) => {
+    codeInput.classList.add(cls);
+    setTimeout(() => codeInput.classList.remove(cls), 1400);
+  };
+
+  pairForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const code = codeInput.value.trim();
+    if (code && !isValidTopic(code)) {
+      flash('fail');
+      say(el.relay, 'code: letters, numbers, - and _ only', 'bad');
+      return;
+    }
+
+    writeRelayTopic(code);
+    relay.stop();
+    relay = createRelay({ mode: code ? 'ntfy' : 'none', topic: code });
+    relay.start(relayHandlers);
+    announceRelay();
+    flash('ok');
+    codeInput.blur(); // let the HUD fade again on a broadcast machine
+  });
+}
 
 el.wake.addEventListener('click', () => {
   setDesired(true);

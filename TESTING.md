@@ -184,7 +184,7 @@ npm test
 assets ok — 8 theme(s), 1 warning(s)
 
 34/34 checks passed      ← the website
-39/39 checks passed      ← the broadcast
+49/49 checks passed      ← the broadcast
 ```
 
 The one warning is expected and correct: it says the eye manifest declares no
@@ -395,13 +395,19 @@ that tells you the whole design works.
 
 Now the real transport. This is the first stage that needs the internet.
 
-**Set up:** invent a topic (see RUNNING.md Part 0.2 for a generator) — for
-testing, anything unguessable works, e.g. `mim-test-4kq9zx2`.
+**Invent a pairing code** — anything unguessable, letters/numbers/`-`/`_`,
+e.g. `mim-kae-3wq8zt5rvn`. See RUNNING.md Part 0.2 for a generator.
+
+Open both pages with **no query string at all**:
 
 ```
-Desktop:  http://localhost:8000/broadcast.html?nomic=1&topic=mim-test-4kq9zx2
-Phone:    http://<your-lan-ip>:8000/control.html?topic=mim-test-4kq9zx2
+Desktop:  http://localhost:8000/broadcast.html
+Phone:    http://<your-lan-ip>:8000/control.html
 ```
+
+On each, type the **same code** into the *pairing code* box and press
+**pair**. On the desktop that box is in the corner HUD; on the phone it is
+under the status line. Neither page reloads.
 
 **You already have your LAN address**, if you started the server with
 `npx serve` — it printed a **Network:** line next to the Local: one. That is
@@ -420,10 +426,12 @@ The phone must be on the **same WiFi**, not cell data.
 **What you should see:**
 
 - Desktop HUD `control:` reads **subscribed** in green.
-- Phone status line reads **control ok**.
+- Phone status line reads **control ok**, and wake/seal appear.
 - Tapping wake on the phone opens the eye on the desktop within a second or
   two.
 - Tapping a mood on the phone morphs the desktop.
+
+The code is remembered on each device, so you only do this once per browser.
 
 **Test the failure modes too — these matter live:**
 
@@ -434,17 +442,18 @@ The phone must be on the **same WiFi**, not cell data.
    re-open within a couple of seconds — recent messages are replayed.
 3. **Reload it again tomorrow.** It should come back **sealed**, not open. Old
    messages must not resurrect a finished session.
-4. **Mistype the topic on the phone** by one character. Nothing should happen
-   on the desktop. That is the security model working.
+4. **Mistype the code on the phone** by one character and pair again. Nothing
+   should happen on the desktop. That is the security model working. Pair the
+   correct code again to recover.
 
 | If | Then |
 |---|---|
-| **No wake/seal on the phone, and mood taps do nothing** | The phone's URL has no `?topic=`. Without one the page has no channel, so it hides the controls and says so on screen. This is the most common miss — check the address bar |
-| **You used `?relay=local` for the phone** | That mode is one browser on one machine only; it cannot cross devices. Both pages need the same `?topic=` instead. A leftover `?relay=local` beside a `?topic=` is now ignored in favour of the topic, but check the desktop's `control` row: if it reads **this machine only**, nothing you tap on a phone will ever arrive |
-| The two pages each look fine but ignore each other | The topics differ. One character is enough. Compare them side by side, character for character — there is deliberately no error for this, because a wrong topic is indistinguishable from a quiet one |
-| `control: reconnecting` and it stays there | Topic mismatch, or no internet on one of the two devices |
+| **No wake/seal on the phone** | Nothing is paired on that device. Type the code into the box and press pair — the page says so on screen when it is unpaired |
+| The two pages each look fine but ignore each other | The codes differ. One character is enough. Compare them character for character — there is deliberately no error for this, because a wrong code is indistinguishable from a quiet one |
+| The box refuses your code | Letters, numbers, `-` and `_` only, up to 64 characters |
+| Desktop says `this machine only` | You launched it with `?relay=local`, which cannot cross devices. Drop that flag and pair with a code |
+| `control: reconnecting` and it stays there | No internet on one of the two devices |
 | Works on the desktop's own HUD but not the phone | The phone is on cell data, not WiFi. Either join the WiFi or deploy the site (RUNNING.md Part 2 option B) |
-| The phone still says something about a stream or `(mock)` | You are on an older copy — `git pull`. The status line now reports only the control channel when there is no real Icecast server |
 
 ---
 
@@ -515,7 +524,7 @@ Use the checklist in [RUNNING.md Part 5](RUNNING.md#part-5--the-going-live-routi
 
 | Flag | Page | What it does |
 |---|---|---|
-| `?topic=NAME` | broadcast, control | Relay topic. **Remembered per device** — set it once, and later loads keep it even with a bare URL. Keeps the secret out of deployed source |
+| `?topic=NAME` | broadcast, control | Pairing code, as a URL shortcut. **Typing it into the page is the reliable way** — query strings get eaten by redirects and shortcuts. Remembered per device either way |
 | `?topic=clear` | broadcast, control | Forget the remembered topic |
 | `?relay=local` | broadcast, control | Same-machine relay — two tabs in one browser, no internet. **Cannot reach a phone** |
 | `?relay=none` | broadcast, control | No control channel at all |

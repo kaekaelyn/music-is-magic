@@ -321,10 +321,16 @@ Rules that are not negotiable:
   Its *mood* is always adopted; its *eye state* only if the message is newer
   than `catchUpMaxAgeMs` (120s). A page reloaded mid-set comes back open; a
   page opened the next morning does not get woken by yesterday.
+- **The code is typed into the page, not carried in the URL.** Both owner
+  pages have a pairing field that restarts the relay in place, no reload. A
+  query string turned out to be the least durable place to keep the one piece
+  of configuration that matters: `serve` discards it on its `.html` redirect,
+  and home-screen shortcuts and OBS browser sources lose it their own ways.
+  `?topic=` still works as a shortcut and still persists; it is no longer the
+  mechanism. `?topic=clear`, or an empty field, unpairs.
 - **The relay topic is not the summons topic**, and it is **never committed**.
   `config.js` is served verbatim to every visitor, so a topic written there is
-  a published password. For any public deploy it travels as `?topic=` in two
-  bookmarks.
+  a published password. Typed into the field, it lives in that browser only.
 
 ### 5.9 Broadcast page (M7)
 

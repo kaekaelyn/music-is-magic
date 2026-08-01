@@ -57,19 +57,43 @@ const fast = mock && qs.get('fast') === '1';
 // The relay (§5.8) is only ever read by broadcast.html and control.html, both
 // owner-facing, so these overrides are not gated on mock mode the way the
 // visitor-facing ones are. index.html never touches them.
-// Persisted, the same way ?stream= is, and for a sharper reason: a query
-// string is not durable. `serve` rewrites /broadcast.html to /broadcast with
-// a redirect that discards the query, so a carefully typed ?topic= can be
-// gone before the page even runs — and the page then looks configured-wrong
-// rather than stripped. Bookmarks, home-screen shortcuts and OBS browser
-// sources lose it in their own ways too. Set it once per device; ?topic=clear
-// forgets it.
+// The pairing code (§5.8). Both owner pages let you type it in on the page
+// itself, which is the durable way to carry it: a query string is not.
+// `serve` rewrites /broadcast.html to /broadcast with a redirect that
+// discards the query, so a carefully typed ?topic= can be gone before the
+// page even runs — and the page then looks configured-wrong rather than
+// stripped. Bookmarks, home-screen shortcuts and OBS browser sources lose it
+// in their own ways too. ?topic= still works and still persists, but it is
+// now the convenience path, not the mechanism.
+export const RELAY_TOPIC_KEY = 'mim.relayTopic';
+
+// ntfy's own topic charset. Validating here rather than at the point of use
+// keeps a typo from becoming a silent no-op on a channel nobody is listening to.
+const TOPIC_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+export const isValidTopic = (raw) => TOPIC_RE.test(String(raw == null ? '' : raw).trim());
+
+// Returns the stored code, or '' — never throws, even with storage disabled.
+export function readRelayTopic() {
+  try { return localStorage.getItem(RELAY_TOPIC_KEY) || ''; } catch (_) { return ''; }
+}
+
+// Persist a code typed into either page. An empty string forgets it, which is
+// how a wrong code gets undone without touching a URL.
+export function writeRelayTopic(raw) {
+  const code = String(raw == null ? '' : raw).trim();
+  try {
+    if (!code) localStorage.removeItem(RELAY_TOPIC_KEY);
+    else localStorage.setItem(RELAY_TOPIC_KEY, code);
+  } catch (_) { /* storage disabled: this page load only */ }
+  return code;
+}
+
 let relayTopic = RELAY_TOPIC;
 try {
   const q = qs.get('topic');
-  if (q === 'clear') localStorage.removeItem('mim.relayTopic');
-  else if (q) localStorage.setItem('mim.relayTopic', q);
-  relayTopic = localStorage.getItem('mim.relayTopic') || RELAY_TOPIC;
+  if (q === 'clear') writeRelayTopic('');
+  else if (q) writeRelayTopic(q);
+  relayTopic = readRelayTopic() || RELAY_TOPIC;
 } catch (_) {
   relayTopic = qs.get('topic') || RELAY_TOPIC; // no storage: this load only
 }

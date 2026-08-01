@@ -86,6 +86,30 @@
       font-size: 0.95em;
     }
     #noRelay[hidden] { display: none; }
+    #pair { display: flex; gap: 0.5rem; }
+    #pair input {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      font-size: 1rem;
+      padding: 0.7rem 0.6rem;
+      border-radius: 0.5rem;
+      border: 1px solid #35304a;
+      background: #0c0a14;
+      color: #cfc9e0;
+    }
+    #pair input:focus { outline: none; border-color: #8d80b8; }
+    #pair input.ok { border-color: #7fae62; }
+    #pair input.fail { border-color: #b05252; }
+    #pair button {
+      font: inherit;
+      padding: 0.7rem 1.1rem;
+      border-radius: 0.5rem;
+      border: 1px solid #35304a;
+      background: #14121f;
+      color: #cfc9e0;
+      cursor: pointer;
+    }
     #buttons button {
       font-size: 1.15rem;
       padding: 1.1rem 0.5rem;
@@ -122,21 +146,26 @@
       <button id="bSeal">seal</button>
     </div>
   </div>
-  <!-- Shown in place of the ceremony block when no relay is configured.
-       This page is owner-only and unlisted, so it can afford to explain
-       itself; a silently missing control reads as a broken page. -->
+  <!-- Shown in place of the ceremony block when nothing is paired. This page
+       is owner-only and unlisted, so it can afford to explain itself; a
+       silently missing control reads as a broken page. -->
   <p id="noRelay" hidden>
-    No control channel, so <em>wake</em> and <em>seal</em> are hidden — on the
-    website the eye follows the stream and there is nothing to command.
-    To drive a broadcast, add <code>?relay=local</code> (same machine) or
-    <code>?topic=&hellip;</code> (your phone) to this page's address.
+    Not paired, so <em>wake</em> and <em>seal</em> are hidden — on the website
+    the eye follows the stream and there is nothing to command. Enter the same
+    pairing code here and on the broadcast page to drive a broadcast.
   </p>
+  <p class="label">pairing code</p>
+  <form id="pair">
+    <input id="code" type="text" placeholder="pairing code" autocomplete="off"
+           autocapitalize="none" autocorrect="off" spellcheck="false">
+    <button type="submit">pair</button>
+  </form>
   <p class="label">mood</p>
   <main id="buttons"></main>
   <footer><button id="forget">forget password</button></footer>
 
   <script type="module">
-    import { CONFIG } from './js/config.js';
+    import { CONFIG, readRelayTopic, writeRelayTopic, isValidTopic } from './js/config.js';
     import { createPoller } from './js/status.js';
     import { createRelay, EYE_LIVE, EYE_SEALED } from './js/relay.js';
 
@@ -144,7 +173,8 @@
     // below: with both configured this page drives the website and the
     // YouTube broadcast from the same taps, and with neither it is still a
     // working mock. Nothing here can break the Icecast buttons.
-    const relay = createRelay({ mode: CONFIG.relayMode, topic: CONFIG.relayTopic });
+    // Reassigned when a new code is paired, so this cannot be const.
+    let relay = createRelay({ mode: CONFIG.relayMode, topic: CONFIG.relayTopic });
 
     const AUTH_KEY = 'mim.adminAuth';
     let auth = null;
@@ -253,35 +283,72 @@
       bSeal.classList.toggle('on', eye === EYE_SEALED);
     }
 
-    if (relay.active) {
-      ceremonyWrap.hidden = false;
-      const send = async (eye, b) => {
-        markEye(eye);
-        const ok = await relay.publish({ eye });
-        flashButton(b, ok ? 'ok' : 'fail');
-        if (!ok) flashStatus('control unreachable');
-      };
-      bWake.addEventListener('click', () => send(EYE_LIVE, bWake));
-      bSeal.addEventListener('click', () => send(EYE_SEALED, bSeal));
+    const send = async (eye, b) => {
+      if (!relay.active) return;
+      markEye(eye);
+      const ok = await relay.publish({ eye });
+      flashButton(b, ok ? 'ok' : 'fail');
+      if (!ok) flashStatus('control unreachable');
+    };
+    bWake.addEventListener('click', () => send(EYE_LIVE, bWake));
+    bSeal.addEventListener('click', () => send(EYE_SEALED, bSeal));
 
-      // Subscribing as well as publishing keeps a second device in sync and
-      // proves the channel round-trips.
-      relay.start({
-        onState: (s) => {
-          if (s.eye) markEye(s.eye);
-          if (s.theme) markCurrent(s.theme);
-        },
-        onCatchUp: (s) => {
-          if (!s) return;
-          if (s.eye) markEye(s.eye);
-          if (s.theme) markCurrent(s.theme);
-        },
-        onStatus: ({ ok }) => { relayHealth = ok ? 'ok' : 'down'; },
-      });
-    } else {
-      ceremonyWrap.remove();
-      document.getElementById('noRelay').hidden = false;
+    // Subscribing as well as publishing keeps a second device in sync and
+    // proves the channel round-trips.
+    const relayHandlers = {
+      onState: (s) => {
+        if (s.eye) markEye(s.eye);
+        if (s.theme) markCurrent(s.theme);
+      },
+      onCatchUp: (s) => {
+        if (!s) return;
+        if (s.eye) markEye(s.eye);
+        if (s.theme) markCurrent(s.theme);
+      },
+      onStatus: ({ ok }) => { relayHealth = ok ? 'ok' : 'down'; },
+    };
+
+    const noRelayEl = document.getElementById('noRelay');
+    // Toggled, never removed: pairing has to be able to bring it back without
+    // a reload, which is the whole point of typing the code on the page.
+    function applyRelayUI() {
+      ceremonyWrap.hidden = !relay.active;
+      noRelayEl.hidden = relay.active;
     }
+
+    applyRelayUI();
+    if (relay.active) relay.start(relayHandlers);
+
+    // §5.8 pairing — the same field, on both pages. Typing the code here
+    // rather than carrying it in the URL is what makes it reliable: a query
+    // string gets eaten by dev-server redirects, home-screen shortcuts and
+    // OBS browser sources alike. No reload, so a wrong code costs seconds.
+    const pairForm = document.getElementById('pair');
+    const codeInput = document.getElementById('code');
+    codeInput.value = readRelayTopic();
+
+    pairForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const code = codeInput.value.trim();
+      const flash = (cls) => {
+        codeInput.classList.add(cls);
+        setTimeout(() => codeInput.classList.remove(cls), 1400);
+      };
+      if (code && !isValidTopic(code)) {
+        flash('fail');
+        flashStatus('letters, numbers, - and _ only');
+        return;
+      }
+      writeRelayTopic(code);
+      relay.stop();
+      relay = createRelay({ mode: code ? 'ntfy' : 'none', topic: code });
+      relayHealth = 'connecting';
+      applyRelayUI();
+      if (relay.active) relay.start(relayHandlers);
+      flash('ok');
+      codeInput.blur(); // dismiss the phone keyboard
+      flashStatus(code ? 'paired' : 'unpaired');
+    });
 
     // A relay with no real stream behind it (STREAM_BASE unset) is the
     // broadcast-only rig: the §5.1 poll is then reporting an Icecast server

@@ -68,7 +68,22 @@
     }
     #hud button:hover { background: #201b32; }
     #hud button.on { border-color: #8d80b8; background: #241f38; }
-    #hud .hint { opacity: 0.4; font-size: 0.72rem; }
+    #hud .hint { opacity: 0.4; font-size: 0.72rem; line-height: 1.4; }
+
+    #pair { display: flex; gap: 0.35rem; }
+    #pair input {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      padding: 0.34rem 0.5rem;
+      border-radius: 0.4rem;
+      border: 1px solid #35304a;
+      background: #0c0a14;
+      color: #cfc9e0;
+    }
+    #pair input:focus { outline: none; border-color: #8d80b8; }
+    #pair input.ok { border-color: #7fae62; }
+    #pair input.fail { border-color: #b05252; }
 
     /* The arming gate. Browsers need one user gesture before an AudioContext
        may run, and the microphone prompt wants one too. It covers the frame
@@ -116,7 +131,17 @@
       <button id="bSeal">seal</button>
       <select id="devices" hidden></select>
     </div>
-    <div class="hint">h hides this · it fades on its own · ?hud=0 never shows it</div>
+    <!-- §5.8 pairing. A form so Enter submits, and so the phone's keyboard
+         offers a "go" key rather than a newline. -->
+    <form id="pair">
+      <input id="code" type="text" placeholder="pairing code" autocomplete="off"
+             autocapitalize="none" autocorrect="off" spellcheck="false">
+      <button type="submit">pair</button>
+    </form>
+    <div class="hint">
+      Type the same code here and on your phone. h hides this · it fades on its
+      own · ?hud=0 never shows it
+    </div>
   </div>
 
   <script type="module" src="js/broadcast.js"></script>

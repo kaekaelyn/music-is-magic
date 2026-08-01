@@ -348,6 +348,88 @@ try {
     await ctx.close();
   }
 
+  // === 5d. pairing by typing a code, with no reload ==================
+  //
+  // The URL turned out to be the least durable place to keep the one piece of
+  // configuration that matters. Typing it on the page has to work from a
+  // completely bare address, and has to be undoable.
+  {
+    const ctx = await browser.newContext();
+    const stage = await ctx.newPage();
+    await stage.goto(`${BASE}/broadcast.html?nomic=1&fast=1`);
+    await eyeIs(stage, 'sealed');
+    check(
+      /local only/.test(await stage.textContent('#hRelay')),
+      'broadcast starts unpaired on a bare URL'
+    );
+
+    await stage.fill('#code', 'typed-in-code');
+    await stage.click('#pair button');
+    await stage.waitForFunction(
+      () => !/local only/.test(document.getElementById('hRelay').textContent),
+      null,
+      { timeout: 5000 }
+    );
+    check(true, 'typing a code pairs the broadcast page without a reload');
+
+    // Gibberish must be refused rather than silently joining a dead channel.
+    await stage.fill('#code', 'not a valid topic!');
+    await stage.click('#pair button');
+    check(
+      /only/.test(await stage.textContent('#hRelay')),
+      'an invalid code is refused, not quietly accepted'
+    );
+    check(
+      (await stage.inputValue('#code')) === 'not a valid topic!',
+      'a refused code stays in the box to be corrected'
+    );
+
+    // And it survives a reload with nothing in the URL at all.
+    await stage.fill('#code', 'typed-in-code');
+    await stage.click('#pair button');
+    await stage.goto(`${BASE}/broadcast.html?nomic=1&fast=1`);
+    await eyeIs(stage, 'sealed');
+    check(
+      (await stage.inputValue('#code')) === 'typed-in-code'
+        && !/local only/.test(await stage.textContent('#hRelay')),
+      'a typed code survives a reload with no query string'
+    );
+
+    // Unpairing has to be possible, or a wrong code is a dead end.
+    await stage.fill('#code', '');
+    await stage.click('#pair button');
+    await stage.waitForFunction(
+      () => /local only/.test(document.getElementById('hRelay').textContent),
+      null,
+      { timeout: 5000 }
+    );
+    check(true, 'clearing the box unpairs it again');
+    await ctx.close();
+  }
+
+  // === 5e. the control page pairs the same way =======================
+  {
+    const ctx = await browser.newContext();
+    const phone = await ctx.newPage();
+    await phone.goto(`${BASE}/control.html?fast=1`);
+    check(await phone.isHidden('#ceremony'), 'control starts unpaired on a bare URL');
+    check(await phone.isVisible('#noRelay'), 'and says so');
+
+    await phone.fill('#code', 'typed-in-code');
+    await phone.click('#pair button');
+    await phone.waitForSelector('#ceremony', { state: 'visible', timeout: 5000 });
+    check(
+      await phone.isHidden('#noRelay'),
+      'pairing reveals wake/seal on the control page without a reload'
+    );
+
+    await phone.fill('#code', '');
+    await phone.click('#pair button');
+    await phone.waitForSelector('#ceremony', { state: 'hidden', timeout: 5000 });
+    check(true, 'and unpairing hides them again');
+    await ctx.close();
+  }
+
   // === 6. the frame can be made clean ================================
   {
     const ctx = await browser.newContext();

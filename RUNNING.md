@@ -104,11 +104,11 @@ window and press `Ctrl+C`.
 > `https://yoursite/broadcast.html` instead and skip the local server. Both
 > work. See the security note in step 2 if you do.
 
-### 2. A relay topic (your phone's private channel)
+### 2. A pairing code (your phone's private channel)
 
 The phone talks to the desktop through [ntfy.sh](https://ntfy.sh), a free
 public message relay. No account, no signup, no install. You just need to
-invent an unguessable channel name.
+invent an unguessable code.
 
 Generate one:
 
@@ -121,7 +121,7 @@ echo "mim-$(head -c 12 /dev/urandom | base64 | tr -dc 'a-z0-9')"
 ```
 
 You will get something like `mim-k7q2x9vb4mzr8`. **Write it down.** This is
-the only secret in the whole setup.
+the only secret in the whole setup. Letters, numbers, `-` and `_` only.
 
 > **Anyone who knows this string can change your visuals mid-stream.** That is
 > the accepted trade for having no backend (it is the same trade §5.7 already
@@ -129,26 +129,26 @@ the only secret in the whole setup.
 > from your summons topic.
 >
 > **Never put it in `config.js` if you deploy the site publicly** — that file
-> is served to every visitor, so a topic written there is a published
-> password. Use the `?topic=` URL below instead and keep the URLs as
-> bookmarks.
+> is served to every visitor, so a code written there is a published
+> password. Type it into the pairing box instead; it is stored in that
+> browser only, and never leaves your devices.
 
-Your two URLs are now:
+You enter this code **on each page**, in the *pairing code* box — on the
+desktop it is in the corner HUD, on the phone it is under the status line.
+Both then talk over that channel. Each device remembers it, so this is a
+once-per-browser step.
 
-| Device | URL |
-|---|---|
-| Desktop (the eye) | `http://localhost:8000/broadcast.html?topic=YOUR-TOPIC` |
-| Phone (the control) | `http://localhost:8000/control.html?topic=YOUR-TOPIC` |
+| Device | Open | Then |
+|---|---|---|
+| Desktop (the eye) | `http://localhost:8000/broadcast.html` | type the code, press **pair** |
+| Phone (the control) | `http://<lan-ip>:8000/control.html` | type the same code, press **pair** |
 
-Bookmark the first one on your desktop. For the phone, see
-[Part 2](#part-2--your-phone-drives-it).
+Neither page reloads, and neither URL needs a query string. `?topic=CODE`
+still works as a shortcut, but typing it in is the reliable route: query
+strings get discarded by the dev server's `.html` redirect, by home-screen
+shortcuts, and by OBS browser sources. Clear the box and press pair to unpair.
 
-> **You only need `?topic=` once per device.** It is remembered in that
-> browser afterwards, so a plain `broadcast.html` keeps working. That matters
-> because query strings are easy to lose — `serve` strips them when it
-> rewrites `.html` URLs (hence `--no-clean-urls` above), and home-screen
-> shortcuts and OBS browser sources each drop them their own way.
-> `?topic=clear` forgets it.
+For the phone's address, see [Part 2](#part-2--your-phone-drives-it).
 
 ### 3. OBS Studio
 
@@ -186,7 +186,7 @@ There is no subscriber minimum for streaming from a desktop encoder.
 
 1. Start your file server (Part 0.1).
 2. Open your desktop browser to
-   `http://localhost:8000/broadcast.html?topic=YOUR-TOPIC`
+   `http://localhost:8000/broadcast.html`
    Use **Chrome, Edge, or Firefox**. Safari's WebGL and microphone handling
    are the least reliable of the four.
 3. You will see a dark stone eye, sealed, and a small panel in the corner.
@@ -237,7 +237,7 @@ hostname -I | awk '{print $1}'
 That gives something like `192.168.1.42`. On your phone, open:
 
 ```
-http://192.168.1.42:8000/control.html?topic=YOUR-TOPIC
+http://192.168.1.42:8000/control.html
 ```
 
 Add it to your home screen. Note this only works while the phone is on the
@@ -245,7 +245,7 @@ same WiFi as the computer.
 
 **Option B — deploy the site (works anywhere, including cell data).** Push
 `portal/` to Cloudflare Pages (free — no build command, output directory
-`portal`) and use `https://yoursite/control.html?topic=YOUR-TOPIC`. This is
+`portal`) and use `https://yoursite/control.html`. This is
 better if you ever want to control it from another room on cell data, and it
 is the same deploy the website already needs.
 
@@ -272,7 +272,7 @@ Open OBS. In the **Sources** panel, click **+**.
 ### Option A — Browser Source (try this first, it is tidier)
 
 1. Add **Browser**, name it `eye`.
-2. URL: `http://localhost:8000/broadcast.html?topic=YOUR-TOPIC`
+2. URL: `http://localhost:8000/broadcast.html`
 3. Width `1920`, Height `1080`.
 4. Tick **Control audio via OBS** — *no*, leave it unticked. The page makes no
    sound.
@@ -362,9 +362,9 @@ Once the setup above is done, every session is this:
 
 1. Start the file server (`npx --yes serve portal --listen 8000 --no-clean-urls` from the project
    folder) and leave its window open.
-2. Open `broadcast.html?topic=...` on the desktop, click once to arm, check the
-   HUD says `audio: live`.
-3. Open `control.html?topic=...` on the phone, check it says `control ok`.
+2. Open `broadcast.html` on the desktop, click once to arm, check the HUD says
+   `audio: live` and `control: subscribed`.
+3. Open `control.html` on the phone, check it says `control ok`.
 4. Open OBS. Check the mic meter moves and the eye preview looks right.
 5. Start Streaming in OBS, then Go Live in YouTube.
 6. **Tap wake on the phone** — the eye opens on stream. This is the moment the
