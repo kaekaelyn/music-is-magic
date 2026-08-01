@@ -184,7 +184,7 @@ npm test
 assets ok — 8 theme(s), 1 warning(s)
 
 34/34 checks passed      ← the website
-33/33 checks passed      ← the broadcast
+35/35 checks passed      ← the broadcast
 ```
 
 The one warning is expected and correct: it says the eye manifest declares no
@@ -385,7 +385,7 @@ that tells you the whole design works.
 
 | If | Then |
 |---|---|
-| No wake/seal buttons in tab 2 | You left off `?relay=local` |
+| No wake/seal buttons in tab 2 | You left off `?relay=local`. The page now says so on screen when a channel is missing |
 | Taps do nothing | Both tabs must be the same browser and the same origin (`localhost:8000` in both, not `127.0.0.1` in one) |
 
 ---
@@ -419,7 +419,7 @@ The phone must be on the **same WiFi**, not cell data.
 **What you should see:**
 
 - Desktop HUD `control:` reads **subscribed** in green.
-- Phone status line ends in **· control ok**.
+- Phone status line reads **control ok**.
 - Tapping wake on the phone opens the eye on the desktop within a second or
   two.
 - Tapping a mood on the phone morphs the desktop.
@@ -438,8 +438,12 @@ The phone must be on the **same WiFi**, not cell data.
 
 | If | Then |
 |---|---|
-| `control: reconnecting` and it stays there | Topic mismatch, or no internet. Compare both URLs character by character |
+| **No wake/seal on the phone, and mood taps do nothing** | The phone's URL has no `?topic=`. Without one the page has no channel, so it hides the controls and says so on screen. This is the most common miss — check the address bar |
+| **You used `?relay=local` for the phone** | That mode is one browser on one machine only; it cannot cross devices. Both pages need the same `?topic=` instead |
+| The two pages each look fine but ignore each other | The topics differ. One character is enough. Compare them side by side, character for character — there is deliberately no error for this, because a wrong topic is indistinguishable from a quiet one |
+| `control: reconnecting` and it stays there | Topic mismatch, or no internet on one of the two devices |
 | Works on the desktop's own HUD but not the phone | The phone is on cell data, not WiFi. Either join the WiFi or deploy the site (RUNNING.md Part 2 option B) |
+| The phone still says something about a stream or `(mock)` | You are on an older copy — `git pull`. The status line now reports only the control channel when there is no real Icecast server |
 
 ---
 
@@ -511,7 +515,7 @@ Use the checklist in [RUNNING.md Part 5](RUNNING.md#part-5--the-going-live-routi
 | Flag | Page | What it does |
 |---|---|---|
 | `?topic=NAME` | broadcast, control | Relay topic for this load. Keeps the secret out of deployed source |
-| `?relay=local` | broadcast, control | Use the same-machine relay — two tabs, no internet |
+| `?relay=local` | broadcast, control | Same-machine relay — two tabs in one browser, no internet. **Cannot reach a phone** |
 | `?relay=none` | broadcast, control | No control channel at all |
 | `?nomic=1` | broadcast | Skip microphone capture, run on synthetic features. Also skips the arm gate |
 | `?hud=0` | broadcast | Remove the operator HUD entirely |

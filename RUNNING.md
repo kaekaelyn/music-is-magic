@@ -246,7 +246,7 @@ Either way, on the phone you should see:
 
 - a **wake** and **seal** pair at the top
 - a grid of mood buttons — one per theme folder
-- a status line that ends in `· control ok`
+- a status line reading `control ok`
 
 Tap **wake**. The eye on your desktop should begin its ceremony within about a
 second. Tap **cave**. The desktop should morph to cave. That round trip

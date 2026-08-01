@@ -189,6 +189,20 @@ try {
       'control page shows wake/seal when a relay is configured'
     );
 
+    // A broadcast rig has no Icecast, so the status line must not report one.
+    // "sealed (mock)" beside a working broadcast reads as a broken broadcast.
+    await phone.waitForFunction(
+      () => /control/.test(document.getElementById('statusText').textContent),
+      null,
+      { timeout: 8000 }
+    );
+    const line = await phone.textContent('#statusText');
+    check(
+      !/mock|sealed/.test(line),
+      'control page reports the channel, not a stream that does not exist',
+      `status line reads "${line}"`
+    );
+
     await phone.click('#bWake');
     await eyeIs(stage, 'communing');
     check(true, 'tapping wake on the control page opens the broadcast eye');
@@ -215,6 +229,11 @@ try {
     check(
       await page.isHidden('#ceremony'),
       'control page hides wake/seal with no relay configured'
+    );
+    // Hiding it silently reads as a broken page. It has to say why.
+    check(
+      await page.isVisible('#noRelay'),
+      'control page explains why wake/seal is absent'
     );
     assertClean();
     await ctx.close();

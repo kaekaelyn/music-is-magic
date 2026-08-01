@@ -72,6 +72,20 @@
       opacity: 0.4;
       margin-bottom: -0.6rem;
     }
+    #noRelay {
+      margin: 0;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      opacity: 0.5;
+    }
+    #noRelay code {
+      background: #14121f;
+      border: 1px solid #35304a;
+      border-radius: 0.25rem;
+      padding: 0.05rem 0.3rem;
+      font-size: 0.95em;
+    }
+    #noRelay[hidden] { display: none; }
     #buttons button {
       font-size: 1.15rem;
       padding: 1.1rem 0.5rem;
@@ -108,6 +122,15 @@
       <button id="bSeal">seal</button>
     </div>
   </div>
+  <!-- Shown in place of the ceremony block when no relay is configured.
+       This page is owner-only and unlisted, so it can afford to explain
+       itself; a silently missing control reads as a broken page. -->
+  <p id="noRelay" hidden>
+    No control channel, so <em>wake</em> and <em>seal</em> are hidden — on the
+    website the eye follows the stream and there is nothing to command.
+    To drive a broadcast, add <code>?relay=local</code> (same machine) or
+    <code>?topic=&hellip;</code> (your phone) to this page's address.
+  </p>
   <p class="label">mood</p>
   <main id="buttons"></main>
   <footer><button id="forget">forget password</button></footer>
@@ -253,7 +276,15 @@
       });
     } else {
       ceremonyWrap.remove();
+      document.getElementById('noRelay').hidden = false;
     }
+
+    // A relay with no real stream behind it (STREAM_BASE unset) is the
+    // broadcast-only rig: the §5.1 poll is then reporting an Icecast server
+    // that does not exist, and would sit at "sealed (mock)" forever next to a
+    // perfectly working broadcast. That reads as a failure. Where the stream
+    // is not real, the control channel is the only status worth showing.
+    const broadcastOnly = relay.active && CONFIG.mock;
 
     // Same §5.1 poll as the portal; three straight failures = offline.
     let fails = 0;
@@ -273,9 +304,13 @@
           lastStatusLine = 'unreachable';
         }
       }
-      // On a broadcast-only setup the Icecast line above is meaningless but
-      // harmless; the health that matters is the control channel's.
-      if (relay.active) lastStatusLine += relayOk ? ' · control ok' : ' · control down';
+      if (broadcastOnly) {
+        // Drop the Icecast half entirely rather than print a lie beside it.
+        dot.className = relayOk ? 'live' : 'offline';
+        lastStatusLine = relayOk ? 'control ok' : 'control unreachable';
+      } else if (relay.active) {
+        lastStatusLine += relayOk ? ' · control ok' : ' · control down';
+      }
       statusText.textContent = lastStatusLine;
     }, { pollMs: CONFIG.pollMs, jitterMs: CONFIG.pollJitterMs }).start();
   </script>
