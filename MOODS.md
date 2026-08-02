@@ -447,7 +447,125 @@ Steps 1 and 2 are independent and can land in either order; 3 needs both.
 
 ## sunshine
 
-*Awaiting reference.*
+**Reference.** Four images, all the same subject: sun breaking through cumulus,
+shafts radiating from the break, gold against blue. The owner: *"I really think
+sunshine is already an amazing mood as implemented … what I sent here is pretty
+much already conveyed super well."*
+
+No correction is being asked for. The question is only whether it can be made
+more dynamic, and the owner is unsure it needs to be:
+
+> *"It might be nice to find a way to make it more dynamic, but I'm not sure what
+> could accomplish that within our means … I'm not sure if that's enough to bring
+> it in line with the responsiveness of, say, rain. Maybe it doesn't need to be."*
+
+### Do not touch mRays
+
+Sunshine is already the most responsive mood in the build, and the rays are why.
+`mRays` answers the room on **three** timescales at once:
+
+- **Onsets** displace the sampling point, so the beams leap to a new arrangement
+  and settle back as the kick decays — a displacement by a decaying envelope,
+  explicitly never a change of drift rate (viz.js:153–159).
+- **Pitch**, via the centroid smoothed over about a second, leans the whole fan.
+  The comment's own words: *"a sway, not a jitter"*.
+- **Loudness** sharpens the shafts rather than just brightening them —
+  `pow(s, 3.4 - drive * 1.5)`, so quiet is diffuse light and loud is defined
+  beams — and also extends their reach and lifts their brightness (viz.js:179–180).
+
+That is more per-frame response than rain has. Whatever makes sunshine feel less
+dynamic, it is not the rays, and they should be left exactly as they are.
+
+### The actual gap: the clouds move but never change
+
+```
+float body = smoothstep(0.52 - drive * 0.1, 0.78, cl);   // viz.js:895
+```
+
+Coverage shifts its threshold by **0.1** across the entire loudness range,
+against a smoothstep 0.26 wide. In practice the cloud deck is a fixed amount of
+cloud. Sunshine's `travel: 0.42, travelX: 0.2` means it does drift — but drifting
+is not gathering. The deck slides; it never thickens or opens.
+
+That matters more here than anywhere else, because the engine has already
+decided that occlusion is sunshine's whole business:
+
+> *"Sunshine is open sky … What occludes an open sky is its own weather, and that
+> is applied to the rays in main() from the clouds motif instead."* (viz.js:170–173)
+
+And the coupling is already wired: `rays *= 1.0 - cloud * 0.8` cuts the shafts
+where cloud stands in front of them, and `rays += cloudRim * 0.35` makes them
+blaze where they slip past an edge (viz.js:1072–1073).
+
+**So the burst-through-a-gap in all four references is already built. It just
+never fires**, because the gap never opens or closes on anything the player does.
+
+### Recommendation: sunshine's dynamism is rain's slow follower, not a new motif
+
+Drive cloud coverage from the slow weather envelope proposed in rain §1, with a
+range far wider than the present 0.1. Then the deck gathers and parts over
+seconds; the sun is progressively lost and found; the rim blazes as an edge
+slides off it. Every mechanism for that already exists — only the signal driving
+coverage is missing, and rain needs that signal built anyway.
+
+One piece of engine work, two moods, and no new motif in a mood the owner is
+happy with. This is the cheapest real dynamism available anywhere in the build.
+
+### It should NOT match rain's responsiveness — they are different dramas
+
+The owner's *"maybe it doesn't need to be"* is right, and worth stating plainly
+so a later session does not try to close the gap:
+
+- **Rain's drama is quantity.** Drizzle to storm is more of the same thing.
+- **Sunshine's drama is occlusion.** Same sun throughout, hidden and revealed.
+
+Making sunshine fluctuate in *amount* would be making it into rain. What it wants
+is the timing of the reveal, not a volume knob. Slow gathering, sudden opening.
+
+### Bird flocks — the owner's instinct is right, and here is the engine reason
+
+Raised and largely self-answered: *"finnicky little details that wouldn't work
+well with our style as established, and end up repetitive … Certainly the way
+flocks move could be super interesting."*
+
+Both halves of that are correct, and they separate cleanly.
+
+**Individual birds: no.** Every motif in this engine is a *field* evaluated per
+fragment. Discrete objects are the expensive exception, and crystals are the
+proof — the enumerate-don't-search rewrite (viz.js:548–556) exists because *four*
+objects cost too much. Many small birds is that problem multiplied, and a hashed
+sprite recurring is exactly the repetition the owner predicts.
+
+**Flock motion: genuinely interesting, and idiomatic.** A murmuration is not a
+set of dots; it is a density that shifts, folds and turns. As a density field it
+is precisely what this engine is good at, and cheap. The half the owner found
+interesting is the half that fits.
+
+**But not in sunshine.** All four references are sky and light, and the gap here
+is in the light's *timing*, not its contents. A murmuration reads dusk or autumn
+and would arrive as a guest in a mood that is already working. If flocks get
+built, build them where they are the subject — and the sub-mood mechanism from
+rain gives them a home without disturbing anything established.
+
+### Feel
+
+| | |
+|---|---|
+| **Quiet is** | Diffuse light, shafts soft-edged and short, the deck holding. |
+| **The music is** | Already: beams sharpening, the fan leaping on attacks and swaying with pitch. Missing: the deck gathering and parting, so the sun is lost and found rather than merely brighter. |
+
+### Changes
+
+**Data** — none. The coverage range is a shader constant, not a theme param, and
+sunshine's palette and motif weights are right.
+
+**Engine** (`portal/js/viz.js`)
+1. Drive `mClouds` coverage from the slow weather follower (rain §1) instead of
+   raw `drive`, and widen the range well past 0.1. This is the whole change.
+2. Leave `mRays` alone.
+
+Not doing: bird flocks in sunshine, and any attempt to give it rain's kind of
+responsiveness.
 
 ## night
 
