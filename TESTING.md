@@ -181,10 +181,10 @@ npm test
 **What you should see** — three sections, ending in:
 
 ```
-assets ok — 8 theme(s), 1 warning(s)
+assets ok — 16 theme(s), 1 warning(s)
 
 34/34 checks passed      ← the website
-49/49 checks passed      ← the broadcast
+83/83 checks passed      ← the broadcast
 ```
 
 The one warning is expected and correct: it says the eye manifest declares no
@@ -259,8 +259,13 @@ Open **http://localhost:8000/?mock=live** — the stone parts over ~3 seconds.
 Click it. The field blooms and moves.
 
 Try **`?mock=live&theme=cave`**, then `ice`, `rain`, `sunshine`, `forest`,
-`mountain`, `ocean`. Each should look like a different *place*, not the same
+`mountain`, `ocean`, `night` — and the newer ones: `fire`, `volcano`,
+`desert`, `sunshower`. Each should look like a different *place*, not the same
 fog in a new color.
+
+Sub-moods are named after the mood they belong to, so `desert-night`,
+`forest-blooming`, `forest-autumn` and `forest-barren` work as theme tokens
+too. The full list is always `portal/assets/themes/index.json`.
 
 > **Judging moods on the broadcast page instead?** Don't retype URLs there.
 > Open `broadcast.html`, arm it, press **wake**, then **mock** (or the `m`
