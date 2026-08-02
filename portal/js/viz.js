@@ -49,6 +49,9 @@ uniform float u_slant;   // how far falling things lean from vertical
 uniform float u_base;    // how much the shared fog field contributes at all
 uniform float u_drift;   // how fast that field evolves; 0 freezes it into rock
 uniform float u_rms;     // smoothed loudness, for motifs that answer the room
+uniform float u_weather; // the SAME loudness on a tens-of-seconds follower,
+                         // for motifs that answer a passage rather than a
+                         // phrase: rainfall gathering, cloud closing over
 uniform float u_flow;    // travel clock: CPU-integrated, ONLY ever advances,
                          // faster when loud. The lawful way to move with level.
 uniform vec2 u_cur;      // direction the texture-space frame is carried by u_flow
@@ -230,7 +233,7 @@ float mDapple(vec2 uv, float t, float flow, float drive) {
 //
 // The streak lives inside one cycle of the phase, so the per-cycle coin flip
 // can never chop a drip in half partway down.
-float mDrips(vec2 uv, float t, float w, float slant, float drive, float kick, out float splash) {
+float mDrips(vec2 uv, float t, float w, float slant, float drive, float weather, float kick, out float splash) {
   // Shear the lane coordinate rather than drifting the drops sideways: the
   // streaks themselves have to lean, or fast rain reads as vertical rain
   // sliding across the aperture.
@@ -253,7 +256,11 @@ float mDrips(vec2 uv, float t, float w, float slant, float drive, float kick, ou
   // Wider audio swing than the first pass: quiet rain thins right out and a
   // working room drives it toward sheets — the rainFALL is the response, not
   // merely the lighting on it.
-  float duty = clamp((0.012 + 0.988 * w * w) * (0.5 + drive * 1.3), 0.0, 1.0);
+  // HOW MUCH rain there is rides the weather clock, not the phrase clock. The
+  // brightness of what falls still answers the room immediately (below), but
+  // the rainfall itself gathers and clears over tens of seconds — drizzle to
+  // storm and back, without changing its mind twice a bar.
+  float duty = clamp((0.012 + 0.988 * w * w) * (0.35 + weather * 2.1), 0.0, 1.0);
 
   float lanes = 3.0 + 23.0 * w;
   float col = floor(lx * lanes);
@@ -1132,7 +1139,14 @@ vec3 mWisps(vec2 uv, float t, float w, float flow, float drive) {
 float mClouds(vec2 uv, float t, float flow, float drive, out float rim) {
   vec2 q = vec2(uv.x * 1.5 + flow * 0.35 + t * 0.01, uv.y * 2.6);
   float cl = fbm(q);
-  float body = smoothstep(0.52 - drive * 0.1, 0.78, cl);
+  // COVERAGE, on the weather clock and with a range worth having. This
+  // threshold used to move by 0.1 against a smoothstep 0.26 wide, driven by
+  // the phrase-level loudness — which is to say the deck was a fixed amount of
+  // cloud that drifted and never gathered. Sunshine's whole drama is
+  // occlusion, and every mechanism for it was already wired (rays are cut
+  // where cloud stands in front of them and blaze where they slip past an
+  // edge); the only thing missing was a gap that ever opened or closed.
+  float body = smoothstep(0.74 - drive * 0.44, 0.92 - drive * 0.30, cl);
   float toSun = fbm(q + vec2(-0.055, 0.075)); // toward mRays' source
   rim = clamp((cl - toSun) * 9.0, 0.0, 1.0) * body;
   return body;
@@ -1343,7 +1357,7 @@ void main() {
 
   if (W_clouds > 0.0) {
     float rimv;
-    cloud = mClouds(uv, u_t, u_flow, u_rms, rimv) * W_clouds;
+    cloud = mClouds(uv, u_t, u_flow, u_weather, rimv) * W_clouds;
     cloudRim = rimv * W_clouds;
   }
   if (W_rays > 0.0) {
@@ -1388,7 +1402,7 @@ void main() {
     // Weight controls density, not brightness: a cave's rare drip has to be
     // as bright as any of rain's, or the sparse case just disappears.
     float splash;
-    float v = mDrips(uv, u_t, W_drips, u_slant, u_rms, u_pulse, splash);
+    float v = mDrips(uv, u_t, W_drips, u_slant, u_rms, u_weather, u_pulse, splash);
     // In a cave the passage recedes but the drips fall HERE, at the mouth.
     // Where a tunnel is running they fade toward its far end, instead of
     // crossing full-size in front of geometry that is supposed to be forty
@@ -1888,17 +1902,36 @@ const lerp = (a, b, k) => a + (b - a) * k;
 const GEOM_TAU = 0.35;  // domain warp, blob displacement
 const SHIFT_TAU = 1.0;  // palette shift: a drift across a piece, not a twitch
 const LIGHT_TAU = 0.18; // loudness reaching the motifs
+// WEATHER. Everything above answers a note or a phrase; this answers a
+// passage. Rainfall going from drizzle to storm on a 0.18s follower would
+// change the weather several times a bar, which is the owner's own worry
+// about the idea — "that might make it too fickle" — and they were right.
+// The answer is not less response but response with inertia.
+//
+// Asymmetric on purpose: weather gathers faster than it disperses. A storm
+// builds while you work and takes its time clearing after you stop, which is
+// what makes it read as weather rather than as a level meter with a long wire.
+const WEATHER_RISE_TAU = 6.0;
+const WEATHER_FALL_TAU = 20.0;
 
 // One per renderer instance; seeded to IDLE's values so the first frame after
 // a theme load does not lurch in from zero.
 function createMotionSmoother() {
-  const v = { warp: 0, shift: 0.4, light: 0 };
+  const v = { warp: 0, shift: 0.4, light: 0, weather: 0 };
   return (f, dt) => {
     v.warp += (f.bass - v.warp) * (1 - Math.exp(-dt / GEOM_TAU));
     v.shift += (f.centroid - v.shift) * (1 - Math.exp(-dt / SHIFT_TAU));
     // Faster than the geometry pair: this one shapes motifs that are allowed
     // to answer a phrase, just not a single frame's worth of extraction noise.
     v.light += (f.rms - v.light) * (1 - Math.exp(-dt / LIGHT_TAU));
+    // Reads the same loudness as `light`, on a clock two orders of magnitude
+    // slower. Note that this is the AUTO-GAINED rms, so it tracks dynamics
+    // relative to recent playing rather than absolutely: play hard for a while
+    // and the storm builds, ease off and it clears. Absolute dynamics need the
+    // centroid-scale calibration first (see MOODS.md) — this version cannot be
+    // wrong about a room it has not measured.
+    const wTau = f.rms > v.weather ? WEATHER_RISE_TAU : WEATHER_FALL_TAU;
+    v.weather += (f.rms - v.weather) * (1 - Math.exp(-dt / wTau));
     return v;
   };
 }
@@ -1948,7 +1981,7 @@ function themeStub() {
 const UNIFORM_NAMES = [
   'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
   'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
-  'u_gloss', 'u_slant', 'u_base', 'u_drift', 'u_rms', 'u_glint',
+  'u_gloss', 'u_slant', 'u_base', 'u_drift', 'u_rms', 'u_weather', 'u_glint',
   'u_flow', 'u_cur', 'u_centroid', 'u_canopy', 'u_mw[0]',
 ];
 
@@ -2144,6 +2177,7 @@ function createGL(canvas, reducedMotion) {
     // Loudness reaches the motifs smoothed, for the same reason the warp is:
     // these drive shapes, and a 40 ms attack on a shape is a flinch.
     gl.uniform1f(U.u_rms, sm.light);
+    gl.uniform1f(U.u_weather, sm.weather);
     gl.uniform1f(U.u_flow, flowAcc);
     gl.uniform2f(U.u_cur, th.params.travelX || 0, th.params.travelY || 0);
     gl.uniform1f(U.u_centroid, sm.shift);

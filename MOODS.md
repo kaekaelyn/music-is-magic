@@ -143,8 +143,22 @@ rendering, so treat it as a ceiling rather than a real frame cost.
 Two separate debugging rounds were lost to one in a comment ending the template
 literal; it is a total, silent failure with a misleading error.
 
-Still open: slow weather follower (rain/sunshine), sunshine coverage range,
-centroid rescale (awaiting mid + bass readings).
+- **weather follower** — a second loudness clock at tens of seconds, rising
+  over ~6s and falling over ~20s, since weather gathers faster than it
+  disperses. It lives in the viz-side motion smoother rather than in
+  `features.js`, so it needed one uniform and no change to extraction. Rain's
+  rainfall density and sunshine's cloud coverage both ride it; brightness still
+  answers the phrase. Sunshine's coverage range went from 0.1 to 0.44, which is
+  the difference between a deck that drifts and one that opens and closes.
+
+  It reads the **auto-gained** rms, so it tracks dynamics relative to recent
+  playing rather than absolutely. That is deliberate: an absolute mapping needs
+  the centroid-scale calibration first, and a follower keyed on a room nobody
+  has measured would be confidently wrong. Relative still gives the
+  drizzle-to-storm arc within a performance.
+
+Still open: centroid rescale (awaiting the mid-register and bass readings —
+the top of the piano measured 2500 Hz, which is one endpoint of three).
 
 **First look checklist:** mountain silhouette straight-flanked? cave crystals
 straight? bolts jagged with attached forks? frost dominant when grown? foam
