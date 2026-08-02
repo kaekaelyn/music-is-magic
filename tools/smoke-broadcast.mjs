@@ -552,6 +552,120 @@ try {
     await ctx.close();
   }
 
+  // === 6c. the lid: periodic blinks, and a closed eye between moods ===
+  //
+  // Measured as the aperture's HEIGHT in pixels — the thing a lid actually
+  // changes — by scanning the centre column for rows brighter than half that
+  // column's own peak. Self-normalising, so it does not care which mood is up
+  // or how bright the field happens to be.
+  //
+  // Two probes were tried and discarded. A box at the centre reads a shallow
+  // dip for a fully shut eye, because a vesica collapses to a horizontal slit
+  // through exactly that point. Whole-plate lit AREA at litFraction's
+  // threshold reads a flat 0.8 either way, because lit stone clears a sum of
+  // 40 comfortably. Sampled inside the page so a ~190ms blink cannot fall
+  // between two round trips.
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    const assertClean = watch(page, 'lid');
+    await page.goto(BC);
+    await relaySend(page, { eye: 'live' });
+    await eyeIs(page, 'communing');
+    await page.waitForTimeout(900); // settle at full open
+
+    const sampleAperture = (ms) =>
+      page.evaluate((duration) => new Promise((resolve) => {
+        const c = document.getElementById('eye');
+        const g = c.getContext('2d');
+        const vals = [];
+        const t0 = performance.now();
+        const col = Math.round(c.width / 2);
+        const tick = () => {
+          // One column, so this stays cheap enough to run every 20ms.
+          const d = g.getImageData(col, 0, 1, c.height).data;
+          let peak = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            peak = Math.max(peak, d[i] + d[i + 1] + d[i + 2]);
+          }
+          let rows = 0;
+          if (peak > 30) {
+            for (let i = 0; i < d.length; i += 4) {
+              if (d[i] + d[i + 1] + d[i + 2] > peak * 0.5) rows++;
+            }
+          }
+          vals.push(rows);
+          if (performance.now() - t0 < duration) setTimeout(tick, 20);
+          else resolve(vals);
+        };
+        tick();
+      }), ms);
+
+    const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+
+    // What counts as "a lid came down", and the number is reasoned rather than
+    // tuned. The only other thing that moves the aperture while communing is
+    // the bass breath, and eye.js caps that at 5% (openEff *= 0.95 + bass*0.05)
+    // — so anything past 15% below the median cannot be the music.
+    //
+    // Not stricter, because this suite renders through SwiftShader at roughly
+    // 6fps: a 190ms blink spans about one rendered frame and a 920ms mood lid
+    // only a handful, so both are usually caught mid-travel rather than shut.
+    // Demanding a deeper dip would assert something about the CI renderer
+    // rather than about the eye.
+    const LID = 0.85;
+
+    // --- a mood change closes it, and hands the mood over while shut ---
+    await themeIs(page, 'night');
+    const changing = sampleAperture(1500);
+    await page.waitForTimeout(60);
+    await page.keyboard.press('3'); // cave, third in index.json
+    await page.waitForTimeout(120); // still inside the 276ms close
+    const midTheme = await page.evaluate(() => document.body.dataset.theme);
+    check(
+      midTheme === 'night',
+      'the mood is still the old one while the lid is coming down'
+    );
+    await themeIs(page, 'cave');
+    const moodVals = await changing;
+    const moodMed = median(moodVals);
+    const moodMin = Math.min(...moodVals);
+    check(
+      moodMin < moodMed * LID,
+      'the eye closes for a mood change',
+      `min ${moodMin.toFixed(1)} vs median ${moodMed.toFixed(1)}`
+    );
+
+    // --- and it blinks on its own ---
+    // On sunshine, not on the cave we just switched to. The probe normalises
+    // against the centre column's own peak, and cave is the darkest mood in
+    // the set with a field that swings as clusters are nominated — enough to
+    // move the peak, and so the row count, for reasons that have nothing to
+    // do with the lid. A bright steady mood makes the dip unambiguous.
+    await page.keyboard.press('8'); // sunshine, last in index.json
+    await themeIs(page, 'sunshine');
+    await page.waitForTimeout(1200); // let that transition's own lid finish
+    // First blink is armed 3-8s after opening, so 13s catches one or two.
+    const idleVals = await sampleAperture(13000);
+    const idleMed = median(idleVals);
+    const idleMin = Math.min(...idleVals);
+    check(
+      idleMin < idleMed * LID,
+      'the eye blinks on its own while communing',
+      `min ${idleMin.toFixed(1)} vs median ${idleMed.toFixed(1)}`
+    );
+    // A blink is an event, not a flicker: it must spend most of its time open.
+    const dim = idleVals.filter((v) => v < idleMed * LID).length;
+    check(
+      dim / idleVals.length < 0.3,
+      'and spends most of its time open',
+      `${dim}/${idleVals.length} samples dim`
+    );
+
+    assertClean();
+    await ctx.close();
+  }
+
   // === 7. a denied microphone does not stop the show =================
   {
     // No fake-device flags and no granted permission: getUserMedia rejects,

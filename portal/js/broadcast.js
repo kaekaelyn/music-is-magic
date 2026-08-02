@@ -122,19 +122,30 @@ stirHud();
 let currentToken = null;
 let themeSeq = 0;
 
+let firstTheme = true;
+
 function applyTheme(token) {
   if (token === currentToken) return;
   currentToken = token;
   const seq = ++themeSeq;
   themes.load(token).then((theme) => {
     if (seq !== themeSeq) return;
-    viz.setTheme(theme);
-    eye.setTheme(theme);
-    document.body.dataset.theme = theme.name;
-    say(el.theme, theme.name);
-    // Mark by the RESOLVED name, not the token: an unknown mood lands on
-    // default (§5.2), and the panel should show where you actually are.
-    markMood(theme.name);
+    const swap = () => {
+      // Checked again here, not only above: the eye holds this for the length
+      // of a blink, and mashing the mood keys can land another change while
+      // it is shut. The newest wins; the stale one simply never applies.
+      if (seq !== themeSeq) return;
+      viz.setTheme(theme);
+      eye.setTheme(theme);
+      document.body.dataset.theme = theme.name;
+      say(el.theme, theme.name);
+      // Mark by the RESOLVED name, not the token: an unknown mood lands on
+      // default (§5.2), and the panel should show where you actually are.
+      markMood(theme.name);
+    };
+    // The first mood is not a change — nothing to blink away from.
+    if (firstTheme) { firstTheme = false; swap(); }
+    else eye.transition(swap);
   });
 }
 

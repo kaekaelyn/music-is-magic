@@ -38,16 +38,27 @@ let extractor = null;
 let currentToken = null;
 let themeSeq = 0;
 
+let firstTheme = true;
+
 function applyTheme(token) {
   if (token === currentToken) return;
   currentToken = token;
   const seq = ++themeSeq;
   themes.load(token).then((theme) => {
     if (seq !== themeSeq) return; // a newer token won the race
-    viz.setTheme(theme);
-    eye.setTheme(theme);
-    // The resolved name, not the raw token: unknown tokens land on the fallback.
-    document.body.dataset.theme = theme.name;
+    const swap = () => {
+      // Checked again here, not only above: the eye holds this for the length
+      // of a blink, and another mood can win the race while it is shut.
+      if (seq !== themeSeq) return;
+      viz.setTheme(theme);
+      eye.setTheme(theme);
+      // The resolved name, not the raw token: unknown tokens land on the fallback.
+      document.body.dataset.theme = theme.name;
+    };
+    // The first mood is not a change — there is nothing to blink away from,
+    // and the eye is sealed at that point regardless.
+    if (firstTheme) { firstTheme = false; swap(); }
+    else eye.transition(swap);
   });
 }
 

@@ -1037,27 +1037,39 @@ float mStars(vec2 uv, float t, float w, float strike) {
   // everything else, and kept faint — it is a suggestion of more stars, not
   // a cloud.
   float band = smoothstep(0.42, 0.72, fbm(uv * vec2(1.1, 3.4) + vec2(4.0, 0.0)));
-  // A meteor on a strong onset. The streak TRAVELS as the pulse decays —
-  // strike is 1 at the hit and eases to 0, so (1 - strike) is distance flown,
-  // and the whole flight takes about a second for free. The path is hashed
-  // from a slow clock, so no two fall from the same place. strike^2 keeps
-  // soft onsets from spending meteors; they should be an event.
-  // No two alike: position, steepness and which way it crosses are all
-  // hashed from the slow clock, so successive onsets rake the sky from
-  // different quarters instead of restriking one diagonal.
+  // A meteor on a strong onset. No two alike: position, steepness and which
+  // way it crosses are all hashed from a slow clock, so successive onsets
+  // rake the sky from different quarters instead of restriking one diagonal.
+  //
+  // Distance flown is the WINDOW'S OWN CLOCK, not the onset envelope. It used
+  // to be (1 - strike): elegant while a hit decayed undisturbed, and wrong the
+  // moment the envelope rose again, because a rising strike shortens (1 -
+  // strike) and drags the head back up its own path. The owner watched one
+  // "begin to fall, then backpedal a bit, then fall again" — that is a second
+  // onset landing mid-flight, and under real playing, where onsets overlap
+  // constantly, it would be a permanent jitter rather than an occasional one.
+  // fract() only ever rises, so the streak can only ever go forward.
   float seed = floor(t * 0.31);
+  float age = fract(t * 0.31);          // 0..1 across this meteor's window
   vec2 sh = hash2(vec2(seed, 9.1));
   vec2 sh2 = hash2(vec2(seed, 27.3));
   float steep = -0.3 - sh2.x * 1.1;
   vec2 dir = normalize(vec2(cos(steep) * (sh2.y < 0.5 ? -1.0 : 1.0), sin(steep)));
+  // ~1s of travel inside a ~3.2s window, then it holds at the far end where
+  // nothing can see it, because the gate below has long since shut.
+  float flight = clamp(age / 0.32, 0.0, 1.0);
   vec2 head = vec2(sh.x * 1.5 - 0.75, 0.06 + sh.y * 0.36)
-            + dir * (1.0 - strike) * 0.85;
+            + dir * flight * 0.85;
   vec2 rel = uv - head;
   float along = dot(rel, dir);
   float side = abs(dot(rel, vec2(-dir.y, dir.x)));
+  // The envelope now decides only WHETHER a meteor is lit, never where it is,
+  // and it can only light one while the window is young — an onset arriving
+  // late finds the meteor already spent and throws none. strike^2 still keeps
+  // soft onsets from spending them: they should be an event.
   float meteor = smoothstep(0.012, 0.0, side)
                * smoothstep(-0.24, -0.02, along) * smoothstep(0.02, 0.0, along)
-               * strike * strike * 1.6;
+               * strike * strike * 1.6 * smoothstep(0.34, 0.04, age);
   return (star + band * 0.42 + meteor) * w;
 }
 
