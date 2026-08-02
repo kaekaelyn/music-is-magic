@@ -755,18 +755,51 @@ float mRidge(vec2 uv, float t, float flow, float drive,
     float n = noise(vec2(x, fi * 11.0 + 3.3)) * 0.72
             + noise(vec2(x * 2.7 + 5.0, fi * 11.0)) * 0.28;
     float ridged = 1.0 - abs(2.0 * n - 1.0);            // peaks, not dunes
-    ridged *= ridged;                                    // sharper summits
+    // Tried and rejected: falling at different rates either side of the crease,
+    // to get the long-slope-and-steep-face asymmetry a real ridgeline has. The
+    // gentle side has to be clamped where it would go negative, and that clamp
+    // is a FLAT VALLEY FLOOR — the ranges came out as mesas with spikes on
+    // them, which is further from a mountain than the scallops it was meant to
+    // fix. Asymmetry is still the right idea; it has to come from somewhere
+    // that cannot flatten, so warp the profile's x before the fold rather than
+    // reshaping the fold's output.
+    // Sharper summits, but only a little. Squaring this — together with the
+    // fine octave below and a raised amplitude — compounded into the squashed,
+    // cartoonish profile the owner objected to: "I didn't mean make the peaks
+    // look squished... adjust the lower end, don't exaggerate the upper."
+    // This is pow(ridged, 1.3) without the transcendental (within ~2% over
+    // 0..1), which keeps the summits pointed without pinching them.
+    // Sharper toward the front. Distance rounds a ridgeline off — that is
+    // aerial perspective doing to shape what it already does to contrast —
+    // so the far range keeps a soft profile and the near one gets an angular
+    // one. A single sharpness for all three is what makes three ranges read
+    // as three copies of one drawing at different sizes.
+    ridged *= (0.8 - fi * 0.06) + (0.2 + fi * 0.06) * ridged;
     // A third, finer ridged octave breaks the smooth shoulders into
     // subsidiary spurs. Without it the profile is two big humps per screen —
     // rolling hills, which is what the owner saw. Mountains have detail all
     // the way down their sides, and that detail is what says "rock" rather
     // than "landscape wallpaper".
     float fine = 1.0 - abs(2.0 * noise(vec2(x * 5.3 + 17.0, fi * 7.0)) - 1.0);
-    ridged = clamp(ridged * (0.72 + 0.5 * fine * fine) + fine * fine * 0.16, 0.0, 1.5);
+    // Spurs, not needles. The additive half of this was 0.16, and since a
+    // ridged noise folds to a sharp point wherever it crosses its midline, an
+    // added octave of it puts a thin spike at every one of those crossings —
+    // which is most of what "squished and cartoonish" was describing. The
+    // multiplicative half does the work of breaking the shoulders; the
+    // additive half only needs to keep the small ones from disappearing.
+    ridged = clamp(ridged * (0.7 + 0.52 * fine * fine) + fine * fine * 0.07, 0.0, 1.5);
     // Heights live where the aperture actually is. The lens is wide and
     // short, so a range built for a square canvas puts its whole silhouette
     // off the top and leaves only the valley floor in shot.
-    float h = 0.06 - fi * 0.14 + ridged * (0.38 + fi * 0.1);
+    // "Adjust the lower end, don't exaggerate the upper" turns out to be about
+    // RELIEF, not height, and the difference is the whole of why two passes at
+    // this read as squished. A range whose valley floor sits high is a solid
+    // wide mass with a wiggle along its top — which is a wave, not a mountain,
+    // and lowering the peaks to un-exaggerate them makes it more of a wave.
+    // Dropping the floor instead opens the gaps between summits, lets the
+    // range behind show through them, and buys the height back from below
+    // where it costs nothing in summit shape.
+    float h = -0.02 - fi * 0.18 + ridged * (0.42 + fi * 0.12);
     float below = smoothstep(h + 0.008, h - 0.008, uv.y);
     // Aerial perspective: distance washes a range out toward the sky, so the
     // far layer is the palest thing on screen and the near one is nearly black.
@@ -787,9 +820,17 @@ float mRidge(vec2 uv, float t, float flow, float drive,
   // absolutely still. The landscape holding still is the point (owner's
   // note); it is the WEATHER that answers the music.
   float above = uv.y - hN;
-  float band = smoothstep(0.0, 0.015, above) * (1.0 - smoothstep(0.03, 0.13, above));
-  float gust = smoothstep(0.45, 0.8, noise(vec2(uv.x * 3.2 - t * 0.3 - flow * 0.9, 7.7)))
-             * smoothstep(0.4, 0.75, noise(vec2(uv.x * 11.0 - t * 0.5 - flow * 1.6, 2.3)));
+  float band = smoothstep(0.0, 0.03, above) * (1.0 - smoothstep(0.03, 0.15, above));
+  // Both gusts must vary in Y as well as X. Sampled along a fixed row they are
+  // vertical stripes, and a horizontal band times a vertical stripe is a
+  // RECTANGLE — which is what appeared, in hard-edged blocks, wherever the
+  // near crest happened to run flat for a while. Snow torn off a summit is the
+  // last thing that should have corners on it. (It was there all along and the
+  // crag texture was hiding it; deleting crags is what exposed it.)
+  float gust = smoothstep(0.45, 0.8,
+                 noise(vec2(uv.x * 3.2 - t * 0.3 - flow * 0.9, uv.y * 7.0 + 7.7)))
+             * smoothstep(0.4, 0.75,
+                 noise(vec2(uv.x * 11.0 - t * 0.5 - flow * 1.6, uv.y * 15.0 + 2.3)));
   plume = band * gust * drive;
   return v;
 }
@@ -1119,20 +1160,44 @@ void main() {
   }
   if (W_crags > 0.0) {
     float upface, joint;
-    // Advected at the NEAR range's rate when a ridge is running, so the rock
-    // texture rides its mountain instead of hanging still while the
-    // silhouette slides past — which read as looking through cutouts.
-    // Per layer: its own patch of the crag map (the offset) travelling at
-    // its own rate (the flow term), matching mRidge's parallax exactly. One
-    // map at one rate for all three ranges is what made the mountains look
-    // like a painted backdrop with a texture sliding over it.
-    float lrate = u_flow * (0.05 + ridgeLayer * 0.11) * 2.2;
-    vec2 lofs = vec2(ridgeLayer * 43.0 + lrate, ridgeLayer * 19.0);
+    // Under a ridgeline this is not a motif in its own right — it is the
+    // surface of somebody else's geometry, and everything below is about
+    // making it belong to that geometry rather than sit in front of it. Each
+    // range gets its own patch of the crag map (the offset), at its own cell
+    // size (the grain), travelling at its own screen rate (the shift). Get any
+    // one of the three wrong and the mountains read as a painted backdrop seen
+    // through a fixed craggy window, which is what the owner reported twice.
+    float hasRidge = step(0.001, W_ridge);
     // Much finer under a ridge: at the crag motif's own scale the cells read
     // as cobbles laid over a mountain. Rock at that distance is grain.
-    float grain = mix(2.6, 7.5, step(0.001, W_ridge));
-    float lit = mCrags(p * grain + vec2(u_t * 0.012, 0.0)
-                       + lofs * step(0.001, W_ridge), upface, joint);
+    //
+    // And finer the FURTHER the range: one cell size across all three made the
+    // far peaks' rock the same size as the near peaks', which is a flat
+    // statement that they are the same distance away. Scale is the strongest
+    // depth cue there is, and the crag map was contradicting the parallax with
+    // it. Near range 3.75, far range 7.5 — the far one twice as fine.
+    float grain = mix(2.6, 7.5 / (1.0 + ridgeLayer * 0.5), hasRidge);
+    // CONVERT THROUGH SCREEN SPACE. The two motifs live in different units and
+    // the old rate ignored that: it was written in the ridge's x-units and
+    // then applied in crag space. A ridge layer's profile is a function of
+    // uv.x * (1.5 - L*0.34), so a shift of R in its own units moves the
+    // silhouette R / (1.5 - L*0.34) across the SCREEN; the crag map is sampled
+    // at uv * u_scale * grain, so the same screen movement needs that figure
+    // multiplied back up by u_scale * grain. The factor between them is about
+    // 10 for mountain, which is why the rock crawled at a fifth of the speed
+    // of the mountain it is supposed to be the surface of — "a stationary
+    // craggy window" in front of moving mountains, in the owner's words.
+    //
+    // Far layer 0.35 x flow, near layer 3.45 x flow: 3x and 6x what it was.
+    float lshift = (0.05 + ridgeLayer * 0.11) / (1.5 - ridgeLayer * 0.34)
+                 * (u_scale * grain);
+    vec2 lofs = vec2(ridgeLayer * 43.0 + u_flow * lshift, ridgeLayer * 19.0);
+    // The slow ambient creep belongs to crags standing on their own. Under a
+    // ridge it is a second motion the silhouette does not share, so the rock
+    // would drift across its own mountain in silence — the same betrayal in
+    // miniature, and the one that survives when the music stops.
+    float amb = u_t * 0.012 * (1.0 - hasRidge);
+    float lit = mCrags(p * grain + vec2(amb, 0.0) + lofs * hasRidge, upface, joint);
     // Textured by the base field, or every plane is a flat plate.
     lit = clamp(lit * (0.7 + 0.55 * f), 0.0, 1.0);
     // Under a ridgeline, crags are the rock's surface and must not repaint the
@@ -1140,12 +1205,17 @@ void main() {
     // texture off the sky, which was craggy too and not so cool (§14).
     float alone = mix(g, lit, W_crags * 0.55);              // crags as the subject
     float surface = mix(g, g * (0.5 + 0.85 * lit), W_crags * (1.0 - skyMask));
-    g = mix(alone, surface, step(0.001, W_ridge));
-    mass += joint * W_crags * 0.3 * (1.0 - skyMask);
+    g = mix(alone, surface, hasRidge);
+    // The joint is a dark line between two planes. Standing alone that is what
+    // makes crags read as rock; laid over a ridgeline at this grain it is a net
+    // of thin dark lines at one contrast across the whole frame, which is a
+    // crazed pane of glass — "a stationary craggy window", precisely. Under a
+    // ridge the shading carries the rock and the lines mostly get out of the way.
+    mass += joint * W_crags * 0.3 * (1.0 - skyMask) * mix(1.0, 0.3, hasRidge);
     // Crag faces may seed snow only when crags carry the scene alone: under
     // a ridge the crest decides, or upward faces in the SKY grow drifts that
     // read as holes with snow on the far side.
-    skyward = max(skyward, upface * (1.0 - step(0.001, W_ridge)));
+    skyward = max(skyward, upface * (1.0 - hasRidge));
   }
   if (W_tunnel > 0.0) {
     float face, joint, flare;

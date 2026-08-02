@@ -90,17 +90,24 @@ export const BUILTIN = {
     mappings: { warpBass: 0.06, sparkleTreble: 1.6, pulseFlux: 1.3, shiftCentroid: 0.1 },
   },
   // Ranges against the sky with snow near the tops. `ridge` supplies the
-  // silhouette; crags is only surface texture on it. The landscape never
-  // moves — that stillness is the mood — but the WEATHER answers the music:
-  // spindrift tears off the near crest with loudness, dapple drifts past as
-  // cloud-light shouldered by the room, and the snowline shimmers.
+  // silhouette, and by the owner's verdict it supplies ALL of it: crags is 0
+  // here. Three attempts to make a rock texture belong to a moving mountain
+  // (per-layer patches, then matched screen rates and per-range cell sizes)
+  // each got closer and none arrived — "it is like we are viewing the moving
+  // mountains through a stationary craggy window", twice, and then "no crags
+  // looks better". A texture that betrays the illusion is worse than no
+  // texture. The motif stays in the engine; mountain just does not use it.
+  // The landscape never moves — that stillness is the mood — but the WEATHER
+  // answers the music: spindrift tears off the near crest with loudness,
+  // dapple drifts past as cloud-light shouldered by the room, and the
+  // snowline shimmers.
   mountain: {
     palette: ['#0a0d14', '#252d3a', '#525e6f', '#97aabe', '#f4f9ff'],
     // travel: a journey along the chain — each range passes at its own rate,
     // near ones fastest, sped by the music. The snow streams one way on the
     // same clock; nothing here ever slides back.
     params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.6, drift: 0.25, travel: 0.4, glint: 0.12 },
-    motifs: { ridge: 0.92, crags: 0.22, snow: 0.8, dapple: 0.4 },
+    motifs: { ridge: 0.92, snow: 0.8, dapple: 0.4 },
   },
   // The sea as one moving body. The watery fog is BACK (the owner missed
   // it: it looked more like ocean than the bare surf did) — but now it, the

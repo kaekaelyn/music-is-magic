@@ -198,7 +198,7 @@ library of procedural motifs and a theme declares which ones it is made of:
 | `drips` | falling streaks | cave, rain |
 | `facets` | crystal shards with a lit seam where they meet | ice |
 | `caustics` | undulating light web | ocean |
-| `crags` | angular rock planes, each catching the light its own way | mountain |
+| `crags` | angular rock planes, each catching the light its own way | *(nobody — mountain used it and dropped it, §13)* |
 | `snow` | accumulation on whichever faces tilt skyward, below a snowline | mountain |
 | `tunnel` | a passage receding into the dark, crystal faces on its walls | cave |
 | `ridge` | layered ridgelines against the sky — a mountain's silhouette | mountain |
@@ -633,6 +633,51 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — mountain: the crags went, and the peaks are about relief
+
+§14.8's P1. The corrected advection was implemented exactly as that section
+derived it — convert through screen space, so a ridge layer's shift of
+`R / (1.5 - L*0.34)` on screen becomes `R / (1.5 - L*0.34) * (u_scale * grain)`
+in crag units, 3x and 6x the old rates. Then two more defects turned up that
+the rate could not fix:
+
+- **One cell size for all three ranges** is a flat statement that they are the
+  same distance away, which contradicts the parallax the rate had just been
+  fixed to obey. Scale is the strongest depth cue there is.
+- **The joint between two planes is a dark line**, and at that grain over a
+  whole frame it is a net of thin dark lines at one contrast — a crazed pane
+  of glass. "A stationary craggy window" describes the *look* as much as the
+  motion, and the look survived the motion fix.
+
+All three were addressed, and the owner's verdict on seeing it against the
+alternative was "no crags looks better". So mountain carries `ridge`, `snow`
+and `dapple` and no rock texture at all. The motif stays in the engine —
+nothing else changed, and it is one word in a theme.json to bring back.
+
+**The peaks.** "Squished" turned out not to be about height: dropping the
+amplitude, which is what §14.8 derived, made it worse, because a range whose
+valley floor sits high is a solid wide mass with a wiggle along the top — a
+wave. The fix is relief: drop the floor (`-0.02 - fi*0.18`, was
+`0.06 - fi*0.14`), raise the amplitude (`0.42 + fi*0.12`), and take the
+needles out of the *fine* octave's additive term rather than out of the
+profile. Sharpness is now per range as well: distance rounds a ridgeline off,
+and one sharpness for all three made three ranges read as three copies of one
+drawing at different sizes.
+
+Two things worth not rediscovering:
+
+- **Spindrift was rendering as rectangles.** Both gust noises were sampled
+  along a fixed row, so they were vertical stripes, and a horizontal band
+  times a vertical stripe is a rectangle — hard-edged blocks wherever the near
+  crest ran flat. It had been there all along under the crag texture; deleting
+  crags is what exposed it. Any motif built as *band x stripe* has this bug
+  waiting in it.
+- **Asymmetric ridges cannot come from reshaping the fold.** Falling at
+  different rates either side of the crease needs a clamp where the gentle
+  side goes negative, and that clamp is a flat valley floor: the ranges came
+  out as mesas. Real ridgelines do climb one way and drop the other, and the
+  place to get that is a warp of the profile's x *before* the fold.
 
 ### 2026-08-01 — cave: a lattice was the wrong structure for a few big objects
 
@@ -1324,7 +1369,17 @@ Either occlude crystals below the floor line and let them sit ON it, or drop
 the floor for cave and cluster the crystals low instead. Right now it is
 neither.
 
-#### P1 — Mountain: the crags still do not move with the mountains
+#### P1 — Mountain: the crags still do not move with the mountains — DONE (2026-08-01)
+
+> Resolved by deletion, on the owner's verdict after seeing both: "no crags
+> looks better". The screen-space conversion below was implemented first and
+> is correct — and two further defects turned up that it could not fix, so
+> the escape hatch was the right one. `crags` is now used by no theme; it
+> stays in the engine. Details in §13.
+>
+> The peaks went another round after that ("they still look squished") and
+> are still not finished — see the still-open list.
+
 
 > "It is like we are viewing the moving mountains through a stationary craggy
 > window. If we can't make the crags look (and move as) one with the
@@ -1417,6 +1472,56 @@ twice said it is too subtle; they are not going to say it a third time.
   starts at zero regardless of phase.
 - **Ice frost could be more feathery** while staying jagged — more branching
   generations off the primary needles.
+
+#### P1.5 — Forest: the shafts are too free for a canopy (2026-08-02)
+
+New, from the owner, mid-session — and it revises "forest is finished", so
+take this over §14.8's do-not-touch line:
+
+> "The sunbeams spread out thickly and freely, as if they're shining straight
+> down from the sky. I would suggest that they should filter down more
+> sparsely, flickering and shifting and dappling the darkened ground with
+> light, as if the sunbeams were streaming down from gaps in the canopy."
+
+Three separate claims in that, and they are not the same knob:
+
+1. **Sparser.** Fewer distinct shafts, not a fan. `mRays` builds a continuous
+   fan and `canopy` (0.95 here) multiplies it down; multiplying a fan by a
+   mask leaves a dimmed fan. Sparse means the mask should *select* a few
+   beams, not attenuate all of them.
+2. **Flickering and shifting.** The canopy already rides the travel clock, so
+   the gaps move as you walk; the owner is asking for more of it, and for the
+   leaf-scale flicker that a canopy in a breeze gives.
+3. **Dappling the darkened GROUND.** This is the one with no mechanism at all
+   right now. Forest has no ground: the shafts fade out in mid-air, and
+   `dapple` is an overhead patch of light, not a pool of light on a surface.
+   Where a beam lands is the whole reason the reference images read as forest.
+
+Reference images came with it (dense canopy, hard-edged shafts through gaps,
+bright pools on leaf litter). See the note on references below.
+
+#### Reference images per mood — yes, and here is where to put them
+
+The owner asked, mid-session, whether providing examples of the *feel* for
+each mood would help. It would, and more than anything else on this list: two
+of the three claims above were legible at a glance from the images and would
+have taken several rounds to arrive at in words. Every art note in §14 so far
+has been prose reconstructed into a mechanism, and the reconstruction is where
+the sessions go wrong (three rounds of "stained glass" for cave).
+
+How to keep them, when it happens:
+
+- `reference/<mood>/` at the repo root, a handful of images each, with a
+  one-line note per image saying **what** in it matters ("the shafts are
+  discrete and land on the ground", not "nice forest"). The note is the part
+  that survives; an image without one gets read as a target to copy.
+- They are **references for feel, not textures and not targets.** The engine
+  is procedural and the aperture is a wide short lens; a photograph is a
+  composition this thing cannot and should not reproduce. What transfers is
+  the relationship between elements — what is bright against what, what is
+  sparse, what moves.
+- They cost nothing at runtime: nothing under `portal/` reads them, and the
+  Pages deploy does not ship them.
 
 #### Do not re-litigate
 
@@ -1569,6 +1674,22 @@ deep ("let's just go full on crafting our own visualization engine"):
 
 ### Still open
 
+- **Mountain's peaks are not finished.** Two passes ("squished" both times).
+  The current profile has good relief and distinct ranges, but the lower two
+  still read as scallops — every summit the same isoceles shape and every
+  valley the same rounded arc, because the fold is symmetric. The next thing
+  to try is warping the profile's x before the fold (§13 says why not after).
+- **Cave's rock reads as petals rather than stone** in a still — soft lobed
+  cells converging on the vanishing point. Not on any owner's list yet, and
+  not touched; it is the next thing to look at if cave still does not feel
+  like a cave now that the crystals are visible.
+- **Dynamic resolution is still untaken** (§14.8's last P0 bullet). `MAX_EDGE`
+  is a fixed 1024. Now that frame time is measured, scaling the field's
+  backing store down when it climbs would protect every mood on weak hardware.
+  Deliberately not done in the same pass as cave: it would have made the
+  before/after measurement meaningless, and a page that quietly halves its own
+  resolution while the owner judges a look is a bad thing to introduce
+  silently.
 - **Everything audio-driven wants eyes on it against live playing** — now
   including travel rates: quiet walking pace vs loud is reasoned, not seen.
 - **Cave drips: velocity was raised twice and still needs a verdict.**
