@@ -35,7 +35,12 @@ export const BUILTIN = {
     palette: ['#030714', '#0f2340', '#1d3e66', '#4467af', '#f6edd8'],
     // No ambient glint: the stars ARE this theme's points of light, and a
     // second scattered set on top of them was just noise.
-    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.7, gloss: 0.1, base: 0.66, drift: 0.18, travel: 0.12, travelX: 0.08 },
+    // base DOWN from 0.66. The shared fog was lighting the whole sky to a
+    // mid blue-grey, and an aurora is a bright thing against a dark one — at
+    // that base there was nothing for it to be bright against, which is most
+    // of why it read as absent even once it was drawn. A night sky is mostly
+    // black; the stars and the curtain are what is in it.
+    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.85, gloss: 0.1, base: 0.3, drift: 0.18, travel: 0.12, travelX: 0.08 },
     motifs: { stars: 0.95, aurora: 0.7 },
     mappings: { warpBass: 0.2, sparkleTreble: 1.3, pulseFlux: 1.1, shiftCentroid: 0.15 },
   },
@@ -77,7 +82,13 @@ export const BUILTIN = {
     // clock that nominates which seam is showing — "the longer you play". It
     // was absent, which pinned u_flow at zero and left both of those frozen.
     params: { scale: 2.0, speed: 0.1, warp: 0.55, sparkle: 0.8, gloss: 0.3, base: 0.3, drift: 0.05, glint: 0.3, travel: 0.5 },
-    motifs: { drips: 0.16, tunnel: 0.7, crystals: 0.85 },
+    // No drips. They were a lone droplet falling at the mouth of a passage
+    // that recedes forty feet, and making that read correctly needed a floor
+    // to land on, a near-mask to keep them out of the deep, and a scale that
+    // agreed with the perspective — three fixes deep and still fighting the
+    // geometry. The owner's call: "maybe it's best to forget the drips".
+    // The cave's answer to the music is its light and its quartz.
+    motifs: { tunnel: 0.7, crystals: 0.85 },
     // brightRms cut low ON PURPOSE: a cavern that brightens when you play
     // reads as a light bulb behind rock. The cave's whole answer to the music
     // is its crystals (tunnel flare + face shimmer) and its drips.

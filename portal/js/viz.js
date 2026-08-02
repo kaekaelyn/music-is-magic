@@ -430,7 +430,7 @@ float mCrags(vec2 p, out float upface, out float joint) {
 // handful of big rock shoulders, not a fine polygon.
 const float TUNNEL_SIDES = 9.0;
 
-float mTunnel(vec2 uv, float t, float strike, float drive,
+float mTunnel(vec2 uv, float t, float strike, float drive, vec2 lightDir,
               out float face, out float joint, out float flare,
               out vec2 rockP, out float depthOut) {
   const float SIDES = TUNNEL_SIDES;
@@ -489,7 +489,12 @@ float mTunnel(vec2 uv, float t, float strike, float drive,
   }
   vec2 n = ch2(cell * 2.7) * 2.0 - 1.0;
   n /= max(length(n), 0.001);
-  float lit = clamp(0.34 + 0.5 * dot(n, vec2(-0.45, 0.89)), 0.0, 1.0);
+  // THE SAME LIGHT THE CRYSTALS ANSWER TO. This was a fixed vector, so the
+  // rock was lit from one direction while the quartz standing on it was lit
+  // from another that swung with the playing — two lights in one cave, and
+  // the eye reads that instantly as two images composited rather than one
+  // place. It is most of why the cave looked "pasted together". One lamp.
+  float lit = clamp(0.34 + 0.5 * dot(n, lightDir), 0.0, 1.0);
   // ROUNDED, not flat. A constant value per cell is a pane of glass; wet
   // rock has a shoulder that falls away toward every crack. Shading each
   // cell by its own distance field turns the panes into lumps of stone,
@@ -598,17 +603,27 @@ float mFrost(vec2 q, float t, float grow, float strike) {
 // enumeration rewrite — still well inside the budget that rewrite bought.
 #define CRYSTAL_CLUSTERS 5
 #define CRYSTAL_SPEARS 3
-float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
-                float strike, float drive, out float tint, out float faceGlow) {
+float mCrystals(vec2 uv, vec2 vp, float t, float selClock, vec2 lightDir,
+                float strike, float drive, out float tint, out float faceGlow,
+                out float pool) {
   tint = 0.5;
   faceGlow = 0.0;
+  pool = 0.0;
   float best = 0.0;
 
-  // Coarse: few clusters, and big ones. Fine cells gave a gravel of little
-  // shards, which is the opposite of a quartz seam.
-  vec2 q = rockP * 0.42;
-  const float SPAN = TUNNEL_SIDES * 0.42;   // once around the passage
-
+  // SCREEN SPACE, seated by the rock frame. The spears used to be drawn in
+  // the tunnel's own (angle, depth) coordinates, which is a polar mapping —
+  // and a straight line in polar coordinates is a SPIRAL once it comes back
+  // to the screen. That is the whole of "warped or bent... not straight",
+  // and no amount of unwarping the lattice could fix it, because the bend was
+  // the coordinate system rather than the noise in it.
+  //
+  // So each cluster hashes a seat — an angle around the passage and a depth
+  // into it — that seat is converted to a screen position ONCE, and every
+  // spear is then drawn straight in uv. The correlation with the architecture
+  // survives, because the seat still comes from the passage and its size
+  // still comes from the passage's perspective: deep clusters are small and
+  // near the vanishing point, mouth clusters are large and out at the rim.
   for (int j = 0; j < CRYSTAL_CLUSTERS; j++) {
     float fj = float(j);
     // Each slot holds one cluster for a turn of the selection clock and then
@@ -628,24 +643,54 @@ float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
     if (env < 0.004) continue;
 
     vec2 hc = ch2(vec2(fj * 17.3, e));
-    // Rooted at a hashed point on the wall. Depth is biased toward the mouth
-    // (hc.y squared) because a cluster forty feet down the passage is a few
-    // pixels of nothing — the perspective that makes deep crystals small also
-    // makes them not worth spending a slot on.
-    vec2 root = vec2(hc.x * SPAN, 0.30 + hc.y * hc.y * 1.5);
+    // A seat on the wall: all the way around the passage, and a depth into it
+    // biased toward the mouth (hc.y squared) because a cluster forty feet down
+    // is a few pixels of nothing.
+    float ang = hc.x * 6.2831853;
+    // Biased hard toward the mouth. At 0.5 + hc.y^2 * 2.4 most seats landed
+    // deep enough that perspective shrank them to slivers, and a cave whose
+    // crystals are all far away has nothing to show.
+    float dep = 0.32 + hc.y * hc.y * 1.45;
+    // The passage's own perspective, matching mTunnel's -log(rad) * 1.15.
+    // This is both where the cluster sits and how big it is: one number, so
+    // the two can never disagree and leave a crystal floating.
+    float rad = exp(-dep / 1.15);
+    vec2 seat = vp + vec2(cos(ang), sin(ang)) * rad;
+    float persp = clamp(rad, 0.06, 1.0);
 
-    vec2 d0 = q - root;
-    // The passage is a circle: a cluster near the seam at 0 must still reach
-    // the fragments just the other side of it.
-    d0.x -= SPAN * floor(d0.x / SPAN + 0.5);
-    // The early-out that pays for the rewrite. Reject the cluster here, not
-    // inside the spear loop: a cluster covers a contiguous patch of screen, so
-    // neighbouring fragments agree about this test and the whole warp skips.
-    // 0.76 is the longest spear, plus its widest half-width, plus how far
-    // a spear's own root may be offset from the cluster's.
-    if (dot(d0, d0) > 0.5776) continue;
+    vec2 d0 = uv - seat;
+    // A pool of light AROUND the cluster, not only on it. The owner's note:
+    // the crystals read as "appearing and disappearing" rather than being
+    // illuminated, because nothing else in the frame acknowledged the light
+    // that was supposedly revealing them. A lamp lights the wall it is
+    // pointed at. Computed BEFORE the bounding test, or the halo would be
+    // clipped to the crystal's own extent and defeat the point.
+    // Tight enough to be a lamp. At 2.2 the falloff was wider than the whole
+    // aperture, so instead of a pool of light on a wall it was a milky wash
+    // over everything — which loses the darkness the pool is supposed to be
+    // carved out of.
+    float pr = dot(d0, d0) / (persp * persp * 0.85);
+    pool = max(pool, exp(-pr) * env);
+    // The early-out that pays for the enumeration. Reject the cluster here,
+    // not inside the spear loop: a cluster covers a contiguous patch of
+    // screen, so neighbouring fragments agree about this test and the whole
+    // warp skips it together.
+    if (dot(d0, d0) > persp * persp * 0.9) continue;
 
     float qtint = ch1(vec2(e, fj * 3.7));   // one mineral per cluster, not per spear
+
+    // A BED at the contact: fine crusty growth where the cluster meets the
+    // rock. Real quartz nucleates out of a druzy mat, and the spears rise from
+    // that; without it each spear simply stops at a point on bare stone, which
+    // is the other half of "pasted together". Broken by the stone's own noise
+    // so it is a crust following the surface, not a disc under the crystals.
+    // fbm at a lower frequency, softly thresholded. A single octave of value
+    // noise at 44 units aliased into visible squares — the lattice was coarser
+    // than the feature it was meant to make, so the crust read as compression
+    // blocks sitting on the rock.
+    float bedR = dot(d0, d0) / (persp * persp * 0.14);
+    float bed = exp(-bedR) * smoothstep(0.34, 0.86, fbm(uv * 16.0 + fj * 7.0));
+    best = max(best, bed * env * (0.20 + drive * 0.4));
 
     for (int k = 0; k < CRYSTAL_SPEARS; k++) {
       float fk = float(k);
@@ -657,29 +702,44 @@ float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
       vec2 hf = ch2(vec2(fj * 3.1 + fk * 7.7, e + 41.0));
       float hj = ch1(vec2(fj * 11.0 + fk * 2.9, e));
 
-      vec2 rnd = ha * 2.0 - 1.0;
-      // A third to two thirds toward +depth, the rest the seam's own hash.
-      // Bias it harder and every crystal points at the vanishing point, which
-      // turns the wall into a starburst.
-      vec2 dir = normalize(mix(rnd, vec2(0.0, 1.0), 0.35 + hj * 0.35)
-                           + vec2(0.001, 0.0));
+      // The cluster has ONE orientation and its spears fan about it. Drawing
+      // each direction independently scattered them like jackstraws, which is
+      // most of "poorly attached" — a cluster of quartz grows out of one place
+      // on the rock in roughly one direction, splaying as it goes.
+      //
+      // And that orientation LEANS OUT OF THE WALL. Crystals grow normal to
+      // the surface they nucleate on; in a passage that means inward, toward
+      // the axis. A purely hashed direction is what made the clusters read as
+      // laid on top of the stone rather than grown out of it, because nothing
+      // about them referred to the geometry they were standing on. Only a
+      // lean, not a rule — pinning them exactly to the normal turns the wall
+      // into a pincushion, which an earlier pass did — and since every seat is
+      // at a different angle, leaning each one out of its OWN wall reads as a
+      // passage rather than as a starburst.
+      vec2 inward = -vec2(cos(ang), sin(ang));
+      float ra = ch1(vec2(fj * 2.7, e + 3.0)) * 6.2831853;
+      vec2 baseDir = normalize(mix(vec2(cos(ra), sin(ra)), inward, 0.5)
+                               + vec2(0.0007, 0.0));
+      float sa = atan(baseDir.y, baseDir.x) + (ha.x - 0.5) * 1.45; // fan ~+/-40 deg
+      vec2 dir = vec2(cos(sa), sin(sa));
       vec2 side = vec2(-dir.y, dir.x);
 
-      // Spears fan out of a shared seam rather than all growing from one
-      // point. Sharing the exact root fused the three into one lump — a
-      // cluster has to read as several crystals meeting at the rock, or the
-      // word cluster is doing no work.
-      vec2 d = d0 - (hf - 0.5) * vec2(0.16, 0.10);
+      // Roots sit close together and always ON the seat, so the spears meet
+      // at the rock instead of hovering near it. The old offset was six times
+      // this and unscaled by depth, so a distant cluster's spears drifted
+      // apart by more than their own length.
+      vec2 d = d0 - (hf - 0.5) * 0.07 * persp;
       float along = dot(d, dir);
       float across = dot(d, side);
 
-      // A spear, not a needle — but shorter than the first cut, which grew
-      // them a full cell long. At this scale one unit of depth is most of the
-      // aperture's radius, so a crystal that big stops reading as a crystal
-      // and starts reading as terrain. ("Just a horizon type arc that weirdly
-      // bisects some jagged shapes" — the jagged shapes WERE the crystals.)
-      float len = 0.22 + hb.y * 0.34;
-      float wid = 0.05 + hb.x * 0.055;
+      // Sized by the passage. Everything here is multiplied by persp, so one
+      // cluster deep in the tunnel is a small cluster and one at the mouth is
+      // a large one — the perspective the seat already carries, applied to the
+      // shape as well as the position.
+      // Stouter. Long and narrow reads as a splinter; quartz is a chunky
+      // prism, and at this scale thin spears also disappear against the rock.
+      float len = (0.26 + hb.y * 0.34) * persp;
+      float wid = (0.075 + hb.x * 0.075) * persp;
 
       float uu = along / len;
       // Parallel sides, then a pyramidal cap over the last fifth — that
@@ -690,8 +750,12 @@ float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
 
       // Facet bands down the length: the prism has several faces, and each
       // one turns a slightly different way. Three bands is enough to read.
-      float band = floor((across / max(w, 0.001)) * 1.5 + 1.5);
-      float lean = (band - 1.0) * 0.55;      // -0.55, 0, +0.55
+      // Four bands, leaning harder. Three faces at +/-0.55 all caught the
+      // light within a hair of each other, so a prism shaded almost flat and
+      // read as a pale plank rather than a solid — the facets have to
+      // DISAGREE about the light or there is no volume in them.
+      float band = floor((across / max(w, 0.001)) * 2.0 + 2.0);
+      float lean = (band - 1.5) * 0.62;
       // The face normal: mostly the prism's side, tilted by which band.
       vec2 n = normalize(side * sign(across + 0.0001) + dir * lean);
 
@@ -713,9 +777,13 @@ float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
       // before anything lights it. Ambient was 0.035 and gated on nothing,
       // which is a mass you cannot see; this is gated on the nomination, so
       // it is one visible cluster rather than a haze over all of them.
-      float body = 0.05 + 0.11 * lam;
+      // Quartz in an unlit cave is nearly as dark as the rock; what you see of
+      // it is the faces that happen to be turned toward the lamp. A flat
+      // ambient made every spear a bright slab pasted over the stone, which
+      // is the opposite of being revealed by a light.
+      float body = 0.02 + 0.15 * lam * lam;
 
-      float v = env * (body + glint * (0.3 + drive * 0.85) + glint * strike * 1.5);
+      float v = env * (body + glint * (0.26 + drive * 0.6) + glint * strike * 0.85);
       if (v > best) {
         best = v;
         faceGlow = env * glint;
@@ -1080,21 +1148,51 @@ float mStars(vec2 uv, float t, float w, float strike) {
 // is a veil in front of the dark, not a light source outshining the sky.
 float mAurora(vec2 uv, float t, float drive, float kick, float pitch, out float high) {
   float x = uv.x * 1.3;
-  float hem = 0.02 + fbm(vec2(x * 1.1 + t * 0.05, 3.7)) * 0.3 + kick * 0.05;
+  // The hem sits LOW. It used to run 0.02..0.32, and since the aperture only
+  // reaches about 0.35, the whole curtain was crushed into the top sliver of
+  // the sky with nowhere to climb — a large part of why there was so little
+  // of it to see. A curtain hangs from high and its hem falls near the
+  // horizon; that is the shape that fills a sky.
+  float hem = -0.22 + fbm(vec2(x * 1.1 + t * 0.05, 3.7)) * 0.26 + kick * 0.05;
   float fold = fbm(vec2(x * 4.0 + t * 0.08, uv.y * 0.6));
-  float body = smoothstep(hem - 0.02, hem + 0.16, uv.y)
-             * (1.0 - smoothstep(0.3, 0.52, uv.y));
+  // RAYS. A curtain is not a wash — it is a palisade of near-parallel shafts
+  // standing along the field lines, and that structure is most of why the eye
+  // reads "aurora" instead of "green fog". Their absence is the largest part
+  // of why this motif was too subtle to notice. They drift sideways on their
+  // own slow clock, so the curtain shimmers along its length rather than
+  // pulsing as one block.
+  float rays = smoothstep(0.30, 0.80, fbm(vec2(x * 9.5 + t * 0.07, 11.0)));
+  // Taller. It used to fade out by uv.y 0.52, which left it hugging the
+  // horizon in the bottom third of the sky; a curtain that does not climb
+  // has nowhere to put the red-violet crown.
+  float body = smoothstep(hem - 0.02, hem + 0.12, uv.y)
+             * (1.0 - smoothstep(0.24, 0.52, uv.y));
   // How far up the curtain this fragment sits, for the colour gradient in
   // main: real aurora runs green at the bottom and red-violet at the top,
   // because different altitudes are different excited gases.
-  high = clamp((uv.y - hem) / 0.42, 0.0, 1.0);
+  high = clamp((uv.y - hem) / 0.52, 0.0, 1.0);
+  // The hem BURNS. The lower edge of a curtain is where the excited band is
+  // densest and it is far brighter than the body above it — a uniform veil
+  // throws away the one feature everybody recognises.
+  float edge = smoothstep(0.13, 0.0, abs(uv.y - hem - 0.045));
   // The aurora answers PITCH: bright, high playing wakes it, low dark
   // playing leaves only a whisper on the horizon — and loudness then sets
   // how hard the woken curtain burns. Two different questions asked of the
   // same music, which is what makes the sky feel attentive.
-  float wake = 0.1 + 0.9 * smoothstep(0.45, 0.62, pitch);
-  return body * (0.25 + smoothstep(0.35, 0.75, fold) * 0.75)
-       * (0.45 + drive * 0.8) * wake;
+  //
+  // The floor was 0.1, which is not a whisper, it is invisible — and the
+  // owner's measurement says the top of a piano only drives the centroid to
+  // about 0.76, so the old 0.45-0.62 ramp sat in the top third of what the
+  // instrument can actually reach and ordinary playing never left the floor.
+  // Lower, wider, and off a floor you can see. (The scale itself still wants
+  // rebasing once the bass and mid readings exist — see MOODS.md.)
+  float wake = 0.3 + 0.7 * smoothstep(0.32, 0.58, pitch);
+  float v = body * (0.3 + smoothstep(0.35, 0.75, fold) * 0.7)
+          * (0.32 + rays * 0.9);
+  v += edge * body * 0.85;
+  // An onset ripples the hem AND flares the whole curtain briefly: a
+  // substorm brightening, which is the moment worth waiting for.
+  return v * (0.5 + drive * 0.9 + kick * 0.5) * wake;
 }
 
 void main() {
@@ -1339,9 +1437,16 @@ void main() {
     // read as holes with snow on the far side.
     skyward = max(skyward, upface * (1.0 - hasRidge));
   }
+  // Cave's one lamp. Hoisted above the tunnel because the rock and the quartz
+  // must be lit by the SAME vector — its angle is pitch, so the low end of the
+  // keyboard finds different faces than the top does, and it swings further
+  // the longer you play.
+  float caveLa = u_centroid * 4.2 + u_flow * 0.9;
+  vec2 caveLight = vec2(cos(caveLa), sin(caveLa));
+
   if (W_tunnel > 0.0) {
     float face, joint, flare;
-    float lit = mTunnel(uv, u_t, u_pulse, clamp(u_sparkle, 0.0, 1.0),
+    float lit = mTunnel(uv, u_t, u_pulse, clamp(u_sparkle, 0.0, 1.0), caveLight,
                         face, joint, flare, rockP, rockDepth);
     haveRock = 1.0;
     lit = clamp(lit * (0.72 + 0.5 * f), 0.0, 1.0);
@@ -1369,16 +1474,41 @@ void main() {
     // pinned at 0, so the light never swung past whatever the centroid gave
     // it, and floor(selClock) never left its first epoch — the same clusters
     // were nominated forever. A clock that does not advance is not a clock.
-    float la = u_centroid * 4.2 + u_flow * 0.9;
-    vec2 lightDir = vec2(cos(la), sin(la));
-    crystal = mCrystals(rockP, u_t, u_flow * 0.5, lightDir,
-                        u_pulse, clamp(u_sparkle, 0.0, 1.0), crystalTint, faceGlow);
+    float pool;
+    // The same vanishing point mTunnel uses. If these ever disagree the
+    // crystals sit in a different passage from the rock.
+    crystal = mCrystals(uv, vec2(-0.16, -0.07), u_t, u_flow * 0.5, caveLight,
+                        u_pulse, clamp(u_sparkle, 0.0, 1.0),
+                        crystalTint, faceGlow, pool);
     // Fade into the passage with the rock they grow on.
     crystal *= mix(1.0, rockDepth, haveRock) * W_crystals;
     lift += crystal * 0.5;
     spec += faceGlow * W_crystals * (0.6 + u_sparkle * 1.4 + u_pulse * 1.8);
     site = max(site, faceGlow);
     own = max(own, W_crystals);
+
+    // NOTHING IS LIT BUT WHAT THE LIGHT FINDS. The owner's brief: you should
+    // not be able to see anything in the cave by default, and when something
+    // is illuminated you see the crystals there AND the rock around them.
+    // Until now the passage was evenly visible and only the quartz responded,
+    // which is why the crystals read as switching on and off rather than as
+    // being revealed — a lamp lights the wall it is pointed at, and this one
+    // lit nothing.
+    //
+    // Applied to the rock after the tunnel has drawn it, so the pool carves
+    // the darkness back rather than the tunnel having to know about crystals.
+    if (W_tunnel > 0.0) {
+      float seen = clamp(pool, 0.0, 1.0);
+      g *= mix(0.08, 1.0, seen);
+      // The pool has to LIGHT the rock, not merely fail to darken it. Leaving
+      // g alone inside the pool still left the wall reading as unlit stone at
+      // the palette's dark end, so the halo looked like a coloured smudge
+      // rather than a lamp finding a wall. Lift carries it up the ramp and
+      // spec puts a wet sheen where the light actually lands, which is what
+      // makes the surrounding rock legible — the owner's whole point.
+      lift += seen * seen * 0.30 * W_tunnel;
+      spec += seen * seen * 0.26 * W_tunnel * (0.5 + u_sparkle * 0.8);
+    }
   }
   if (W_snow > 0.0) {
     // Snow is the one motif that goes straight to the top of the ramp: it is
@@ -1550,7 +1680,11 @@ void main() {
   qz = mix(qz, vec3(0.55, 0.5, 0.58), smoothstep(0.45, 0.6, crystalTint));
   qz = mix(qz, vec3(1.0, 0.85, 0.5), smoothstep(0.68, 0.8, crystalTint));
   qz = mix(qz, vec3(0.5, 0.9, 0.92), smoothstep(0.9, 0.97, crystalTint));
-  col += qz * clamp(crystal, 0.0, 1.4) * 0.95;
+  // Soft rolloff, not a hard clamp. clamp() at 1.4 meant any face catching the
+  // lamp went to flat white and took the mineral's colour with it — amethyst,
+  // citrine and aqua all arrived as the same blown highlight, which is both
+  // uglier and less like quartz than letting the colour survive the brightness.
+  col += qz * (1.0 - exp(-crystal * 1.35)) * 0.9;
   // Storm. The bolt is very nearly white; the flash lifts the whole sky and
   // leaves the bruised blue-violet that says a big one just went off behind
   // the cloud, and low, dark playing keeps that bruise in the air.
@@ -1574,7 +1708,10 @@ void main() {
   float band = clamp(aurHigh * 0.75 + (u_centroid - 0.42) * 1.5, 0.0, 1.0);
   vec3 aurTint = mix(mix(aurLow, aurMid, smoothstep(0.0, 0.55, band)),
                      aurTop, smoothstep(0.5, 1.0, band));
-  col += aurTint * clamp(aur, 0.0, 1.0) * 0.75;
+  // Additive and generous. At 0.75 of a clamped value the curtain could never
+  // be brighter than the stars behind it, which is backwards on the nights
+  // worth looking at.
+  col += aurTint * clamp(aur, 0.0, 1.4) * 1.05;
   col += u_c4 * clamp(spec, 0.0, 1.0) * (0.16 + u_gloss * 0.5);
   // Wisps are their own small light sources, added rather than mixed: they
   // sit in front of the trunks and the mist, and nothing behind them dims
