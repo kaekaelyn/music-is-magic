@@ -569,7 +569,158 @@ responsiveness.
 
 ## night
 
-*Awaiting reference.*
+**Reference.** Four images. (1) a deep teal-blue starfield with warm gold nebula
+cloud and a shooting star. (2)–(4) auroras: green and violet curtains over
+starfields, one with a magenta crown.
+
+Owner's direction:
+
+> *"I would genuinely love if we had more of the color palate in #1 in the Night
+> mood."*
+>
+> *"Not sure if it's fixed now, but in the past it was really difficult to see the
+> auroras. I'm not certain, but it might have more to do with the interpretation
+> of the mic input than a problem with the visualization itself … it might affect
+> a lot more than just Night."*
+
+### Already built: the shooting star
+
+Image 1's meteor exists. `mStars` throws one on a strong onset, and the streak
+*travels* as the pulse decays — `(1 - strike)` is distance flown, so the flight
+takes about a second for free. Position, steepness and direction are all hashed
+from a slow clock so successive onsets rake the sky from different quarters, and
+`strike²` keeps soft playing from spending them (viz.js:953–973). Nothing to do.
+
+### The aurora visibility question — the known cause is already fixed
+
+The owner's memory is of a real bug, and it was found and fixed. From the
+composite, in the code's own words:
+
+> *"Aurora colour is the motif's OWN, not the theme palette's — the same licence
+> snow takes by being white. **A palette-tinted aurora over a blue sky is a
+> slightly bluer blue, which is why it was so hard to see at all.**"*
+> (viz.js:1374–1376)
+
+The aurora now carries oxygen green, cyan and a red-violet crown of its own
+(viz.js:1380–1382). So *that* cause is gone. If it is still hard to see, it is a
+different mechanism — and there is a candidate.
+
+### The remaining dependency: the aurora is gated on pitch
+
+```
+float wake = 0.1 + 0.9 * smoothstep(0.45, 0.62, pitch);   // viz.js:996
+```
+
+The curtain sits at **10% brightness** until the spectral centroid clears 0.45,
+reaching full only past 0.62. On the project's own centroid scale
+(`60 Hz → 8 kHz`, log, features.js:20–22) those are:
+
+| `pitch` | frequency | aurora |
+|---|---|---|
+| 0.45 | **≈ 542 Hz** | still at 10% |
+| 0.62 | **≈ 1246 Hz** | full |
+
+Centroid also slides the curtain's *colour* along green→violet (viz.js:1383). So
+a systematically low centroid gives a dim curtain stuck at green — which is
+exactly "difficult to see", and it would look like a visualization problem while
+being an input-interpretation problem. **The owner's instinct is well founded.**
+
+### Why the centroid is room-dependent — two concrete causes
+
+Both are in `features.js`, in the sum at lines 82–89.
+
+1. **The sum runs past its own scale.** `for (let i = 1; i < this.bins; i++)`
+   covers every bin to Nyquist — about 24 kHz at a 48 kHz rate — while the scale
+   maps 60 Hz to 8 kHz. Everything above 8 kHz can only push the result off the
+   top of the scale it is about to be measured on.
+
+2. **The magnitudes are dB-scaled, with no noise gate.** `m = freq[i] / 255`
+   comes from `getByteFrequencyData`, which maps roughly −100 dB…−30 dB onto
+   0…255. A bin at −70 dB still contributes `m ≈ 0.43`. Near-silent bins
+   therefore carry real weight in `num += i * m`, and the centroid becomes partly
+   a measure of *how much of the spectrum sits above the room's noise floor*
+   rather than where the musical energy is.
+
+Together these make `pitch` a function of the room and the microphone as much as
+of the playing. A quiet room with a close mic and a noisy room with a distant one
+will not agree, and the aurora will differ between them for no visible reason.
+
+**Which direction it errs cannot be determined from the code** — it depends on
+the actual noise floor. Do not guess, and do not "fix" it blind.
+
+### Measure it first: put pitch on the HUD
+
+The broadcast HUD currently shows eye, mood, audio, control, render and frame
+(broadcast.html:149–157) — no pitch. Adding one row is a few lines and turns an
+unanswerable question into a thirty-second test: play normally, read the number.
+
+- If it sits around 0.5–0.7 while playing, `wake` is behaving and the aurora
+  problem is elsewhere.
+- If it sits below 0.45, the aurora is at 10% for most of a performance and the
+  gate is the bug — fix the centroid, not the motif.
+
+Do this **before** touching either the gate or the centroid. It is the cheapest
+measurement in the project and it decides which of two different repairs is
+correct.
+
+### The owner is right that this is not only night
+
+`u_centroid` also drives the aurora's colour band (viz.js:1383), the ray fan's
+lean in `mRays` (sunshine, forest), `mFacets`' pitch (ice), the storm tint
+(viz.js:1370), and every theme's `shiftCentroid` mapping. A centroid that reads
+wrong is a quiet, global miscalibration — which is why it is worth measuring
+properly rather than patching per-mood.
+
+### A dead line, while in here
+
+`mic.js:88` sets `analyser.smoothingTimeConstant = 0.75`, but
+`FeatureExtractor`'s constructor sets it to `0.55` (features.js:31) and
+`broadcast.js` builds the extractor *after* the mic starts (broadcast.js:201),
+so 0.55 always wins. Not the bug, but it will mislead the next person to read it.
+Pick one and delete the other.
+
+### The palette ask — and why it is safe
+
+Night's palette is `#030714 → #101d40 → #1c3468 → #4467af → #ecf3ff`: blue at
+every step, with no warm tone anywhere. Image 1's gold is simply absent.
+
+**Warming it cannot hurt the auroras**, because the aurora no longer takes its
+colour from the palette — that was the fix quoted above. Palette changes reach
+the field and the stars (`mStars` returns a scalar and is coloured in `main`),
+which is exactly where image 1's warmth lives: gold stars and gold nebula cloud
+against a deep teal ground.
+
+Two moves, both data-only and cheap to iterate:
+- **Warm the top.** Push `c4` off pure white toward a gold-white so stars and the
+  brightest points carry image 1's warmth.
+- **Teal the ground.** Image 1's dark is blue-*green*; night's `#101d40` and
+  `#1c3468` are pure blue. A small green lean gives the teal without lightening.
+
+Keep the aurora references in mind as a limit rather than a target: the palette
+should not go so warm that a green curtain over it reads as a colour clash.
+
+### Feel
+
+| | |
+|---|---|
+| **Quiet is** | Fixed stars — they do not wander, deliberately; *"a sky where the stars wander is a screensaver"* — a faint band of more, and a low green whisper on the horizon. |
+| **The music is** | Meteors on real onsets, raking from a different quarter each time. Bright, high playing wakes the curtain and throws violet up the sky; low dark playing leaves it a green wash. Two different questions asked of the same music. |
+
+### Changes
+
+**Data** (`portal/assets/themes/night/theme.json`)
+- Palette: warm `c4` toward gold-white; lean `c1`/`c2` slightly green for teal.
+  Iterate against image 1; stop before the aurora greens clash.
+
+**Engine** — measurement first, then at most one repair
+1. Add a `pitch` row to the broadcast HUD. Do this first.
+2. Only if the reading is low: bound the centroid sum to the scale it is mapped
+   onto (stop at 8 kHz, not Nyquist) and gate out bins near the noise floor.
+   Re-measure. Expect this to shift several moods, not just night.
+3. Resolve the duplicated `smoothingTimeConstant`.
+
+Not doing: retuning `wake` to compensate for a centroid that has not been
+measured. That would bake the miscalibration in and spread it further.
 
 ## ocean
 
