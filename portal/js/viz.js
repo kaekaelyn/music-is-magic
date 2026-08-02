@@ -1161,7 +1161,21 @@ float mRidge(vec2 uv, float t, float flow, float drive,
     float ang = (0.45 + fi * 0.275) * u_angular; // fi 0 far/soft, fi 2 near/angular
     float n = mix(noise(s1), lnoise(s1), ang) * 0.72
             + mix(noise(s2), lnoise(s2), ang) * 0.28;
-    float ridged = 1.0 - abs(2.0 * n - 1.0);            // peaks, not dunes
+    // THE FOLD, and it is the fold that decides peak or dune — not the noise
+    // going into it. An abs() fold has a CREASE at its apex however smooth
+    // its input is: softening the noise alone gave curved
+    // flanks meeting at a sharp point, which is a spike with rounded sides and
+    // was the owner's "too peaky rather than the dunes I was imagining".
+    //
+    // Squaring instead of taking the modulus turns the same fold into a
+    // parabola — a crest with a continuous tangent through the top, which is
+    // what a wind-built pile of sand has and what rock does not. u_angular
+    // chooses between them, so one silhouette is a range or a dune field.
+    float fold = 2.0 * n - 1.0;
+    float ridged = mix(1.0 - fold * fold, 1.0 - abs(fold), u_angular);
+    // Sand is also LOWER and smoother than stone: a dune field has less relief
+    // than a range, and no subsidiary spurs to speak of.
+    ridged *= mix(0.74, 1.0, u_angular);
     // Tried and rejected: falling at different rates either side of the crease,
     // to get the long-slope-and-steep-face asymmetry a real ridgeline has. The
     // gentle side has to be clamped where it would go negative, and that clamp
@@ -1204,7 +1218,13 @@ float mRidge(vec2 uv, float t, float flow, float drive,
     // The constants are rebalanced (0.7/0.52 -> 0.64/0.48) to hold the mean
     // multiplier where it was, because the complaint here has never been
     // height: "adjust the lower end, don't exaggerate the upper".
-    ridged = clamp(ridged * (0.64 + 0.48 * fine) + fine * fine * 0.07, 0.0, 1.5);
+    //
+    // Scaled by u_angular as well: the spurs are what say "rock has detail all
+    // the way down its sides", and sand has the opposite property — a dune is
+    // smooth between its crests, and any texture on it belongs to the ripples
+    // motif rather than the silhouette.
+    ridged = clamp(ridged * mix(1.0, 0.64 + 0.48 * fine, u_angular)
+                 + fine * fine * 0.07 * u_angular, 0.0, 1.5);
     // Heights live where the aperture actually is. The lens is wide and
     // short, so a range built for a square canvas puts its whole silhouette
     // off the top and leaves only the valley floor in shot.

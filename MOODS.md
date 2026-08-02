@@ -1303,10 +1303,16 @@ An onset drops the threshold: the gush is the eruption.
 
 ## desert / night-desert
 
-**Dunes are ridgelines that are not angular.** A new `angular` param scales the
-`lnoise` blend inside `mRidge`, so `angular: 0.1` folds the same silhouette
-from smooth noise and rock becomes sand for one number — no new geometry at
-all. Blowing sand off a crest is spindrift, which is why `snow` is on in a
+**Dunes are ridgelines that are not angular** — but the noise was only half of
+it. `angular` first scaled the `lnoise` blend alone, which softened the flanks
+and left every crest a sharp point: the owner's "too peaky rather than the
+dunes I was imagining". The fold itself was the culprit. `1 - abs(2n-1)` has a
+crease at its apex however smooth the input is; squaring instead of taking the
+modulus makes the same fold a parabola, a crest with a continuous tangent
+through the top, which is what a wind-built pile of sand has and rock does not.
+`angular` now chooses between the two folds, drops the relief, and mutes the
+subsidiary spurs — so one silhouette is either a range or a dune field, and at
+`angular: 1` the expression reduces exactly to what mountain had before. Blowing sand off a crest is spindrift, which is why `snow` is on in a
 desert: that motif means "what the wind tears off the top" and never cared what
 the material was. `ripples` combs the near sand with ridges that bend with the
 ground rather than the frame.
