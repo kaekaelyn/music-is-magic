@@ -172,6 +172,38 @@ export const BUILTIN = {
     motifs: { rays: 0.95, dapple: 0.3, clouds: 0.55 },
     mappings: { warpBass: 0.15, sparkleTreble: 1.0, pulseFlux: 1.15, shiftCentroid: 0.2 },
   },
+
+  // --- SUB-MOODS ------------------------------------------------------------
+  //
+  // A sub-mood is just a theme. No new machinery was needed for this: the
+  // control panel and the broadcast HUD both build their buttons from
+  // index.json, and every theme carries every motif key so moving between two
+  // of them is a plain lerp. A folder and one line in index.json is the whole
+  // mechanism, and the prefix in the name is what will group them in the panel
+  // when there are enough of them to want grouping.
+
+  // Rain seen from inside a wood with the sun still on it. Almost exactly
+  // forest plus falling water — which is why this one needed no shader work at
+  // all: forest already owns the canopy, the shafts and the trunks, and rain
+  // owns the drips. The palette's top step goes warm, because a sunshower is
+  // lit by low gold light and that is most of what separates it from weather.
+  'rain-sunshower': {
+    palette: ['#0a1608', '#33301f', '#3a7a48', '#a8c85e', '#fff1c4'],
+    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.5, gloss: 0.15, glint: 0.18, canopy: 0.9, slant: 0.12, base: 0.46, drift: 0.35, travel: 0.5, travelX: 0.26 },
+    motifs: { columns: 0.7, dapple: 0.72, rays: 0.9, wisps: 0.3, drips: 0.6 },
+    mappings: { warpBass: 0.45, sparkleTreble: 1.2, pulseFlux: 1.0, shiftCentroid: 0.3 },
+  },
+
+  // The far side of a storm. Rain thinning, the last of the thunder, cloud
+  // still dark enough to put a bow against — a rainbow needs weather behind it
+  // or it is a decal on a blue sky. Lighter than rain proper at every step,
+  // because the whole subject is a sky in the act of clearing.
+  'rain-rainbow': {
+    palette: ['#0d1014', '#262c33', '#4e5862', '#93a0a8', '#e8eef2'],
+    params: { scale: 2.2, speed: 0.45, warp: 1.0, sparkle: 0.5, gloss: 0.28, slant: 0.22, base: 0.62, drift: 0.7, travel: 0.2, travelX: 0.08 },
+    motifs: { columns: 0.12, drips: 0.42, storm: 0.2, clouds: 0.5, rainbow: 0.95 },
+    mappings: { warpBass: 0.35, sparkleTreble: 1.0, pulseFlux: 1.0, shiftCentroid: 0.2 },
+  },
 };
 
 // Motifs are the answer to "why does every theme look like the same fog in a

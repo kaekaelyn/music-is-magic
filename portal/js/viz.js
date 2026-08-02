@@ -540,33 +540,70 @@ float mTunnel(vec2 uv, float t, float strike, float drive, vec2 lightDir,
 // along three fixed axes 60 degrees apart and take the strongest. Stretched
 // noise gives needles pointing along its long axis, and three needle
 // directions read as the hexagonal habit of ice.
+// One frond: a spine running along a, with barbs growing out across it.
+//
+// The barbs are MULTIPLIED into the spine, not maxed with it, and that is the
+// whole difference between a fern and a crosshatch — a barb may only exist
+// where a spine already does. Maxing three stretched ridges (what this was)
+// gives streaks that cross each other, which is why the owner read the old
+// frost as "water moving beneath the ice": long soft flowing filaments with
+// no structure hanging off them.
+//
+// lnoise, not noise. Smooth interpolation rounds every filament into a blur;
+// frost is sharp, and a dendrite is a series of straight runs meeting at
+// angles. Same primitive the ridgelines and the lightning use.
+float frond(vec2 q, vec2 a, vec2 b, float ph) {
+  // Slow along the spine, fast across it: ridges run in the direction the
+  // field varies least.
+  float s = 1.0 - abs(2.0 * lnoise(vec2(dot(q, a) * 1.7 + ph, dot(q, b) * 8.5)) - 1.0);
+  s *= s;   // narrow it — a spine is a line, not a band
+  // The same trick turned ninety degrees and finer, so shoots run out
+  // sideways at a regular pitch along the spine's length.
+  float bb = 1.0 - abs(2.0 * lnoise(vec2(dot(q, b) * 3.1 + ph, dot(q, a) * 23.0)) - 1.0);
+  // A third generation on the barbs themselves: dendrites have dendrites, and
+  // it is that recursion the eye reads as frost rather than as a feather.
+  float tw = 1.0 - abs(2.0 * lnoise(vec2(dot(q, a) * 41.0, dot(q, b) * 37.0)) - 1.0);
+  // The spine keeps most of its own value; the barbs BRIGHTEN it rather than
+  // gating it. At a floor of 0.30 the product of three ridged fields survived
+  // only at isolated peaks, so the fronds broke into disconnected white
+  // specks — frost has to be continuous filaments or it is just dust.
+  return s * (0.62 + 0.38 * bb) + s * bb * tw * 0.28;
+}
+
 float mFrost(vec2 q, float t, float grow, float strike) {
+  // Six-fold habit: three spine directions 60 degrees apart, each with its own
+  // perpendicular for its barbs. Ice grows on its lattice, and three axes is
+  // what makes a hexagonal one.
   const vec2 a0 = vec2(1.0, 0.0);
+  const vec2 b0 = vec2(0.0, 1.0);
   const vec2 a1 = vec2(0.5, 0.866);
+  const vec2 b1 = vec2(-0.866, 0.5);
   const vec2 a2 = vec2(-0.5, 0.866);
+  const vec2 b2 = vec2(-0.866, -0.5);
+
   float v = 0.0;
-  v = max(v, 1.0 - abs(2.0 * noise(vec2(dot(q, a0) * 7.0, dot(q, a1) * 1.1)) - 1.0));
-  v = max(v, 1.0 - abs(2.0 * noise(vec2(dot(q, a1) * 7.0, dot(q, a2) * 1.1 + 4.0)) - 1.0));
-  v = max(v, 1.0 - abs(2.0 * noise(vec2(dot(q, a2) * 7.0, dot(q, a0) * 1.1 + 9.0)) - 1.0));
-  // A second, finer generation branching off the first — dendrites have
-  // dendrites, and it is the branching that says frost rather than cracks.
-  float fine = 1.0 - abs(2.0 * noise(q * 13.0 + 21.0) - 1.0);
-  v = v * 0.84 + fine * fine * 0.22;
+  v = max(v, frond(q, a0, b0, 0.0));
+  v = max(v, frond(q, a1, b1, 4.0));
+  v = max(v, frond(q, a2, b2, 9.0));
 
   // Where it is growing right now. Patches run on their own phase, so the
   // field crazes over here while it clears there, and an onset shoves every
   // front outward at once — the crackle.
   //
-  // The front rides HIGH: a max of three ridged noises is close to 1 almost
-  // everywhere, so a threshold anywhere near the middle of the range passes
-  // the whole field and the ice reads as a white sheet with ink blots in it.
-  // Only the top slice is filaments.
+  // The front also travels ALONG the spines rather than only rising in place:
+  // adding a term that varies with position means the threshold clears at the
+  // root of a frond before its tip, so a frond extends outward instead of
+  // fading in whole. That is the "they don't move or extend like I would
+  // expect" note — the old front was a single number applied everywhere at
+  // once, which can only fade.
   float patch = fbm(q * 0.9 + 5.0);
-  float front = 1.03 - 0.28 * (0.5 + 0.5 * sin(grow * 0.55 + patch * 7.0))
+  float reach = 0.5 + 0.5 * sin(grow * 0.55 + patch * 7.0);
+  float along = fbm(q * 0.5 + 17.0);
+  float front = 0.92 - 0.34 * reach - 0.12 * (reach - along)
               - strike * 0.09;
   // A tight threshold, deliberately: frost has hard edges, and a soft one
   // is what made this read as foam.
-  return smoothstep(front, front + 0.05, v);
+  return smoothstep(front, front + 0.045, v);
 }
 
 // Quartz. Big thick spears in a few clusters, and — the point of the whole
@@ -846,6 +883,54 @@ float mStorm(vec2 uv, float t, float strike, out float flash) {
              * step(0.0, below) * smoothstep(-0.3, -0.02, uv.y) * step(0.45, fseed);
 
   return (core + fork * 0.75) * hit;
+}
+
+// A rainbow.
+//
+// Its colour is its OWN — the same licence the aurora, the snow and the quartz
+// minerals take, and here it is not a licence but a necessity: a rainbow is
+// the entire spectrum by definition, and no five-step palette can hold one.
+//
+// Geometry is a large circle centred well below the frame, so what falls
+// inside the aperture is the crown of a big arc rather than a small hoop
+// sitting in the sky. Red outside, violet inside, and a faint reversed
+// secondary further out, because the second bow is most of what makes people
+// believe the first one.
+vec3 bowSpectrum(float x) {
+  vec3 c = mix(vec3(0.95, 0.28, 0.22), vec3(0.98, 0.70, 0.20), smoothstep(0.00, 0.26, x));
+  c = mix(c, vec3(0.93, 0.94, 0.34), smoothstep(0.20, 0.44, x));
+  c = mix(c, vec3(0.32, 0.86, 0.44), smoothstep(0.40, 0.62, x));
+  c = mix(c, vec3(0.26, 0.56, 0.96), smoothstep(0.56, 0.82, x));
+  c = mix(c, vec3(0.58, 0.32, 0.88), smoothstep(0.76, 1.00, x));
+  return c;
+}
+
+vec3 mRainbow(vec2 uv, float t, float drive, out float amt) {
+  vec2 c = vec2(0.04, -1.24);
+  float r = length(uv - c);
+  const float R = 1.42;
+  const float WIDTH = 0.085;
+
+  // The primary. A narrow annulus, softened at both edges so it sits IN the
+  // air rather than being drawn on the glass.
+  float d = (r - R) / WIDTH;
+  float primary = smoothstep(1.0, 0.0, abs(d));
+  // Only the crown: an arc, not a hoop. Fades out as it reaches down toward
+  // where its feet would be.
+  float crown = smoothstep(-0.30, 0.06, uv.y);
+  // Broken slightly along its length, so it is weather and not a decal.
+  float patchy = 0.72 + 0.28 * fbm(vec2(atan(uv.x - c.x, uv.y - c.y) * 2.4 + t * 0.03, 5.0));
+
+  vec3 col = bowSpectrum(clamp(d * 0.5 + 0.5, 0.0, 1.0)) * primary;
+
+  // The secondary, wider, fainter, and with its colours reversed — the
+  // physics of a second internal reflection, and the detail that sells it.
+  float d2 = (r - R * 1.19) / (WIDTH * 1.7);
+  float secondary = smoothstep(1.0, 0.0, abs(d2)) * 0.28;
+  col += bowSpectrum(clamp(0.5 - d2 * 0.5, 0.0, 1.0)) * secondary;
+
+  amt = (primary + secondary) * crown * patchy * (0.55 + drive * 0.55);
+  return col;
 }
 
 // A ridgeline: layered horizons, near ones darker than far ones.
@@ -1712,6 +1797,15 @@ void main() {
   // be brighter than the stars behind it, which is backwards on the nights
   // worth looking at.
   col += aurTint * clamp(aur, 0.0, 1.4) * 1.05;
+  // The bow goes on last, over the weather it belongs to. Additive, because
+  // it is light in the air rather than a surface — and it reads best against
+  // the dark cloud a passing storm leaves behind, which is the whole reason
+  // it belongs to rain.
+  if (W_rainbow > 0.0) {
+    float bowAmt;
+    vec3 bow = mRainbow(uv, u_t, u_rms, bowAmt);
+    col += bow * bowAmt * W_rainbow * 0.85;
+  }
   col += u_c4 * clamp(spec, 0.0, 1.0) * (0.16 + u_gloss * 0.5);
   // Wisps are their own small light sources, added rather than mixed: they
   // sit in front of the trunks and the mist, and nothing behind them dims

@@ -1,0 +1,52 @@
+{
+  "name": "rain-rainbow",
+  "palette": [
+    "#0d1014",
+    "#262c33",
+    "#4e5862",
+    "#93a0a8",
+    "#e8eef2"
+  ],
+  "params": {
+    "scale": 2.2,
+    "speed": 0.45,
+    "warp": 1.0,
+    "sparkle": 0.5,
+    "gloss": 0.28,
+    "glint": 0,
+    "canopy": 0,
+    "slant": 0.22,
+    "base": 0.62,
+    "drift": 0.7,
+    "travel": 0.2,
+    "travelX": 0.08,
+    "travelY": 0
+  },
+  "mappings": {
+    "warpBass": 0.35,
+    "sparkleTreble": 1.0,
+    "pulseFlux": 1.0,
+    "shiftCentroid": 0.2
+  },
+  "motifs": {
+    "rays": 0,
+    "columns": 0.12,
+    "dapple": 0,
+    "drips": 0.42,
+    "facets": 0,
+    "caustics": 0,
+    "crags": 0,
+    "snow": 0,
+    "tunnel": 0,
+    "ridge": 0,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0,
+    "aurora": 0,
+    "clouds": 0.5,
+    "crystals": 0,
+    "storm": 0.2,
+    "rainbow": 0.95
+  },
+  "textures": []
+}

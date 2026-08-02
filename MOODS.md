@@ -101,8 +101,50 @@ things sample it, weather keeps the smooth one.
   (site nomination in the rays block); wisps carry a triangular zigzag over
   the orbit — corners, per the reference.
 
+## Second pass — the owner's shape notes, and the reference backlog
+
+Judged against screenshots this time (`npm run shots`), not reasoning.
+
+- **mock instrument** — the HUD gains two sliders and a strike. An animated
+  stand-in cannot answer "is this too subtle" because you cannot aim it; the
+  register slider IS the centroid, so a motif gated on pitch can now be walked
+  through its whole range deliberately. `m` toggles, `s` strikes.
+- **aurora** — was invisible for three compounding reasons: a wake floor of
+  0.1, a hem crushed into the top sliver of the aperture, and no internal
+  structure at all. Now has rays, a burning hem, a low anchor. Night's `base`
+  drops 0.66 → 0.3 so there is a dark sky for it to be bright against.
+- **mountain** — silhouette made opaque (it mixed at 0.88, which was the
+  "glassy edges you can see the drifts through"); the sky is painted as its own
+  material, pale at the horizon and cold blue above; snow moved from the crest
+  band to an altitude line, since the crest band is a constant offset and drew
+  a uniform white stroke along every ridge.
+- **cave** — one lamp for rock and quartz alike (two lights was most of "pasted
+  together"); spears drawn in screen space, since a straight line in the
+  tunnel's polar frame is a spiral on screen; clusters lean out of their own
+  wall; a druzy bed at the contact; light pools on the rock AROUND the
+  crystals; dark by default; drips removed.
+- **frost** — spines with barbs multiplied into them, three generations deep,
+  on `lnoise`. The old version maxed three smooth stretched ridges, which is
+  why it read as "water moving beneath the ice" — streaks with nothing hanging
+  off them.
+- **ocean / night palettes**, **forest motes and wisp zigzag** — as specced in
+  the first pass.
+- **sub-moods** — `rain-sunshower` and `rain-rainbow` exist as theme folders.
+  No new machinery was required, exactly as predicted: a folder plus one line
+  in `index.json` gives a control-panel button and a morph. The **rainbow** is
+  a new motif carrying its own spectrum, with a faint reversed secondary.
+
+**Perf:** cave is now 1.54× the cheapest mood (was 1.31×) — the light pool is
+evaluated for every cluster before the bounding early-out, by necessity, or the
+halo would be clipped to the crystal's own extent. Measured under software
+rendering, so treat it as a ceiling rather than a real frame cost.
+
+**Guard added:** the validator now rejects a backtick inside the shader source.
+Two separate debugging rounds were lost to one in a comment ending the template
+literal; it is a total, silent failure with a misleading error.
+
 Still open: slow weather follower (rain/sunshine), sunshine coverage range,
-centroid rescale (awaiting mid + bass readings), sub-mood folders, rainbow.
+centroid rescale (awaiting mid + bass readings).
 
 **First look checklist:** mountain silhouette straight-flanked? cave crystals
 straight? bolts jagged with attached forks? frost dominant when grown? foam

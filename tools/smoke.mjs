@@ -11,7 +11,19 @@
 // The portal itself stays dependency-free; Playwright is dev-only tooling and
 // nothing under portal/ knows this file exists.
 
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startPortal, launch } from './mock-portal.mjs';
+
+// The count of moods is data, not a constant. Reading it here means adding a
+// theme folder — which is all a sub-mood is — cannot fail a test that claims
+// to be checking "a button per theme in index.json" while comparing against a
+// number somebody typed.
+const THEME_NAMES = JSON.parse(readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../portal/assets/themes/index.json'),
+  'utf8'
+));
 
 let chromium;
 try {
@@ -193,7 +205,11 @@ try {
     const buttons = page.locator('#buttons button');
     await buttons.first().waitFor({ timeout: 5000 });
     const count = await buttons.count();
-    check(count === 8, 'a button per theme in index.json', `got ${count}`);
+    check(
+      count === THEME_NAMES.length,
+      'a button per theme in index.json',
+      `got ${count}, index.json lists ${THEME_NAMES.length}`
+    );
 
     await page.waitForFunction(
       () => document.getElementById('statusText').textContent.startsWith('sealed'),
