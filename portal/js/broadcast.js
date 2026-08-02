@@ -66,6 +66,7 @@ const el = {
   meter: document.getElementById('meterFill'),
   wake: document.getElementById('bWake'),
   seal: document.getElementById('bSeal'),
+  mock: document.getElementById('bMock'),
   devices: document.getElementById('devices'),
   moods: document.getElementById('moods'),
 };
@@ -95,15 +96,21 @@ function stirHud() {
 window.addEventListener('pointermove', stirHud);
 window.addEventListener('keydown', (e) => {
   stirHud();
+  // Every shortcut is behind this guard. `h` used not to be, so a pairing
+  // code containing an h hid the HUD out from under whoever was typing it.
+  const typing = document.activeElement && document.activeElement.tagName === 'INPUT';
+  if (typing) return;
   if (e.key === 'h' || e.key === 'H') {
     if (hud.isConnected) hud.hidden = !hud.hidden;
     return;
   }
+  if (e.key === 'm' || e.key === 'M') {
+    setMock(!mockAudio);
+    return;
+  }
   // 1-9 pick a mood. Judging a look means flipping through them repeatedly,
-  // and a keystroke keeps your hands where they are. Ignored while typing a
-  // pairing code, or the digits would land in the field instead.
-  const typing = document.activeElement && document.activeElement.tagName === 'INPUT';
-  if (!typing && e.key >= '1' && e.key <= '9') {
+  // and a keystroke keeps your hands where they are.
+  if (e.key >= '1' && e.key <= '9') {
     const name = moodOrder[Number(e.key) - 1];
     if (name) chooseTheme(name);
   }
@@ -196,18 +203,50 @@ setInterval(() => machine.onPoll({ ok: true, live: desiredLive }), CONFIG.broadc
 let extractor = null;
 let armed = false;
 
+// Judging a mood means watching it move, and a silent room moves nothing. This
+// runs the VISUALS on synthetic motion while leaving capture alone, so the
+// shapes can be looked at without playing — the job ?nomic=1 used to do, minus
+// the URL edit and the reload.
+//
+// Deliberately not persisted. A mock flag surviving a reload into a live set
+// would mean a broadcast whose picture ignores the piano, and the failure is
+// silent from the operator's side. It costs one keystroke to turn back on.
+let mockAudio = false;
+
+// What the audio row would say about capture alone, kept so the row can be
+// re-rendered when mock toggles without re-querying the device.
+let audioState = { text: 'not armed', cls: '' };
+
+function sayAudio(text, cls) {
+  if (text !== undefined) audioState = { text, cls: cls || '' };
+  // Mock never hides the capture state, it prefixes it: the operator needs to
+  // know both what is driving the picture AND whether the mic is still good,
+  // and those are now two different facts.
+  if (mockAudio) say(el.audio, `mock · ${audioState.text}`, 'warn');
+  else say(el.audio, audioState.text, audioState.cls);
+}
+
+function setMock(on) {
+  mockAudio = !!on;
+  if (el.mock) {
+    el.mock.classList.toggle('on', mockAudio);
+    el.mock.blur(); // or the HUD cannot fade back out on a broadcast machine
+  }
+  sayAudio();
+}
+
 async function startAudio() {
   if (CONFIG.skipMic) {
     // Testing, or a deliberate no-mic broadcast source. Synthetic features
     // keep the eye breathing rather than freezing it.
     extractor = null;
-    say(el.audio, 'synthetic (?nomic=1)', 'warn');
+    sayAudio('synthetic (?nomic=1)', 'warn');
     return;
   }
   const r = await mic.start();
   if (r.analyser) {
     extractor = new FeatureExtractor(r.analyser, r.sampleRate);
-    say(el.audio, 'live', 'good');
+    sayAudio('live', 'good');
     populateDevices();
   } else {
     // Denied, unplugged, or an OBS browser source without media permission.
@@ -215,12 +254,12 @@ async function startAudio() {
     // why window capture avoids this failure entirely.
     extractor = null;
     const why = r.error && r.error.name === 'NotAllowedError' ? 'permission denied' : 'unavailable';
-    say(el.audio, `synthetic — mic ${why}`, 'bad');
+    sayAudio(`synthetic — mic ${why}`, 'bad');
   }
 }
 
 mic.onDeviceLost(() => {
-  say(el.audio, 'device lost — retrying', 'bad');
+  sayAudio('device lost — retrying', 'bad');
   startAudio();
 });
 
@@ -248,9 +287,9 @@ if (el.devices) {
     const r = await fresh.start();
     if (r.analyser) {
       extractor = new FeatureExtractor(r.analyser, r.sampleRate);
-      say(el.audio, 'live', 'good');
+      sayAudio('live', 'good');
     } else {
-      say(el.audio, 'synthetic — device rejected', 'bad');
+      sayAudio('synthetic — device rejected', 'bad');
     }
   });
 }
@@ -372,6 +411,9 @@ el.seal.addEventListener('click', () => {
   setDesired(false);
   relay.publish({ eye: EYE_SEALED });
 });
+// Local only — never published. What drives this machine's picture is nobody
+// else's business, and a phone has no reason to learn about it.
+if (el.mock) el.mock.addEventListener('click', () => setMock(!mockAudio));
 
 // --- render ----------------------------------------------------------------
 
@@ -463,9 +505,14 @@ function loop(now) {
   // moves while the eye is sealed — that is the sound-check.
   const live = extractor ? extractor.frame(dt) : null;
 
+  // `live` is still read every frame above, mock or not: the meter and the
+  // pitch row are measurement, and they go on telling the truth about the room
+  // while the picture runs on something else.
+  const driving = mockAudio ? null : live;
+
   let feats = IDLE;
   if (state === EyeState.COMMUNING || state === EyeState.DROWSING) {
-    feats = live || syntheticFeatures(t);
+    feats = driving || syntheticFeatures(t);
   } else if (state === EyeState.OPEN || state === EyeState.STIRRING) {
     feats = syntheticFeatures(t, 0.4);
   }

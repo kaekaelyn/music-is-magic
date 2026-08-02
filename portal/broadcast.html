@@ -165,6 +165,11 @@
     <div class="btns">
       <button id="bWake">wake</button>
       <button id="bSeal">seal</button>
+      <!-- Drives the visuals from synthetic motion instead of the microphone,
+           so the moods can be judged in a silent room without editing the URL.
+           The mic keeps running underneath: the meter and the pitch row are
+           instruments and must not lie, whatever the picture is doing. -->
+      <button id="bMock">mock</button>
       <select id="devices" hidden></select>
     </div>
     <!-- Filled from assets/themes/index.json, like the control page's panel:
@@ -178,8 +183,8 @@
       <button type="submit">pair</button>
     </form>
     <div class="hint">
-      Type the same code here and on your phone. Moods are 1–9 · h hides this ·
-      it fades on its own · ?hud=0 never shows it
+      Type the same code here and on your phone. Moods are 1–9 · m mocks the
+      audio · h hides this · it fades on its own · ?hud=0 never shows it
     </div>
   </div>
 

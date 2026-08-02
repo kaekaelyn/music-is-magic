@@ -262,6 +262,15 @@ Try **`?mock=live&theme=cave`**, then `ice`, `rain`, `sunshine`, `forest`,
 `mountain`, `ocean`. Each should look like a different *place*, not the same
 fog in a new color.
 
+> **Judging moods on the broadcast page instead?** Don't retype URLs there.
+> Open `broadcast.html`, arm it, press **wake**, then **mock** (or the `m`
+> key) — the visuals run on synthetic motion, so the shapes move in a silent
+> room and onsets still fire, which means lightning and meteors show up
+> without you playing a note. Then flip moods with the **1–9** keys.
+> The mic keeps metering underneath, so the level meter and the `pitch` row
+> stay honest while you look. Mock is off again after any reload, on purpose:
+> a broadcast whose picture ignores the piano fails silently.
+
 **If the site looks broken:** you have changed something shared. Compare
 against the original website, which is a separate branch and always one
 command away:
@@ -530,7 +539,7 @@ Use the checklist in [RUNNING.md Part 5](RUNNING.md#part-5--the-going-live-routi
 | `?topic=clear` | broadcast, control | Forget the remembered topic |
 | `?relay=local` | broadcast, control | Same-machine relay — two tabs in one browser, no internet. **Cannot reach a phone** |
 | `?relay=none` | broadcast, control | No control channel at all |
-| `?nomic=1` | broadcast | Skip microphone capture, run on synthetic features. Also skips the arm gate |
+| `?nomic=1` | broadcast | Skip microphone capture, run on synthetic features. Also skips the arm gate. For judging moods once the page is already open, the HUD's **mock** button (or `m`) is easier — no reload, and the mic keeps metering |
 | `?hud=0` | broadcast | Remove the operator HUD entirely |
 | `?mock=live` | website | Pretend a source is connected |
 | `?theme=cave` | website | Force a mood (mock mode only) |

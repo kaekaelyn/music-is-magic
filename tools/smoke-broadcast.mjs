@@ -491,6 +491,67 @@ try {
     await ctx.close();
   }
 
+  // === 6b. the mock toggle ===========================================
+  //
+  // It exists so the moods can be judged in a silent room without editing the
+  // URL. Three things have to hold: it toggles from both the button and the
+  // keyboard, it never claims to be driving the picture when it is not, and
+  // typing a pairing code does not fire it.
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    const assertClean = watch(page, 'mock toggle');
+    await page.goto(BC);
+    await eyeIs(page, 'sealed');
+
+    const audio = () => page.textContent('#hAudio');
+    const mockOn = () =>
+      page.evaluate(() => document.getElementById('bMock').classList.contains('on'));
+
+    check(!(await mockOn()), 'mock starts off');
+    const before = await audio();
+
+    await page.click('#bMock');
+    check(await mockOn(), 'the mock button turns it on');
+    check(
+      /^mock · /.test(await audio()),
+      'the audio row says mock is driving, and still says what capture is doing'
+    );
+    check(
+      (await audio()).includes(before),
+      'the capture state survives the prefix rather than being overwritten'
+    );
+
+    await page.click('#bMock');
+    check(!(await mockOn()), 'and the button turns it back off');
+    check((await audio()) === before, 'leaving the audio row exactly as it was');
+
+    await page.keyboard.press('m');
+    check(await mockOn(), 'm toggles it from the keyboard');
+    await page.keyboard.press('m');
+    check(!(await mockOn()), 'and back');
+
+    // The guard: shortcuts must not fire while a pairing code is being typed.
+    // 'm' used to be safe only by accident of not existing; 'h' was not.
+    await page.click('#code');
+    await page.type('#code', 'mh4');
+    check(
+      !(await mockOn()),
+      'typing a pairing code containing m does not toggle mock'
+    );
+    check(
+      await page.evaluate(() => !document.getElementById('hud').hidden),
+      'nor does an h in it hide the HUD'
+    );
+    check(
+      (await page.inputValue('#code')) === 'mh4',
+      'and the characters land in the field'
+    );
+
+    assertClean();
+    await ctx.close();
+  }
+
   // === 7. a denied microphone does not stop the show =================
   {
     // No fake-device flags and no granted permission: getUserMedia rejects,
