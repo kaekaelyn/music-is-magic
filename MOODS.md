@@ -1264,3 +1264,83 @@ filament the references need are both available.
 2. Afterwards, reconsider `fine * fine * 0.22` against images 4 and 5.
 3. Do not touch the axes, the threshold tightness, or the high front — each fixes
    a named past failure (foam, white sheet with ink blots).
+
+
+---
+
+# New moods — 2026-08-02
+
+Six moods and six motifs, from the owner's brief. None yet judged by their eye;
+all judged against screenshots.
+
+## fire
+
+*"not raging wildfire… small crackling fire in the dark with rising embers and
+smoke. sacred and intimate."*
+
+Sacred and intimate is a statement about **scale** before it is one about
+colour, so the constraint that matters is how little of the frame it takes.
+`base: 0.16` — the shared field contributes almost nothing and what lights the
+surroundings is the fire itself. Three new motifs: `flame` advects noise
+downward through a tapering lobe (which is what makes it climb) and erodes its
+own edge with the same field at a second scale, so the tip tears into tongues
+while the seat stays whole; `embers` are three sparse layers whose lanes bend
+as they rise and which die as they climb; `smoke` widens, thins and sways.
+Loudness feeds the flame's reach, an onset makes it leap and throws a burst of
+sparks. A few stars — a fire in the dark is usually outdoors, and the sky being
+there is what makes the dark read as large rather than enclosed.
+
+## volcano
+
+Its own mood, per the owner, not a child of mountain or fire: it shares a
+silhouette with one and a palette with the other and resembles neither.
+`lava` is a ridged field stretched vertically and scrolled down, so it runs in
+channels rather than pooling, with a finer generation splitting them into
+rivulets. The crust between stays dark — what you see is glow coming *up*
+through cracks. **Masked to the rock** where a silhouette exists, or it pools
+in a band across the bottom of the frame with the mountain floating above it.
+An onset drops the threshold: the gush is the eruption.
+
+## desert / night-desert
+
+**Dunes are ridgelines that are not angular.** A new `angular` param scales the
+`lnoise` blend inside `mRidge`, so `angular: 0.1` folds the same silhouette
+from smooth noise and rock becomes sand for one number — no new geometry at
+all. Blowing sand off a crest is spindrift, which is why `snow` is on in a
+desert: that motif means "what the wind tears off the top" and never cared what
+the material was. `ripples` combs the near sand with ridges that bend with the
+ground rather than the frame.
+
+`night-desert` is not a recolour: stars carry the sky, the ripples take a hard
+cold specular instead of a diffuse glare, and the field sits far lower.
+
+## forest — blooming / autumn / barren
+
+One new motif, `petals`, serves two of them. Each petal tumbles — its width
+pulses as it turns edge-on and back, which is the entire difference between a
+petal and a raindrop — and carries a per-petal hash that the compositor spends
+on the palette's upper steps. So **blossom and dead leaves are the same motif**,
+and which one it is depends only on what colours the theme puts up there.
+
+`barren` needed no motif at all. Dropping the canopy changes how the light
+works by itself: the shafts arrive unbroken and weak instead of dappled and
+shifting, and the trunks carry the frame alone.
+
+All three are kin to `forest` **and to each other** — autumn to barren is the
+most natural passage in the set, and a season turning should not shut the eye.
+
+## Perf
+
+Cave remains dearest at 1.51× the cheapest mood; everything else is within
+1.33×. Absolute frame times roughly doubled across the board with the six new
+motifs compiled in, which is a software-rendering artifact of a larger shader
+rather than per-mood cost — the branches are uniform-gated. Worth re-checking
+on real hardware.
+
+## Known rough edges
+
+- The blooming reference asks for blossoms *bursting*, not only falling.
+  Petals approximates this with an onset-driven burst; actual opening flowers
+  would be a second motif.
+- Volcano's lava reads best on the lower slope; a summit vent would want its
+  own term.

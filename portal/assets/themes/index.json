@@ -8,5 +8,11 @@
   "rain",
   "sunshine",
   "sunshower",
-  "fire"
+  "fire",
+  "volcano",
+  "desert",
+  "night-desert",
+  "forest-blooming",
+  "forest-autumn",
+  "forest-barren"
 ]

@@ -1,0 +1,59 @@
+{
+  "name": "night-desert",
+  "palette": [
+    "#05070f",
+    "#131c33",
+    "#37456b",
+    "#8090b4",
+    "#e8eeff"
+  ],
+  "params": {
+    "scale": 1.5,
+    "speed": 0.08,
+    "warp": 0.5,
+    "sparkle": 0.8,
+    "gloss": 0.16,
+    "glint": 0,
+    "canopy": 0,
+    "slant": 0,
+    "base": 0.34,
+    "drift": 0.08,
+    "travel": 0.22,
+    "travelX": 0.1,
+    "travelY": 0,
+    "angular": 0.1
+  },
+  "mappings": {
+    "warpBass": 0.18,
+    "sparkleTreble": 1.2,
+    "pulseFlux": 0.9,
+    "shiftCentroid": 0.2
+  },
+  "motifs": {
+    "rays": 0,
+    "columns": 0,
+    "dapple": 0,
+    "drips": 0,
+    "facets": 0,
+    "caustics": 0,
+    "crags": 0,
+    "snow": 0.22,
+    "tunnel": 0,
+    "ridge": 0.9,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0.9,
+    "aurora": 0,
+    "clouds": 0,
+    "crystals": 0,
+    "storm": 0,
+    "rainbow": 0,
+    "flame": 0,
+    "embers": 0,
+    "smoke": 0,
+    "lava": 0,
+    "ripples": 0.6,
+    "petals": 0
+  },
+  "textures": []
+}

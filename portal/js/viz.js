@@ -56,6 +56,9 @@ uniform float u_flow;    // travel clock: CPU-integrated, ONLY ever advances,
                          // faster when loud. The lawful way to move with level.
 uniform vec2 u_cur;      // direction the texture-space frame is carried by u_flow
 uniform float u_centroid; // smoothed pitch/timbre brightness, 0..1
+uniform float u_angular; // ridgeline sharpness: 1 = rock folded from linear
+                         // noise, 0 = the same silhouette folded smooth, which
+                         // is a dune. Sand and stone are one geometry.
 uniform float u_canopy;  // how much foliage overhead breaks the shafts. 0 is
                          // open sky, and open sky is most themes' situation
 
@@ -892,6 +895,75 @@ float mStorm(vec2 uv, float t, float strike, out float flash) {
   return (core + fork * 0.75) * hit;
 }
 
+// Molten rock finding its way downhill. Channels rather than a pool: a ridged
+// field stretched vertically and scrolled downward gives long streams, and a
+// finer generation of the same splits them into rivulets. The crust between
+// them is dark, so what you see is the glow coming UP through the cracks.
+float mLava(vec2 uv, float t, float flow, float drive, float kick, out float hot) {
+  vec2 q = vec2(uv.x * 3.0, uv.y * 1.05 - flow * 0.55 - t * 0.1);
+  float chan = 1.0 - abs(2.0 * fbm(q) - 1.0);
+  chan *= chan;                                   // narrow the channels
+  float fine = 1.0 - abs(2.0 * fbm(q * 3.1 + 11.0) - 1.0);
+  float v = chan * (0.55 + 0.45 * fine);
+  // Lava runs down a slope; it does not hang in the sky. Fading it out toward
+  // the top is what keeps this a mountainside and not a lava lamp.
+  v *= smoothstep(0.34, -0.18, uv.y);
+  // A GUSH on an onset: the threshold drops, so more of the field is molten
+  // at once and a struck chord opens the ground.
+  float thr = 0.60 - drive * 0.15 - kick * 0.24;
+  hot = smoothstep(thr + 0.05, thr + 0.22, v);    // the incandescent core
+  return smoothstep(thr, thr + 0.09, v);
+}
+
+// Wind-combed sand. Long parallel ridges bent by the ground they lie on, and
+// travelling slowly across it — the bend is what stops this reading as printed
+// stripes, because real ripples follow the dune rather than the frame.
+float mRipples(vec2 uv, float t, float flow, float drive) {
+  float bend = fbm(uv * 1.5 + vec2(flow * 0.09, 0.0)) * 1.5;
+  float a = uv.x * 0.55 + uv.y * 2.5 + bend;
+  float r = 0.5 + 0.5 * sin(a * 24.0 + flow * 0.7);
+  // Sharpened: a ripple has a crest and a trough. Left as a sine it is a
+  // corduroy wash with no light in it.
+  r *= r;
+  r *= r;
+  // Combing smooths out with distance, so only the near sand is ribbed.
+  return r * smoothstep(0.36, -0.24, uv.y) * (0.55 + drive * 0.5);
+}
+
+// Blossom and leaf-fall. The tumble is the entire difference between a petal
+// and a raindrop: each one swings edge-on and back as it goes, so its width
+// pulses, and it drifts sideways rather than falling plumb. Three layers at
+// different rates for depth.
+//
+// The tint output hands out a per-petal hash so the compositor can give each
+// one its own colour from the theme's palette — which is what lets one motif be
+// blossom in one mood and dead leaves in another.
+float mPetals(vec2 uv, float t, float w, float drive, float kick, out float tint) {
+  tint = 0.5;
+  float v = 0.0;
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float rows = 2.0 + fi * 0.7;
+    float cols = 5.0 + fi * 2.4;
+    float y = uv.y * rows + t * (0.13 + fi * 0.06) * (0.7 + drive * 0.7);
+    float lane = uv.x * cols + sin(y * 1.5 + fi * 2.2) * 0.55;
+    vec2 c = vec2(floor(lane), floor(y));
+    // An onset shakes more of them loose.
+    float on = step(0.84 - w * 0.30 - kick * 0.12, hash(c + fi * 17.0));
+    vec2 fp = vec2(fract(lane), fract(y)) - hash2(c + fi * 3.0);
+    // Tumbling: the petal turns, so it is broad one moment and edge-on the
+    // next. Half its area disappears each turn, which is what flutters.
+    float spin = sin(t * (1.3 + hash(c) * 2.2) + hash(c) * 6.2831853);
+    // Aspect corrected in full. At half correction the cells were still taller
+    // than wide on screen and every petal came out a vertical streak — the same
+    // fault the embers had, and it reads as rain whatever colour it is.
+    float d = length(fp * vec2(0.5 + abs(spin) * 2.0, cols / rows * 0.85));
+    float hit = on * smoothstep(0.34, 0.0, d);
+    if (hit > v) { v = hit; tint = hash(c * 1.7 + fi); }
+  }
+  return clamp(v, 0.0, 1.0) * w;
+}
+
 // A small fire. Not a wildfire — a seated flame in the dark, sacred and close,
 // which means it is defined as much by how little of the frame it occupies as
 // by its shape.
@@ -1086,7 +1158,7 @@ float mRidge(vec2 uv, float t, float flow, float drive,
     // perspective already does to contrast.
     vec2 s1 = vec2(x, fi * 11.0 + 3.3);
     vec2 s2 = vec2(x * 2.7 + 5.0, fi * 11.0);
-    float ang = 0.45 + fi * 0.275; // fi 0 = far, softened; fi 2 = near, angular
+    float ang = (0.45 + fi * 0.275) * u_angular; // fi 0 far/soft, fi 2 near/angular
     float n = mix(noise(s1), lnoise(s1), ang) * 0.72
             + mix(noise(s2), lnoise(s2), ang) * 0.28;
     float ridged = 1.0 - abs(2.0 * n - 1.0);            // peaks, not dunes
@@ -1768,6 +1840,37 @@ void main() {
     lift += s * 0.42;
     spec += s * 1.2;
   }
+  float lava = 0.0;
+  float lavaHot = 0.0;
+  if (W_lava > 0.0) {
+    float h;
+    lava = mLava(uv, u_t, u_flow, u_rms, u_pulse, h) * W_lava;
+    lavaHot = h * W_lava;
+    // Molten rock runs down a mountainside, so where there is a silhouette it
+    // is confined to the rock. Left unmasked it pooled in a band across the
+    // bottom of the frame with the mountain floating above it, which is a lake
+    // of fire rather than an eruption.
+    if (W_ridge > 0.0) {
+      float onRock = 1.0 - clamp(skyMask, 0.0, 1.0);
+      lava *= onRock;
+      lavaHot *= onRock;
+    }
+    // Molten rock lights the slope it is running down.
+    lift += lava * 0.22;
+  }
+  if (W_ripples > 0.0) {
+    // Sand is a SURFACE, so its combing goes into the field rather than over
+    // it: the ripples have to be lit by the same light as the dune they lie
+    // on, or they read as a pattern printed on the sand.
+    float rip = mRipples(uv, u_t, u_flow, u_rms) * W_ripples;
+    g = clamp(g + (rip - 0.5) * 0.22, 0.0, 1.0);
+    spec += rip * 0.22 * (0.4 + u_sparkle * 0.6);
+  }
+  float petals = 0.0;
+  float petalTint = 0.5;
+  if (W_petals > 0.0) {
+    petals = mPetals(uv, u_t, W_petals, u_rms, u_pulse, petalTint);
+  }
   float flame = 0.0;
   float flameCore = 0.0;
   float embers = 0.0;
@@ -1946,6 +2049,25 @@ void main() {
     float bowAmt;
     vec3 bow = mRainbow(uv, u_t, u_rms, u_pulse, u_centroid, bowAmt);
     col += bow * bowAmt * W_rainbow * 1.25;
+  }
+  // LAVA. Blackbody again, and hotter than fire at its core because it is
+  // material rather than flame: dull red where the crust is thick, orange in
+  // the channel, and near-white in a fresh gush.
+  if (W_lava > 0.0) {
+    vec3 crust = vec3(0.55, 0.09, 0.02);
+    vec3 run = vec3(1.0, 0.42, 0.06);
+    vec3 fresh = vec3(1.0, 0.93, 0.66);
+    vec3 lc = mix(crust, run, smoothstep(0.0, 0.55, lava));
+    lc = mix(lc, fresh, smoothstep(0.25, 0.9, lavaHot));
+    col += lc * clamp(lava, 0.0, 1.0) * 1.2;
+  }
+  // PETALS take their colour from the palette's upper steps, spread by each
+  // petal's own hash — so one motif is blossom under one theme and dead leaves
+  // under another, without the engine knowing which.
+  if (W_petals > 0.0) {
+    vec3 pc = mix(u_c2, u_c3, smoothstep(0.0, 0.6, petalTint));
+    pc = mix(pc, u_c4, smoothstep(0.55, 1.0, petalTint));
+    col = mix(col, pc, clamp(petals, 0.0, 1.0) * 0.92);
   }
   // FIRE. Its own colours, like the aurora and the quartz — deep red at the
   // torn edges, orange through the body, and a white heart at the seat. No
@@ -2132,7 +2254,7 @@ const UNIFORM_NAMES = [
   'u_res', 'u_t', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_scale', 'u_warp',
   'u_sparkle', 'u_pulse', 'u_shift', 'u_open', 'u_tex', 'u_texAmt',
   'u_gloss', 'u_slant', 'u_base', 'u_drift', 'u_rms', 'u_weather', 'u_glint',
-  'u_flow', 'u_cur', 'u_centroid', 'u_canopy', 'u_mw[0]',
+  'u_flow', 'u_cur', 'u_centroid', 'u_angular', 'u_canopy', 'u_mw[0]',
 ];
 
 function createGL(canvas, reducedMotion) {
@@ -2337,6 +2459,7 @@ function createGL(canvas, reducedMotion) {
     gl.uniform1f(U.u_flow, flowAcc);
     gl.uniform2f(U.u_cur, th.params.travelX || 0, th.params.travelY || 0);
     gl.uniform1f(U.u_centroid, sm.shift);
+    gl.uniform1f(U.u_angular, th.params.angular === undefined ? 1 : th.params.angular);
     gl.uniform1f(U.u_canopy, th.params.canopy || 0);
     gl.uniform1f(U.u_glint, (th.params.glint || 0) * 0.3);
     for (let i = 0; i < MOTIF_NAMES.length; i++) {

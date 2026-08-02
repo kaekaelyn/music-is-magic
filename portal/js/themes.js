@@ -227,6 +227,69 @@ export const BUILTIN = {
     motifs: { rays: 0.58, dapple: 0.25, drips: 0.66, clouds: 0.55, rainbow: 1.0 },
     mappings: { warpBass: 0.3, sparkleTreble: 1.1, pulseFlux: 1.0, shiftCentroid: 0.25 },
   },
+
+  // Night, and deliberately its own mood rather than a child of mountain or
+  // fire: it shares a silhouette with one and a palette with the other, and
+  // resembles neither. Lava runs in channels down the slope, the crust between
+  // them staying dark, so what you see is glow coming up through cracks. An
+  // onset opens the ground — the gush IS the eruption.
+  volcano: {
+    palette: ['#0a0708', '#1c1216', '#3a2028', '#8c3a1e', '#ffcf94'],
+    params: { scale: 1.5, speed: 0.18, warp: 0.85, sparkle: 0.5, gloss: 0.3, base: 0.2, drift: 0.2, travel: 0.45 },
+    motifs: { ridge: 0.85, lava: 0.95, smoke: 0.6, embers: 0.45, stars: 0.35 },
+    mappings: { warpBass: 0.4, sparkleTreble: 1.0, pulseFlux: 1.3, shiftCentroid: 0.15 },
+  },
+
+  // Dunes are ridgelines that are not angular. `angular: 0.1` folds the same
+  // silhouette from smooth noise instead of linear, and rock becomes sand for
+  // one number. Blowing sand off a crest is spindrift, which is why snow is on
+  // in a desert: that motif means "what the wind tears off the top", and it
+  // never cared what the material was.
+  desert: {
+    palette: ['#2a1a10', '#6b4526', '#b98a4e', '#e5c489', '#fff4dc'],
+    params: { scale: 1.5, speed: 0.1, warp: 0.55, sparkle: 0.4, gloss: 0.12, base: 0.55, drift: 0.1, travel: 0.3, travelX: 0.12, angular: 0.1 },
+    motifs: { ridge: 0.9, ripples: 0.75, snow: 0.35, clouds: 0.12 },
+    mappings: { warpBass: 0.2, sparkleTreble: 0.8, pulseFlux: 0.8, shiftCentroid: 0.25 },
+  },
+
+  // The same sand under a moon, and not merely a recolour: the light works
+  // differently. Stars carry the sky, the ripples take a hard cold specular
+  // rather than a diffuse glare, and the whole field sits far lower.
+  'night-desert': {
+    palette: ['#05070f', '#131c33', '#37456b', '#8090b4', '#e8eeff'],
+    params: { scale: 1.5, speed: 0.08, warp: 0.5, sparkle: 0.8, gloss: 0.16, base: 0.34, drift: 0.08, travel: 0.22, travelX: 0.1, angular: 0.1 },
+    motifs: { ridge: 0.9, ripples: 0.6, snow: 0.22, stars: 0.9 },
+    mappings: { warpBass: 0.18, sparkleTreble: 1.2, pulseFlux: 0.9, shiftCentroid: 0.2 },
+  },
+
+  // Forest in blossom. The petals motif takes its colours from the palette's
+  // upper steps, so putting pink and white there is what makes these blossom
+  // rather than leaves — the engine never learns which it is drawing.
+  'forest-blooming': {
+    palette: ['#0b1a0d', '#2f3a22', '#3f8a52', '#e78fb8', '#fff2f6'],
+    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.5, drift: 0.35, travel: 0.5, travelX: 0.26 },
+    motifs: { columns: 0.75, dapple: 0.75, rays: 0.8, petals: 0.8, wisps: 0.25 },
+    mappings: { warpBass: 0.4, sparkleTreble: 1.2, pulseFlux: 1.1, shiftCentroid: 0.35 },
+  },
+
+  // The same wood and the same motif, amber and rust in the upper steps.
+  'forest-autumn': {
+    palette: ['#140d07', '#3a2413', '#8a4a1c', '#d98a34', '#ffd98f'],
+    params: { scale: 1.8, speed: 0.22, warp: 1.15, sparkle: 0.55, gloss: 0.14, glint: 0.12, canopy: 0.8, base: 0.46, drift: 0.32, travel: 0.55, travelX: 0.28 },
+    motifs: { columns: 0.8, dapple: 0.7, rays: 0.72, petals: 0.7 },
+    mappings: { warpBass: 0.45, sparkleTreble: 1.1, pulseFlux: 1.0, shiftCentroid: 0.3 },
+  },
+
+  // No canopy — and that is the mood, not a detail of it. With nothing
+  // overhead the shafts arrive unbroken and weak instead of dappled and
+  // shifting, the trunks carry the frame alone, and the light stops being the
+  // subject. Grey-brown throughout; the only colour left is a few last leaves.
+  'forest-barren': {
+    palette: ['#171a1f', '#3d3f44', '#71757c', '#a8adb5', '#e9edf2'],
+    params: { scale: 1.7, speed: 0.16, warp: 1.0, sparkle: 0.4, gloss: 0.1, base: 0.82, drift: 0.3, travel: 0.6, travelX: 0.3 },
+    motifs: { columns: 0.95, rays: 0.5, petals: 0.12 },
+    mappings: { warpBass: 0.5, sparkleTreble: 0.9, pulseFlux: 1.0, shiftCentroid: 0.25 },
+  },
 };
 
 // KINSHIP. Which moods flow into which without a cut.
@@ -247,6 +310,17 @@ const KIN = Object.freeze({
   sunshower: ['rain', 'sunshine'],
   rain: ['sunshower'],
   sunshine: ['sunshower'],
+  // A wood through the year. All three are the same trees, so moving between
+  // them is a season turning rather than a journey — and the seasons are kin
+  // to each other as well as to the parent, since autumn to barren is the most
+  // natural passage in the set.
+  forest: ['forest-blooming', 'forest-autumn', 'forest-barren'],
+  'forest-blooming': ['forest', 'forest-autumn', 'forest-barren'],
+  'forest-autumn': ['forest', 'forest-blooming', 'forest-barren'],
+  'forest-barren': ['forest', 'forest-blooming', 'forest-autumn'],
+  // Same sand, sun down.
+  desert: ['night-desert'],
+  'night-desert': ['desert'],
 });
 
 export function isKin(a, b) {

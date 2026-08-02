@@ -618,8 +618,19 @@ try {
     const LID = 0.85;
 
     // --- a mood change closes it, and hands the mood over while shut ---
-    await themeIs(page, 'night');
-    const changing = sampleAperture(page, 1500);
+    //
+    // Warm cave first. A mood is fetched from its own theme.json on first use,
+    // and eye.transition only starts once that resolves — so on a cold theme
+    // the lid begins after the sample window has largely gone, and a working
+    // lid reads as no lid at all.
+    await page.keyboard.press('3');
+    await themeIs(page, 'cave', 9000);
+    await page.waitForTimeout(1500);
+    await page.keyboard.press('1');
+    await themeIs(page, 'night', 9000);
+    await page.waitForTimeout(1500);
+
+    const changing = sampleAperture(page, 2200);
     await page.waitForTimeout(60);
     await page.keyboard.press('3'); // cave, third in index.json
     await page.waitForTimeout(120); // still inside the 276ms close

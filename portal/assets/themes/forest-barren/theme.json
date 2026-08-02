@@ -1,0 +1,59 @@
+{
+  "name": "forest-barren",
+  "palette": [
+    "#171a1f",
+    "#3d3f44",
+    "#71757c",
+    "#a8adb5",
+    "#e9edf2"
+  ],
+  "params": {
+    "scale": 1.7,
+    "speed": 0.16,
+    "warp": 1.0,
+    "sparkle": 0.4,
+    "gloss": 0.1,
+    "glint": 0,
+    "canopy": 0,
+    "slant": 0,
+    "base": 0.82,
+    "drift": 0.3,
+    "travel": 0.6,
+    "travelX": 0.3,
+    "travelY": 0,
+    "angular": 1
+  },
+  "mappings": {
+    "warpBass": 0.5,
+    "sparkleTreble": 0.9,
+    "pulseFlux": 1.0,
+    "shiftCentroid": 0.25
+  },
+  "motifs": {
+    "rays": 0.5,
+    "columns": 0.95,
+    "dapple": 0,
+    "drips": 0,
+    "facets": 0,
+    "caustics": 0,
+    "crags": 0,
+    "snow": 0,
+    "tunnel": 0,
+    "ridge": 0,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0,
+    "aurora": 0,
+    "clouds": 0,
+    "crystals": 0,
+    "storm": 0,
+    "rainbow": 0,
+    "flame": 0,
+    "embers": 0,
+    "smoke": 0,
+    "lava": 0,
+    "ripples": 0,
+    "petals": 0.12
+  },
+  "textures": []
+}
