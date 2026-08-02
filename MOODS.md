@@ -34,7 +34,43 @@ the concrete changes — split into **data** (`theme.json`: palette, params, mot
 weights, which is cheap and per-mood) and **engine** (`viz.js`, which is shared
 by every mood and both builds, so it needs care).
 
-Working order: mountain, cave → rain, sunshine → night, ocean → forest, ice.
+All eight moods have references and notes. What follows is the order the *work*
+wants to happen in, which is not the order the references arrived in.
+
+## Where to start
+
+Three findings cut across several moods. Doing them in this order means later
+work is judged against a build that is already correct, rather than being tuned
+to compensate for something still wrong underneath.
+
+**1. Measure the centroid before repairing anything that depends on it.**
+Add a `pitch` row to the broadcast HUD, play for thirty seconds, read it. The
+centroid gates night's aurora brightness *and* its colour, leans the ray fan in
+sunshine and forest, drives ice's facets, tints the storm, and feeds every
+theme's `shiftCentroid`. If it reads wrong, several moods are quietly
+miscalibrated and any tuning done first is tuning done against a fault. This is
+the cheapest measurement in the project. See **night**.
+
+**2. Build the slow weather follower once; it serves two moods.**
+Rain needs it to go from drizzle to storm without becoming fickle. Sunshine
+needs the same signal to make its cloud deck gather and part — which is the only
+thing standing between it and the drama in its own references, since the
+sun-through-a-gap coupling is already wired. One piece of engine work, two
+moods, no new motif in either. See **rain §1** and **sunshine**.
+
+**3. Take the palette-only wins immediately.**
+Two moods are held back by a single colour each, needing no engine work at all:
+ocean's foam cannot reach white because its top step is mint, and night has no
+warm tone for its reference's gold. Both are one edit, both are safe, and ocean's
+may raise apparent foam coverage on its own. See **ocean** and **night**.
+
+After those: the mood-private engine work — cave's passage width and cluster
+count, ice's frost presence, mountain's `skyMask` gating and haze, forest's wisp
+path. None of them disturb another mood, so they can happen in any order and be
+judged independently.
+
+Two things are explicitly **not** on the list: bird flocks in sunshine, and
+giving sunshine rain's kind of responsiveness. Both are argued against in place.
 
 ---
 
@@ -802,39 +838,73 @@ exists is a palette entry.
 
 ## forest
 
-**Reference status — read this before assuming one exists.** No dedicated forest
-image set was supplied. The observations below come from two places: the
-sunshower image in the *rain* batch (a sunlit garden under trees, which is
-forest's material seen in another mood), and reading the build. One further
-image was supplied specifically for wisps, with the owner's caveat:
+**Reference.** Three images, all of the same subject: **shafts of light coming
+down through a canopy.** (1) dense jungle, hanging vines, hard god-rays with
+motes suspended in them. (2) lush green jungle, sun bursting through at the top,
+shafts radiating into ferns. (3) temperate wood, warm gold shafts angled through
+mist, dark trunks in silhouette.
+
+A separate image was supplied for wisps, with the owner's caveat:
 
 > *"It is not accurate to the feel or color scheme of the forest mood itself, but
 > you might get an idea of the zigzagging orbs I'm trying to conjure up."*
 
-That image is a misty wood with glowing orbs in yellow, blue and orange. Per the
-owner's own words it is **motion reference only** — not colour, not atmosphere.
+That one is **motion reference only** — not colour, not atmosphere. Note also
+that wisps do not appear in the three forest references at all; they are
+forest's own invention, and their absence here is not an argument against them.
 
-### What was noticed earlier
+### Already right — and forest carries the most machinery of any mood
 
-- **Forest is the mood the sunshower is made of.** It already runs `canopy: 0.95`,
-  `rays: 0.62`, `columns: 0.85`, `dapple: 0.8` over a green palette, which is why
-  `rain-sunshower` comes out data-only (see rain §2). Forest is the donor.
-- **Forest is where the shared engine gets tested honestly.** `mRays` carries a
-  fix for an `atan` seam with the note that *"Sunshine's own rays mostly
-  disguised it; forest's fainter ones did not, which is where it was spotted"*
-  (viz.js:148–151). Its fainter light exposes what sunshine's brightness hides —
-  worth remembering when changing anything shared.
-- **The depth cue is already built and is two-part.** `mColumns` runs two stands
-  at different distances passing at different rates, *"parallax is what makes it
-  a walk among the trees rather than a texture scrolling by"*, while the rays stay
+- **Canopy breaks the beams properly.** Under `canopy: 0.95`, shafts are cut by
+  two scales sampled in the travel frame, one lagging the other, so the pattern
+  *reorganises* rather than sliding past as a rigid stencil (viz.js:174–177).
+  That is what images 1 and 3 are doing at their edges.
+- **The depth cue is built, and is two-part.** `mColumns` runs two stands at
+  different distances passing at different rates — *"parallax is what makes it a
+  walk among the trees rather than a texture scrolling by"* — while the rays stay
   anchored to the sky as the other half (viz.js:183–188). Trunk edges are hard on
-  purpose: *"a trunk is an object in front of the mist"*.
-- **Canopy breaks the beams properly.** Under `canopy`, shafts are cut by two
-  scales sampled in the travel frame, one lagging the other, so the pattern
-  reorganises rather than sliding past as a rigid stencil (viz.js:174–177).
+  purpose: *"a trunk is an object in front of the mist"*. Image 1's hanging vines
+  and image 3's silhouetted trunks are both this motif.
+- **Forest is the mood the sunshower is made of** — the donor for
+  `rain-sunshower`, which is why that sub-mood comes out data-only (rain §2).
+- **Forest is where shared code gets tested honestly.** `mRays` carries an `atan`
+  seam fix noting *"Sunshine's own rays mostly disguised it; forest's fainter
+  ones did not, which is where it was spotted"* (viz.js:148–151). Its fainter
+  light exposes what sunshine's brightness hides — check forest after touching
+  anything shared.
 
-None of this needs changing. If forest gets its own reference set later, start
-from the fact that it is already carrying more machinery than any other mood.
+### What the references argue for
+
+**1. The shafts are the subject here, and forest's are set as an accent.**
+Forest runs `rays: 0.62` against sunshine's `0.95`. Fainter is a deliberate
+choice — a forest floor is dim — and it is also what makes forest useful as the
+honest test of shared ray code, so this is a real trade rather than a free win.
+But all three references make the beams the hero of the frame, not a highlight in
+it. Worth raising `rays` and re-checking the seam behaviour afterwards.
+
+**2. The motes in the beams are missing, and they are why the beams read as
+volumetric.** Forest has `glint: 0` — no ambient glints at all, where cave runs
+0.3 and ice 0.35. Images 1 and 3 both show particles suspended *in* the light,
+and that suspension is most of what makes a shaft look like a solid volume of
+air rather than a bright stripe.
+
+Scattering glints across the whole frame is **not** the right fix. What the
+references show is motes *inside the shafts*, so the term wants gating by the ray
+field — bright where `rays` is strong, absent elsewhere. That is a small change
+and it is the highest-value thing these three images ask for.
+
+**Watch the collision with wisps.** The engine deliberately separates the two:
+*"A glint is a surface catching light for an instant; a wisp is a small body that
+drifts, hangs, and fades"* (viz.js:840–842). Forest would be the only mood
+running both. That is probably fine — motes are small, fast and inside the
+beams; wisps are large, slow and between the trunks — but it is the one thing to
+look at critically once both are on screen, since the wisp motif was added
+specifically to fix a green-cloud problem that more small lights could revive.
+
+**3. The warm light in image 3 is already reachable.** Forest's palette tops out
+at `#eef7d4`, a pale warm cream, so the golden shafts of the temperate reference
+are available without a palette change. Images 1 and 2 are greener and whiter;
+the palette spans both. Nothing to do.
 
 ### The wisp ask: zigzag, not orbit
 
@@ -905,17 +975,128 @@ this alone; only the path changes.
 
 ### Changes
 
-**Data** — none. Wisp weight, rarity and colour are all right.
+**Data** (`portal/assets/themes/forest/theme.json`)
+- `motifs.rays`: `0.62` → higher, so the shafts are the subject the references
+  make them. Re-check the `atan` seam afterwards; forest is where it shows.
+- Palette unchanged — `#eef7d4` already carries image 3's warm gold.
+- Wisp weight, rarity and colour unchanged; all three are right.
 
-**Engine** (`portal/js/viz.js`, `mWisps`)
-1. Add a per-wisp triangle-wave term to the orbit so the path has corners.
-   Keep the ellipse underneath as the wander.
-2. Only if too smooth: replace with hashed per-segment headings for dart-and-hold.
-3. Optional, afterwards: let treble drive dart rate as well as brightness.
+**Engine** (`portal/js/viz.js`)
+1. **Motes in the shafts** — a glint-like term gated by the ray field, so
+   particles hang inside the beams and nowhere else. Highest-value item from the
+   three references, and what makes a shaft read as a volume of air.
+2. **Wisp path** — add a per-wisp triangle-wave term to the orbit so it has
+   corners; keep the ellipse underneath as the wander.
+3. Only if that reads as a wobble: hashed per-segment headings for dart-and-hold.
+4. Optional, afterwards: let treble drive dart rate as well as brightness.
+
+Judge (1) and (2) together once both are in — forest would be the only mood
+running motes and wisps at once, and the wisp motif exists to fix a green-cloud
+failure that more small lights could bring back.
 
 Forest is the mood where faint shared changes show up first, so check sunshine
 after touching anything here — and vice versa, since both run `mRays`.
 
 ## ice
 
-*Awaiting reference.*
+**Reference.** Five images. (1) blue ice in polygonal cells with white seams and
+trapped bubbles. (2) a radial impact fracture. (3) fine white branching cracks
+webbed over dark ice. (4) and (5) dendritic frost ferns on glass — feathery,
+branching, granular.
+
+Owner's direction: *"3, 4, and 5 give a good idea of what I'm trying to gesture
+at with the frost layer."*
+
+### The shape is already exactly this
+
+`mFrost` (viz.js:509–536) is not approximate about it. It samples noise stretched
+hard along **three fixed axes 60° apart** and takes the strongest, because
+stretched noise gives needles along its long axis and three needle directions
+read as ice's hexagonal habit — six-fold anisotropy with no trig. Then:
+
+> *"A second, finer generation branching off the first — dendrites have
+> dendrites, and it is the branching that says frost rather than cracks."*
+> (viz.js:517–518)
+
+The threshold is deliberately tight because *"frost has hard edges, and a soft one
+is what made this read as foam"*, and the growth front rides high on purpose —
+a max of three ridged noises sits near 1 almost everywhere, so *"only the top
+slice is filaments"*, otherwise the ice reads as a white sheet with ink blots.
+
+It also already grows the way the references imply: patches run on their own
+phase so the field crazes here while it clears there, and an onset shoves every
+front outward at once — the crackle (viz.js:522–524).
+
+**Conceptually nothing is missing.** Do not redesign this motif.
+
+### The gap is presence, not shape
+
+Frost has no composite line of its own. It borrows snow's:
+
+```
+snow = max(snow, frost * 0.45);   // viz.js:1310
+```
+
+and snow is then blended at `0.88` (viz.js:1347). So frost's maximum reach is
+about **0.45 × 0.88 ≈ 0.40** — it can never be more than roughly forty percent of
+the way to the pale step, however hard it grows.
+
+In images 4 and 5 the frost is *the subject*: near-white, dominant, covering most
+of the frame. The current ceiling makes that unreachable. This is the same class
+of problem as ocean's mint foam — the shape is right and the compositor caps how
+present it can be — and it is the one lever worth pulling first.
+
+Two ways, in order of preference:
+1. **Give frost its own composite line** rather than routing it through snow.
+   Snow's blend was tuned for lying snow on mountain rock, which is a different
+   material at a different coverage; frost has been inheriting a ceiling that was
+   never chosen for it.
+2. **Or simply raise the 0.45**, which is one number and quick to judge, but
+   leaves frost coupled to a channel it does not really belong to.
+
+**Then, and only then, revisit the fine generation.** `v * 0.84 + fine * fine * 0.22`
+weights the sub-dendrites at roughly a quarter of the primary needles, while
+images 4 and 5 are mostly fine structure. Raise `fine`'s share *after* presence is
+fixed — at the current ceiling it is impossible to judge whether the branching is
+too sparse or merely too faint.
+
+### Image 3 is cracks, not frost — and that is fine
+
+Physically image 3 is a fracture web, and the motif's own comment draws exactly
+that line: branching is *"what says frost rather than cracks"*. The owner
+nonetheless grouped it with the two frost images, so the shared quality is what
+counts, and it is consistent across all three: **fine bright branching filaments
+over a dark ground, at high contrast.**
+
+Recorded so a later session does not "correct" the grouping. The contrast is the
+point — all three references keep substantial dark area, and the filaments read
+because of it. That is another argument for fixing presence before anything else:
+raising coverage without raising contrast would move ice away from these images,
+not toward them.
+
+### Ice owns this machinery
+
+`facets` is above zero **only** in ice, and the frost block sits inside
+`if (W_facets > 0.0)`. So the frost composite, its ceiling and the fine-generation
+weight are all ice-private in practice — nothing here can disturb another mood,
+even though `snow` itself is shared with mountain.
+
+### Feel
+
+| | |
+|---|---|
+| **Quiet is** | A held field, frost crazing over in one place while it clears in another, on its own slow phase. |
+| **The music is** | Every growth front shoved outward at once on an onset — the crackle — and struck shards going toward white in a single step, *"lightning inside the ice, not a warmer shade of the ramp"* (viz.js:1350–1351). |
+
+### Changes
+
+**Data** (`portal/assets/themes/ice/theme.json`) — none proposed. The palette
+already runs `#04101c` to `#f2fbff`, so the dark ground and the near-white
+filament the references need are both available.
+
+**Engine** (`portal/js/viz.js`) — ice-private
+1. Give frost its own composite line instead of borrowing snow's, or raise the
+   `0.45`. Presence first; everything else is unjudgeable until this is done.
+2. Afterwards, reconsider `fine * fine * 0.22` against images 4 and 5.
+3. Do not touch the axes, the threshold tightness, or the high front — each fixes
+   a named past failure (foam, white sheet with ink blots).
