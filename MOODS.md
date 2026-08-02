@@ -724,7 +724,81 @@ measured. That would bake the miscalibration in and spread it further.
 
 ## ocean
 
-*Awaiting reference.*
+**Reference.** Four images, no words with them. (1) surf close up: deep blue
+above, a churning mass of white foam, turquoise showing through where light
+passes. (2) aerial, parallel swell lines rolling in, dark blue deep water and
+turquoise shallows, crests breaking along the line. (3) aerial texture, dark
+teal streaked with white. (4) heavily aerated turquoise water, white throughout.
+
+No verbal direction was given, so under the standing rule these are atmosphere
+only. This section is deliberately short: the mood is close, and inventing work
+from silent references is exactly what the rule exists to prevent.
+
+### Already right
+
+- **The palette's water is the references' water.** `#02101c → #043a57 →
+  #0b6d85 → #39ac9b` is navy through to green-teal — the turquoise all four
+  images share.
+- **The sea travels as one body.** `travel: 0.9`, `travelY: 0.42`, and `mFoam`
+  advects crest phase, bend and tear together in a single moving frame
+  (viz.js:901–913) — image 2's ordered, rolling swell lines.
+- **Foam already answers the room, twice.** Loudness lowers the breaking line
+  (`breakAt = 0.62 - drive * 0.13`) so more of the sea turns white, and it
+  brightens what has broken (viz.js:923, 927).
+
+### The one real gap: ocean's foam cannot be white
+
+The compositor's intent is explicit:
+
+```
+// Foam is white water, not bright water — same rule as snow and rays.
+col = mix(col, mix(u_c3, u_c4, 0.8), clamp(foam, 0.0, 1.0) * 0.75);
+```
+(viz.js:1348–1349)
+
+Foam is drawn from `c3`/`c4`. For ocean those are `#39ac9b` and **`#c9f2e2`** — a
+green-teal and a pale *mint*. So ocean's foam resolves to pale mint-green, and
+white is not reachable no matter what the weight is.
+
+Ocean is the only theme with this problem. Every other mood that draws a white
+material ends its palette at something near white:
+
+| theme | `c4` | white materials reachable |
+|---|---|---|
+| mountain | `#f4f9ff` | yes |
+| night | `#ecf3ff` | yes |
+| rain | `#e0e6ea` | yes |
+| cave | `#d6e2f5` | yes |
+| **ocean** | **`#c9f2e2`** | **no — mint** |
+
+All four references show brilliant white foam against turquoise water. That is
+about as clear an "obvious crossover" as the rule describes, and it is the one
+thing the build cannot currently do.
+
+**There is a second-order effect worth expecting.** Mint foam on turquoise water
+is *low contrast*, so it reads as less foam than is actually being drawn.
+Whitening `c4` should increase the *apparent* coverage without touching the foam
+weight at all — which may turn out to be the whole of what these references are
+asking for.
+
+### Feel
+
+| | |
+|---|---|
+| **Quiet is** | Turquoise water travelling in one direction, almost no white — quiet water carries almost no surf by design. |
+| **The music is** | The breaking line dropping so more of the sea tears open into white, and the broken water brightening with it. |
+
+### Changes
+
+**Data** (`portal/assets/themes/ocean/theme.json`) — one edit
+- `c4`: `#c9f2e2` → something near white with a green cast held only faintly
+  (around `#eaf9f4`). Keep `c3` at `#39ac9b` so the *water* stays turquoise; it
+  is only the top step that needs to stop being a colour.
+- Re-judge foam weight and `breakAt` **after** this, not before. The contrast
+  change may be sufficient on its own.
+
+**Engine** — none proposed. No verbal direction was given, and the gap that
+exists is a palette entry.
 
 ## forest
 
