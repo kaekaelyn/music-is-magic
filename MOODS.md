@@ -2,6 +2,33 @@
 
 Owner-supplied references and what it takes to hit them. One section per mood.
 
+## How to read the references — read this first
+
+The owner's standing instruction:
+
+> *"All the images I show you are just vague approximations of the atmosphere it
+> should give off, unless there are obvious crossovers or I tell you something
+> specific."*
+
+**The images are mood, not specification.** They are not shot lists, and nothing
+in one is a feature request on its own. Chase the atmosphere; do not transcribe
+the contents. An element appearing in a reference is not a reason to build that
+element.
+
+Two things do carry literal weight:
+
+1. **What the owner says in words.** Direct instructions ("cold and thin", "the
+   shape of the tunnel", "wider") are the specification. The image shows what
+   the words mean.
+2. **Obvious crossovers** — where several references, or a reference and the
+   existing build, plainly agree on the same thing.
+
+This applies to the write-ups below as much as to the pictures. Where a section
+describes an image's contents, that is context for the feeling, not a checklist.
+Where it proposes a mechanism, that mechanism is a means to the atmosphere and
+may be replaced by a better one — the feeling is the requirement, the shader
+route is not.
+
 Each section records the reference, the feel in PLAN.md's quiet/loud terms, and
 the concrete changes — split into **data** (`theme.json`: palette, params, motif
 weights, which is cheap and per-mood) and **engine** (`viz.js`, which is shared
@@ -229,22 +256,30 @@ session *specifically* for that cost (viz.js:548–556: enumerate, don't search 
 lattice), so raising the count spends the exact budget that rewrite bought.
 `tools/perf.mjs` exists now; take a before and after rather than raising blind.
 
-### Two open questions for the owner
+### Settled — do not reopen
 
-**The light at the end.** Image 3's focal point is a small glowing violet
-cluster at the vanishing point. The engine has nothing there — `mTunnel`'s
-`flare` (viz.js:482) is per-cell wet-rock sparkle gated by loudness, not a light
-source — and crystal placement deliberately biases *toward the mouth*
-(`hc.y * hc.y`, viz.js:603) on the grounds that a cluster deep in the passage is
-a few pixels of nothing. So image 3's composition and the current design
-actively disagree. Ask whether the glowing terminus is wanted, or only the
-tunnel's shape. It is a different mechanism from a crystal cluster.
+**No stars.** The owner, on image 4's glowworms: *"No stars. Only crystals. But
+the feeling is there."* Cave keeps `stars: 0`. Crystals are the only luminous
+structure in this mood, and there is no second population of small lights.
 
-**Image 4.** The owner did not comment on it. Its ceiling pinpoints are close to
-the `stars` motif — fixed, non-moving, which is what separates stars from glints
-(viz.js:931–934) — and cave runs `stars: 0`. Adding them would need masking to
-the upper aperture. Do not design for this until asked; it may have been
-included only for the blue.
+Image 4 still counts — as atmosphere, not as a feature. What it contributes is
+the *quality of the darkness*: a black deep enough that a few small lights carry
+the whole frame, and still water under it. That is the target for how dark cave
+should sit and how much work its few lit things should do. It contributes no
+element.
+
+**No light at the end of the tunnel.** Image 3's glowing violet terminus falls
+under the standing rule — atmosphere, not specification. What the owner asked
+for in words was *"the shape of the tunnel"*, widened. Take the shape; do not
+build a terminus light. The existing bias of clusters toward the mouth
+(`hc.y * hc.y`, viz.js:603) stays, and "only crystals" means that if anything
+luminous ever does sit deep in the passage it is a crystal, not a new light
+source.
+
+**Obvious crossover — the palette is already right.** Images 1 and 2 are purple,
+image 4 is blue, and the owner endorses the feeling of all three. Cave's palette
+already spans exactly that: `#04040a → #100f1c → #282340 → #5d5480 → #d6e2f5`,
+purple through to pale blue-white. Leave it.
 
 ### Feel
 
