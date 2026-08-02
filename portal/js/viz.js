@@ -892,6 +892,93 @@ float mStorm(vec2 uv, float t, float strike, out float flash) {
   return (core + fork * 0.75) * hit;
 }
 
+// A small fire. Not a wildfire — a seated flame in the dark, sacred and close,
+// which means it is defined as much by how little of the frame it occupies as
+// by its shape.
+//
+// Built by advecting noise DOWNWARD through a tapering lobe: sampling a field
+// that moves down makes the flame appear to climb, and eroding the lobe's edge
+// with that same field is what turns a smooth tongue into fire. Two scales —
+// the slow one bends the whole flame, the fast one tears its tip into tongues.
+float mFlame(vec2 uv, float t, float drive, float kick, out float core) {
+  vec2 p = uv - vec2(0.0, -0.34);       // seated low
+  float rise = t * 1.15;
+  float slow = fbm(vec2(p.x * 3.2, p.y * 1.9 - rise));
+  float fast = fbm(vec2(p.x * 7.5 + 3.0, p.y * 3.6 - rise * 1.55));
+
+  // Height, normalised to the flame's reach. Loudness feeds it and an onset
+  // makes it leap — a struck chord should make the fire jump, which is most of
+  // what makes a fire feel like it is listening.
+  float reach = 0.34 + drive * 0.26 + kick * 0.16;
+  float h = clamp(p.y / reach, 0.0, 1.0);
+
+  // A lobe: broad at the seat, drawn to a point. Squaring the taper keeps the
+  // base wide instead of making a cone, which is the difference between a fire
+  // and a party hat.
+  float taper = (1.0 - h) * (1.0 - h * 0.55);
+  // Narrower at the seat than the first cut. A wide base that the erosion
+  // could not reach came out as a solid bright rectangle sitting on the
+  // bottom of the aperture — a box, not a fire.
+  float wid = (0.095 + drive * 0.04) * taper;
+  // The whole flame leans and wanders with the slow field.
+  float lean = (slow - 0.5) * 0.20 * h;
+  float body = smoothstep(wid, wid * 0.15, abs(p.x - lean));
+  // Softened at the bottom, and only just below the seat: a hard step there
+  // draws a straight edge across the base of the flame.
+  body *= smoothstep(-0.05, 0.02, p.y);
+  // Torn everywhere, more so with height, so tongues separate as they climb —
+  // but the seat gets some of it too, or the base is a slab.
+  body *= smoothstep(0.30 + h * 0.34, 0.62 + h * 0.2, fast + (1.0 - h) * 0.34);
+  // The white heart, low and small, and no longer the whole base.
+  core = body * smoothstep(0.30, 0.0, h);
+  return body;
+}
+
+// Sparks on the draught. Three sparse layers at different speeds, so they do
+// not rise as a sheet — and each lane wanders as it climbs, because an ember
+// is carried by moving air rather than falling upward in a straight line.
+//
+// Deliberately not a 3x3 neighbourhood search: at this density most cells hold
+// nothing, and paying nine lookups per fragment to draw a handful of dots is
+// the mistake the crystals already made once.
+float mEmbers(vec2 uv, float t, float w, float drive, float kick) {
+  float v = 0.0;
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float sp = 0.30 + fi * 0.20;
+    float y = uv.y * (2.4 + fi * 0.9) - t * sp * (1.0 + drive * 0.9);
+    // The wander: lanes bend as they rise, on each layer's own phase.
+    float lane = uv.x * (6.5 + fi * 3.2) + sin(y * 0.7 + fi * 2.1) * 0.7;
+    vec2 c = vec2(floor(lane), floor(y));
+    // An onset throws a burst of them — poking a fire.
+    float on = step(0.93 - w * 0.22 - kick * 0.18, hash(c + fi * 31.0));
+    vec2 fp = vec2(fract(lane), fract(y)) - hash2(c + fi * 7.0);
+    // Corrected for the cell's aspect. A lane cell is several times taller on
+    // screen than it is wide, so measuring distance in cell space drew embers
+    // as vertical streaks — sparks stretched into rain going the wrong way.
+    float d = length(fp * vec2(1.0, (6.5 + fi * 3.2) / (2.4 + fi * 0.9)));
+    // They die as they climb. Without this they stream off the top of the
+    // frame and read as rain going the wrong way.
+    float life = smoothstep(0.62, -0.26, uv.y);
+    v += on * smoothstep(0.17, 0.0, d) * life;
+  }
+  return clamp(v, 0.0, 1.0) * w;
+}
+
+// The plume. Widens and thins as it climbs, and drifts on its own slow sway,
+// so the smoke is never directly above the fire for long.
+float mSmoke(vec2 uv, float t, float w, float drive) {
+  vec2 p = uv - vec2(0.0, -0.22);
+  float sway = sin(p.y * 1.9 + t * 0.34) * 0.13 + sin(p.y * 3.7 - t * 0.21) * 0.05;
+  float wid = 0.13 + max(p.y, 0.0) * 0.75;
+  float column = smoothstep(wid, wid * 0.1, abs(p.x + sway));
+  float n = fbm(vec2(p.x * 2.0, p.y * 1.5 - t * 0.42));
+  // Starts above the flame and fades out well before the top of the aperture:
+  // smoke that reaches the frame edge reads as fog, not as a plume.
+  float span = smoothstep(0.02, 0.22, p.y) * (1.0 - smoothstep(0.30, 0.72, p.y));
+  return column * span * smoothstep(0.34, 0.74, n) * (0.55 + drive * 0.5) * w;
+}
+
 // A rainbow.
 //
 // Its colour is its OWN — the same licence the aurora, the snow and the quartz
@@ -1681,6 +1768,27 @@ void main() {
     lift += s * 0.42;
     spec += s * 1.2;
   }
+  float flame = 0.0;
+  float flameCore = 0.0;
+  float embers = 0.0;
+  float smoke = 0.0;
+  if (W_flame > 0.0) {
+    float c;
+    flame = mFlame(uv, u_t, u_rms, u_pulse, c) * W_flame;
+    flameCore = c * W_flame;
+    // A fire lights what is around it. The seat glows, the rest of the frame
+    // does not — which is the whole of "small fire in the dark".
+    float glow = exp(-dot(uv - vec2(0.0, -0.30), uv - vec2(0.0, -0.30)) * 5.5);
+    lift += glow * W_flame * (0.22 + u_rms * 0.3);
+  }
+  if (W_embers > 0.0) {
+    embers = mEmbers(uv, u_t, W_embers, u_rms, u_pulse);
+  }
+  if (W_smoke > 0.0) {
+    smoke = mSmoke(uv, u_t, W_smoke, u_rms);
+    // Smoke is opaque: it hides what is behind it rather than glowing.
+    mass += smoke * 0.35;
+  }
   float aur = 0.0;
   float aurHigh = 0.0;
   if (W_aurora > 0.0) {
@@ -1838,6 +1946,28 @@ void main() {
     float bowAmt;
     vec3 bow = mRainbow(uv, u_t, u_rms, u_pulse, u_centroid, bowAmt);
     col += bow * bowAmt * W_rainbow * 1.25;
+  }
+  // FIRE. Its own colours, like the aurora and the quartz — deep red at the
+  // torn edges, orange through the body, and a white heart at the seat. No
+  // palette holds a blackbody ramp, and a fire tinted from one reads as
+  // coloured fog rather than as something burning.
+  if (W_flame > 0.0 || W_embers > 0.0) {
+    vec3 hot = vec3(1.0, 0.95, 0.82);
+    vec3 mid = vec3(1.0, 0.55, 0.13);
+    vec3 low = vec3(0.72, 0.13, 0.03);
+    float f = clamp(flame, 0.0, 1.0);
+    vec3 fireCol = mix(low, mid, smoothstep(0.10, 0.55, f));
+    fireCol = mix(fireCol, hot, smoothstep(0.0, 0.7, flameCore));
+    col += fireCol * f * 1.15;
+    // Embers cool as they rise: bright orange at the seat, dull red up high.
+    vec3 sparkCol = mix(vec3(1.0, 0.72, 0.30), vec3(0.85, 0.22, 0.06),
+                        smoothstep(-0.25, 0.4, uv.y));
+    col += sparkCol * embers * 1.5;
+  }
+  // Smoke last, over the fire that made it, taking the palette's low steps —
+  // it is the one thing here that is genuinely the colour of the surroundings.
+  if (W_smoke > 0.0) {
+    col = mix(col, mix(u_c1, u_c2, 0.55), clamp(smoke, 0.0, 1.0) * 0.5);
   }
   col += u_c4 * clamp(spec, 0.0, 1.0) * (0.16 + u_gloss * 0.5);
   // Wisps are their own small light sources, added rather than mixed: they

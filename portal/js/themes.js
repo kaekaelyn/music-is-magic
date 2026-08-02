@@ -173,6 +173,23 @@ export const BUILTIN = {
     mappings: { warpBass: 0.15, sparkleTreble: 1.0, pulseFlux: 1.15, shiftCentroid: 0.2 },
   },
 
+  // A small fire in the dark. Explicitly NOT a wildfire — the brief is sacred
+  // and intimate, which is a statement about scale before it is one about
+  // colour: the flame is seated low, the frame stays black, and what lights
+  // the surroundings is the fire itself rather than any ambient field. base is
+  // near zero for exactly that reason.
+  //
+  // A few stars, because a fire in the dark is usually outdoors and the sky
+  // being there is what makes the dark feel large rather than enclosed.
+  fire: {
+    palette: ['#08060a', '#1e1114', '#4a2418', '#a34e1c', '#ffd9a0'],
+    params: { scale: 1.6, speed: 0.3, warp: 0.7, sparkle: 0.5, gloss: 0.15, base: 0.16, drift: 0.3, travel: 0.18 },
+    motifs: { flame: 1.0, embers: 0.6, smoke: 0.45, stars: 0.18 },
+    // pulseFlux high: a fire should visibly jump when a chord lands, and the
+    // flame's reach and the ember burst both hang off the onset.
+    mappings: { warpBass: 0.25, sparkleTreble: 1.0, pulseFlux: 1.25, shiftCentroid: 0.12 },
+  },
+
   // --- SUB-MOODS ------------------------------------------------------------
   //
   // A sub-mood is just a theme. No new machinery was needed: both panels build
@@ -263,6 +280,12 @@ export const MOTIFS = Object.freeze({
   crystals: 0,  // prisms growing out of the rock, lit face and shadowed face
   storm: 0,     // forked lightning and the flash that follows it
   rainbow: 0,   // a spectral arc against dark weather — conjured, not ambient
+  flame: 0,     // tongues of fire rising from a seat — small, not a wildfire
+  embers: 0,    // sparks carried up on the draught, dying as they climb
+  smoke: 0,     // a plume above a fire, widening and thinning as it rises
+  lava: 0,      // molten rock finding its way downhill, glowing from within
+  ripples: 0,   // wind-combed sand, ridge upon ridge of it
+  petals: 0,    // blossom and leaf-fall, tumbling as they go
 });
 
 // Spread under every theme so each one carries every key. Morphing is then a
@@ -284,6 +307,11 @@ export const DEFAULT_PARAMS = Object.freeze({
               // loudness. 0 = a place you stand in; >0 = a place you move through
   travelX: 0, // direction the texture-space frame is carried by that clock —
   travelY: 0, // the current. Motifs also read the clock along their own axes.
+  angular: 1, // how sharp a ridgeline's profile is. 1 = rock, folded from
+              // linear noise so the flanks are straight and the summits
+              // pointed; 0 = the same silhouette folded from smooth noise,
+              // which is a DUNE. Sand and stone are the same geometry at two
+              // settings, and this is the setting.
 });
 
 const DEFAULT_MAPPINGS = {

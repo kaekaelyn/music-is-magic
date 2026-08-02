@@ -17,10 +17,6 @@ const THEMES = join(ROOT, 'portal/assets/themes');
 const EYE = join(ROOT, 'portal/assets/eye');
 
 // scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
-const KNOWN_PARAMS = [
-  'scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant', 'base', 'drift',
-  'travel', 'travelX', 'travelY', 'glint', 'canopy',
-];
 // travelX/travelY are a direction: negative is a legitimate way to point.
 const SIGNED_PARAMS = ['travelX', 'travelY'];
 const POSITIVE_PARAMS = ['scale', 'speed', 'warp'];
@@ -36,6 +32,10 @@ const HEX = /^#[0-9a-f]{6}$/i;
 const themesModule = await import(pathToFileURL(join(ROOT, 'portal/js/themes.js')));
 const MOTIF_NAMES = Object.keys(themesModule.MOTIFS);
 const PARAM_DEFAULTS = themesModule.DEFAULT_PARAMS;
+// Derived from the engine's own defaults rather than restated. This list used
+// to be typed out here, which meant adding a param to the engine failed
+// validation on every theme that used it — a check about drift, drifting.
+const KNOWN_PARAMS = Object.keys(PARAM_DEFAULTS);
 
 const errors = [];
 const warnings = [];
