@@ -17,7 +17,7 @@ import { CONFIG, readRelayTopic, writeRelayTopic, isValidTopic } from './config.
 import { EyeState, createEyeMachine } from './state.js';
 import { createEye } from './eye.js';
 import { createViz } from './viz.js';
-import { createThemeStore } from './themes.js';
+import { createThemeStore, isKin } from './themes.js';
 import { createMicEngine, listInputs } from './mic.js';
 import { createRelay, EYE_LIVE, EYE_SEALED } from './relay.js';
 import {
@@ -137,6 +137,10 @@ let currentToken = null;
 let themeSeq = 0;
 
 let firstTheme = true;
+// The RESOLVED name of what is on screen, for the kinship test. The token
+// is not enough: an unknown one lands on the fallback, and kinship is about
+// where you actually are.
+let currentName = null;
 
 function applyTheme(token) {
   if (token === currentToken) return;
@@ -144,22 +148,27 @@ function applyTheme(token) {
   const seq = ++themeSeq;
   themes.load(token).then((theme) => {
     if (seq !== themeSeq) return;
-    const swap = () => {
+    const swap = (seamless) => {
       // Checked again here, not only above: the eye holds this for the length
       // of a blink, and mashing the mood keys can land another change while
       // it is shut. The newest wins; the stale one simply never applies.
       if (seq !== themeSeq) return;
-      viz.setTheme(theme);
+      viz.setTheme(theme, seamless);
       eye.setTheme(theme);
+      currentName = theme.name;
       document.body.dataset.theme = theme.name;
       say(el.theme, theme.name);
       // Mark by the RESOLVED name, not the token: an unknown mood lands on
       // default (§5.2), and the panel should show where you actually are.
       markMood(theme.name);
     };
-    // The first mood is not a change — nothing to blink away from.
-    if (firstTheme) { firstTheme = false; swap(); }
-    else eye.transition(swap);
+    // Kin morph in the open — a sub-mood is the same weather changing, and
+    // shutting the eye on it would break the continuity that makes the passage
+    // from rain through sunshower to sunshine worth having. The first mood is
+    // not a change either; there is nothing to blink away from.
+    if (firstTheme) { firstTheme = false; swap(false); }
+    else if (isKin(currentName, theme.name)) swap(true);
+    else eye.transition(() => swap(false));
   });
 }
 

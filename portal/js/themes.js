@@ -175,36 +175,67 @@ export const BUILTIN = {
 
   // --- SUB-MOODS ------------------------------------------------------------
   //
-  // A sub-mood is just a theme. No new machinery was needed for this: the
-  // control panel and the broadcast HUD both build their buttons from
-  // index.json, and every theme carries every motif key so moving between two
-  // of them is a plain lerp. A folder and one line in index.json is the whole
-  // mechanism, and the prefix in the name is what will group them in the panel
-  // when there are enough of them to want grouping.
+  // A sub-mood is just a theme. No new machinery was needed: both panels build
+  // their buttons from index.json, and every theme carries every motif key, so
+  // moving between any two is a plain lerp. A folder and one line is the whole
+  // mechanism.
 
-  // Rain seen from inside a wood with the sun still on it. Almost exactly
-  // forest plus falling water — which is why this one needed no shader work at
-  // all: forest already owns the canopy, the shafts and the trunks, and rain
-  // owns the drips. The palette's top step goes warm, because a sunshower is
-  // lit by low gold light and that is most of what separates it from weather.
-  'rain-sunshower': {
-    palette: ['#0a1608', '#33301f', '#3a7a48', '#a8c85e', '#fff1c4'],
-    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.5, gloss: 0.15, glint: 0.18, canopy: 0.9, slant: 0.12, base: 0.46, drift: 0.35, travel: 0.5, travelX: 0.26 },
-    motifs: { columns: 0.7, dapple: 0.72, rays: 0.9, wisps: 0.3, drips: 0.6 },
-    mappings: { warpBass: 0.45, sparkleTreble: 1.2, pulseFlux: 1.0, shiftCentroid: 0.3 },
-  },
-
-  // The far side of a storm. Rain thinning, the last of the thunder, cloud
-  // still dark enough to put a bow against — a rainbow needs weather behind it
-  // or it is a decal on a blue sky. Lighter than rain proper at every step,
-  // because the whole subject is a sky in the act of clearing.
-  'rain-rainbow': {
-    palette: ['#0d1014', '#262c33', '#4e5862', '#93a0a8', '#e8eef2'],
-    params: { scale: 2.2, speed: 0.45, warp: 1.0, sparkle: 0.5, gloss: 0.28, slant: 0.22, base: 0.62, drift: 0.7, travel: 0.2, travelX: 0.08 },
-    motifs: { columns: 0.12, drips: 0.42, storm: 0.2, clouds: 0.5, rainbow: 0.95 },
-    mappings: { warpBass: 0.35, sparkleTreble: 1.0, pulseFlux: 1.0, shiftCentroid: 0.2 },
+  // Rain falling through sunlight. NOT a rain sub-mood and not a sunshine one
+  // — it is the place those two meet, which is why it carries neither name as
+  // a prefix and why arriving from either side is a single morph.
+  //
+  // The first attempt built it out of forest, on the reasoning that forest
+  // already owned shafts and canopy and only wanted drips added. That was
+  // reasoning about the parts instead of the thing: it came out GREEN, a wood
+  // in the rain rather than weather lit from behind. There are no trees here
+  // now — no canopy, no trunks, no wisps. This mood is archetypal, and what it
+  // is made of is falling water, low sun, and the sky between them.
+  //
+  // Palette from the owner's reference: deep blue and violet cloud, lilac
+  // through the middle, and a warm near-white at the top. That last step is
+  // load-bearing — drips take their highlight from it, so the rain itself
+  // falls GOLD against the blue, which is the whole look of backlit rain.
+  //
+  // The rainbow lives here rather than in a mood of its own, and it is gated
+  // on the clearing (see u_clearing): play hard, then let it go, and the bow
+  // arrives on the way down.
+  sunshower: {
+    // base is LOW. At 0.5 the shared field sat high enough in the ramp that
+    // everything resolved to the pale top steps and the mood came out a
+    // washed grey — the blue and violet the reference is built on never got
+    // a look in. The sky has to be dark enough for backlit rain to be gold
+    // against it.
+    palette: ['#101736', '#2f3d78', '#6b7ac0', '#c8b9c6', '#ffe6bd'],
+    params: { scale: 1.9, speed: 0.32, warp: 1.0, sparkle: 0.6, gloss: 0.3, slant: 0.18, base: 0.26, drift: 0.45, travel: 0.4, travelX: 0.16 },
+    motifs: { rays: 0.58, dapple: 0.25, drips: 0.66, clouds: 0.55, rainbow: 1.0 },
+    mappings: { warpBass: 0.3, sparkleTreble: 1.1, pulseFlux: 1.0, shiftCentroid: 0.25 },
   },
 };
+
+// KINSHIP. Which moods flow into which without a cut.
+//
+// Moving between kin is not going somewhere else — it is the same weather
+// changing its mind — so it gets neither the lid nor a clock reset, and the
+// morph is the only thing that happens. Moving between unrelated moods still
+// closes the eye, because that IS a different place and the cut wants hiding.
+//
+// The useful consequence: sunshower is kin to both of its parents, so rain and
+// sunshine are two steps apart through it, and the whole passage from one to
+// the other can be made without the eye ever shutting.
+//
+// Deliberately not in theme.json. A relationship is not a property of either
+// theme on its own, and putting half of it in each file is how the two halves
+// come to disagree.
+const KIN = Object.freeze({
+  sunshower: ['rain', 'sunshine'],
+  rain: ['sunshower'],
+  sunshine: ['sunshower'],
+});
+
+export function isKin(a, b) {
+  if (!a || !b || a === b) return false;
+  return (KIN[a] || []).includes(b);
+}
 
 // Motifs are the answer to "why does every theme look like the same fog in a
 // different color". The engine compiles all of them in; a theme picks which

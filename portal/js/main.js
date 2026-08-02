@@ -5,7 +5,7 @@ import { createPoller } from './status.js';
 import { EyeState, createEyeMachine } from './state.js';
 import { createEye } from './eye.js';
 import { createViz } from './viz.js';
-import { createThemeStore } from './themes.js';
+import { createThemeStore, isKin } from './themes.js';
 import { createAudioEngine } from './audio.js';
 import { FeatureExtractor, syntheticFeatures, IDLE } from './features.js';
 
@@ -39,6 +39,7 @@ let currentToken = null;
 let themeSeq = 0;
 
 let firstTheme = true;
+let currentName = null;
 
 function applyTheme(token) {
   if (token === currentToken) return;
@@ -46,19 +47,21 @@ function applyTheme(token) {
   const seq = ++themeSeq;
   themes.load(token).then((theme) => {
     if (seq !== themeSeq) return; // a newer token won the race
-    const swap = () => {
+    const swap = (seamless) => {
       // Checked again here, not only above: the eye holds this for the length
       // of a blink, and another mood can win the race while it is shut.
       if (seq !== themeSeq) return;
-      viz.setTheme(theme);
+      viz.setTheme(theme, seamless);
       eye.setTheme(theme);
+      currentName = theme.name;
       // The resolved name, not the raw token: unknown tokens land on the fallback.
       document.body.dataset.theme = theme.name;
     };
-    // The first mood is not a change — there is nothing to blink away from,
-    // and the eye is sealed at that point regardless.
-    if (firstTheme) { firstTheme = false; swap(); }
-    else eye.transition(swap);
+    // Kin morph in the open; a sub-mood is the same weather changing its mind,
+    // not an arrival somewhere else. The first mood is not a change either.
+    if (firstTheme) { firstTheme = false; swap(false); }
+    else if (isKin(currentName, theme.name)) swap(true);
+    else eye.transition(() => swap(false));
   });
 }
 

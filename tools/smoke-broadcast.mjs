@@ -66,6 +66,37 @@ const litFraction = (page) =>
     return n ? lit / n : 0;
   });
 
+// Aperture height over time, sampled inside the page so a ~190ms blink cannot
+// fall between two round trips. One bright-pixel column down the middle of the
+// plate IS the aperture's height, which is what a lid changes.
+const sampleAperture = (page, ms) =>
+  page.evaluate((duration) => new Promise((resolve) => {
+    const c = document.getElementById('eye');
+    const g = c.getContext('2d');
+    const vals = [];
+    const t0 = performance.now();
+    const col = Math.round(c.width / 2);
+    const tick = () => {
+      const d = g.getImageData(col, 0, 1, c.height).data;
+      let peak = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        peak = Math.max(peak, d[i] + d[i + 1] + d[i + 2]);
+      }
+      let rows = 0;
+      if (peak > 30) {
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i] + d[i + 1] + d[i + 2] > peak * 0.5) rows++;
+        }
+      }
+      vals.push(rows);
+      if (performance.now() - t0 < duration) setTimeout(tick, 20);
+      else resolve(vals);
+    };
+    tick();
+  }), ms);
+
+const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+
 // Drive the relay the way control.html does, from the page's own origin.
 const relaySend = (page, state) =>
   page.evaluate((s) => {
@@ -574,35 +605,6 @@ try {
     await eyeIs(page, 'communing');
     await page.waitForTimeout(900); // settle at full open
 
-    const sampleAperture = (ms) =>
-      page.evaluate((duration) => new Promise((resolve) => {
-        const c = document.getElementById('eye');
-        const g = c.getContext('2d');
-        const vals = [];
-        const t0 = performance.now();
-        const col = Math.round(c.width / 2);
-        const tick = () => {
-          // One column, so this stays cheap enough to run every 20ms.
-          const d = g.getImageData(col, 0, 1, c.height).data;
-          let peak = 0;
-          for (let i = 0; i < d.length; i += 4) {
-            peak = Math.max(peak, d[i] + d[i + 1] + d[i + 2]);
-          }
-          let rows = 0;
-          if (peak > 30) {
-            for (let i = 0; i < d.length; i += 4) {
-              if (d[i] + d[i + 1] + d[i + 2] > peak * 0.5) rows++;
-            }
-          }
-          vals.push(rows);
-          if (performance.now() - t0 < duration) setTimeout(tick, 20);
-          else resolve(vals);
-        };
-        tick();
-      }), ms);
-
-    const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
-
     // What counts as "a lid came down", and the number is reasoned rather than
     // tuned. The only other thing that moves the aperture while communing is
     // the bass breath, and eye.js caps that at 5% (openEff *= 0.95 + bass*0.05)
@@ -617,7 +619,7 @@ try {
 
     // --- a mood change closes it, and hands the mood over while shut ---
     await themeIs(page, 'night');
-    const changing = sampleAperture(1500);
+    const changing = sampleAperture(page, 1500);
     await page.waitForTimeout(60);
     await page.keyboard.press('3'); // cave, third in index.json
     await page.waitForTimeout(120); // still inside the 276ms close
@@ -637,6 +639,14 @@ try {
     );
 
     // --- and it blinks on its own ---
+    //
+    // Sampled long and judged leniently, ON PURPOSE. A blink is ~190ms, and
+    // this renderer is software: a frame can cost 200ms, so an individual
+    // blink is allowed to fall entirely between two of them and never be
+    // drawn. Over twenty seconds several are due, and catching any one of them
+    // part-closed is enough to prove the scheduler runs — while a build where
+    // blinking was broken outright would show no dip at all. The mood lid is
+    // five times longer and is tested strictly above.
     // On sunshine, not on the cave we just switched to. The probe normalises
     // against the centre column's own peak, and cave is the darkest mood in
     // the set with a field that swings as clusters are nominated — enough to
@@ -646,7 +656,7 @@ try {
     await themeIs(page, 'sunshine');
     await page.waitForTimeout(1200); // let that transition's own lid finish
     // First blink is armed 3-8s after opening, so 13s catches one or two.
-    const idleVals = await sampleAperture(13000);
+    const idleVals = await sampleAperture(page, 20000);
     const idleMed = median(idleVals);
     const idleMin = Math.min(...idleVals);
     check(
@@ -661,6 +671,75 @@ try {
       'and spends most of its time open',
       `${dim}/${idleVals.length} samples dim`
     );
+
+    assertClean();
+    await ctx.close();
+  }
+
+  // === 6d. kin morph in the open =====================================
+  //
+  // A sub-mood is the same weather changing its mind, so it must NOT close the
+  // eye — that is what lets rain reach sunshine through sunshower without the
+  // lid ever dropping. "Does not close" is as much a behaviour as "closes",
+  // and it is the easier one to break silently.
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    const assertClean = watch(page, 'kin morph');
+    await page.goto(BC);
+    await relaySend(page, { eye: 'live' });
+    await eyeIs(page, 'communing');
+    await page.waitForTimeout(900);
+
+    const pickMood = (name) => page.evaluate((n) => {
+      const b = [...document.querySelectorAll('#moods button')]
+        .find((x) => x.textContent.replace(/^\d+/, '') === n);
+      if (b) b.click();
+      return !!b;
+    }, name);
+
+    // Measured as the DELAY between the click and the mood actually changing,
+    // not as aperture height. A kin morph swaps immediately; a lid transition
+    // hands the swap over at the closed moment, about 276ms in. Watching the
+    // aperture instead looks obvious and is not: the eye blinks on its own
+    // every few seconds, and a spontaneous blink inside the sample window is
+    // indistinguishable from a lid. This discriminator cannot be fooled by one.
+    // Asked as an ordering question, not a timing one. Under software
+    // rendering a single frame costs ~200ms, which is the same order as the
+    // lid's close, so wall-clock cannot tell the two apart. But a kin swap
+    // settles on a microtask from the cached theme, while a lid needs a third
+    // of a second of ANIMATION FRAMES to reach its closed moment — so
+    // draining a couple of macrotask turns separates them regardless of how
+    // slow the renderer is.
+    const swapsImmediately = (name) => page.evaluate((n) => new Promise((resolve) => {
+      const before = document.body.dataset.theme;
+      const b = [...document.querySelectorAll('#moods button')]
+        .find((x) => x.textContent.replace(/^\d+/, '') === n);
+      if (!b) { resolve(null); return; }
+      b.click();
+      setTimeout(() => setTimeout(() => {
+        resolve(document.body.dataset.theme !== before);
+      }, 0), 0);
+    }), name);
+
+    // Warm every theme this block touches BEFORE timing anything. A mood is
+    // fetched from its own theme.json on first use, and that fetch lands
+    // inside the click-to-swap window — it measured 544ms on a cold sunshower,
+    // which looks exactly like a lid and is not one.
+    for (const name of ['sunshower', 'cave', 'rain']) {
+      check(await pickMood(name), `${name} is on the panel`);
+      await themeIs(page, name, 8000);
+      await page.waitForTimeout(1300); // and let each transition's lid finish
+    }
+
+    const kinNow = await swapsImmediately('sunshower');
+    await themeIs(page, 'sunshower', 8000);
+    check(kinNow === true, 'rain to sunshower morphs in the open, no lid');
+
+    await page.waitForTimeout(900);
+    const cutNow = await swapsImmediately('cave');
+    await themeIs(page, 'cave', 8000);
+    check(cutNow === false, 'sunshower to cave still waits for the lid');
 
     assertClean();
     await ctx.close();

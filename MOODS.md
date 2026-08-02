@@ -129,10 +129,24 @@ Judged against screenshots this time (`npm run shots`), not reasoning.
   off them.
 - **ocean / night palettes**, **forest motes and wisp zigzag** — as specced in
   the first pass.
-- **sub-moods** — `rain-sunshower` and `rain-rainbow` exist as theme folders.
-  No new machinery was required, exactly as predicted: a folder plus one line
-  in `index.json` gives a control-panel button and a morph. The **rainbow** is
-  a new motif carrying its own spectrum, with a faint reversed secondary.
+- **sub-moods** — one, `sunshower`, kin to BOTH rain and sunshine rather than
+  a child of either. A first cut built it out of forest (which owned shafts and
+  canopy already) and split the rainbow into a second sub-mood; both were
+  wrong. Building it from the parts made it green — a wood in the rain rather
+  than weather lit from behind — and the bow belongs inside the sunshower, not
+  beside it. There are no trees in it now; it is deep blue cloud, gold backlit
+  rain, and sun between them.
+
+  **Kinship** (`themes.js`) governs transitions: moving between kin morphs in
+  the open and keeps the travel clock running, so rain reaches sunshine through
+  sunshower without the lid ever dropping. Unrelated moods still close the eye,
+  because that is a different place and the cut wants hiding.
+
+  The **rainbow** is a new motif carrying its own spectrum. Deliberately not
+  meteorological: an earlier cut gated it on a storm passing, which made it a
+  rare solemn event. It plays instead — breathing, flinching on onsets, and
+  breaking into drifting fragments, so it is sometimes a full arc and sometimes
+  two suggestions of one.
 
 **Perf:** cave is now 1.54× the cheapest mood (was 1.31×) — the light pool is
 evaluated for every cluster before the bounding early-out, by necessity, or the

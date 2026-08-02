@@ -912,31 +912,50 @@ vec3 bowSpectrum(float x) {
   return c;
 }
 
-vec3 mRainbow(vec2 uv, float t, float drive, out float amt) {
+// Deliberately NOT meteorological. An earlier cut gated this on a storm having
+// happened and now passing, which is what a real rainbow needs and made for a
+// rare, solemn event. The owner's call, and the better one: let it play. This
+// is refracted light loose in a sunshower, free to wander, brighten, break up
+// and reform with the music — a lovely small feature of the mood rather than a
+// reward for a particular passage. Realism is not the brief here.
+vec3 mRainbow(vec2 uv, float t, float drive, float kick, float pitch, out float amt) {
   vec2 c = vec2(0.04, -1.24);
-  float r = length(uv - c);
-  const float R = 1.42;
-  const float WIDTH = 0.085;
+  vec2 dv = uv - c;
+  float r = length(dv);
+  float ang = atan(dv.x, dv.y);   // 0 straight up the crown
 
-  // The primary. A narrow annulus, softened at both edges so it sits IN the
-  // air rather than being drawn on the glass.
-  float d = (r - R) / WIDTH;
+  // It BREATHES and it FLINCHES. The radius drifts on a slow clock and an
+  // onset shoves it outward, so a struck chord makes the whole arc spring
+  // rather than merely brighten.
+  float R = 1.42 + sin(t * 0.19) * 0.055 + kick * 0.075;
+  float width = 0.085 * (1.0 + drive * 0.55);
+
+  float d = (r - R) / width;
   float primary = smoothstep(1.0, 0.0, abs(d));
-  // Only the crown: an arc, not a hoop. Fades out as it reaches down toward
-  // where its feet would be.
+  // Only the crown: an arc, not a hoop.
   float crown = smoothstep(-0.30, 0.06, uv.y);
-  // Broken slightly along its length, so it is weather and not a decal.
-  float patchy = 0.72 + 0.28 * fbm(vec2(atan(uv.x - c.x, uv.y - c.y) * 2.4 + t * 0.03, 5.0));
 
-  vec3 col = bowSpectrum(clamp(d * 0.5 + 0.5, 0.0, 1.0)) * primary;
+  // ALIVE ALONG ITS LENGTH. Segments swell and fade on their own slow clock,
+  // so the bow is never quite the same shape twice — sometimes a full arc,
+  // sometimes two or three suggestions of one. This is the dancing.
+  float seg = fbm(vec2(ang * 2.7 + t * 0.09, 5.0));
+  float alive = smoothstep(0.30, 0.68, seg + drive * 0.3);
 
-  // The secondary, wider, fainter, and with its colours reversed — the
-  // physics of a second internal reflection, and the detail that sells it.
-  float d2 = (r - R * 1.19) / (WIDTH * 1.7);
-  float secondary = smoothstep(1.0, 0.0, abs(d2)) * 0.28;
-  col += bowSpectrum(clamp(0.5 - d2 * 0.5, 0.0, 1.0)) * secondary;
+  // Where the spectrum sits across the band slides with pitch, so bright
+  // playing walks the colours outward through the arc.
+  float k = clamp(d * 0.5 + 0.5 + (pitch - 0.45) * 0.45, 0.0, 1.0);
+  vec3 col = bowSpectrum(k) * primary * alive;
 
-  amt = (primary + secondary) * crown * patchy * (0.55 + drive * 0.55);
+  // A second, fainter suggestion on its own wandering radius — a nod to the
+  // real secondary bow, colours reversed, but untethered from the physics and
+  // free to drift against the first.
+  float R2 = R * (1.16 + sin(t * 0.13 + 1.7) * 0.045);
+  float d2 = (r - R2) / (width * 1.8);
+  float ghost = smoothstep(1.0, 0.0, abs(d2)) * 0.32
+              * smoothstep(0.36, 0.82, fbm(vec2(ang * 1.9 - t * 0.06, 12.0)));
+  col += bowSpectrum(clamp(0.5 - d2 * 0.5, 0.0, 1.0)) * ghost;
+
+  amt = (primary * alive + ghost) * crown * (0.5 + drive * 0.7 + kick * 0.45);
   return col;
 }
 
@@ -1817,8 +1836,8 @@ void main() {
   // it belongs to rain.
   if (W_rainbow > 0.0) {
     float bowAmt;
-    vec3 bow = mRainbow(uv, u_t, u_rms, bowAmt);
-    col += bow * bowAmt * W_rainbow * 0.85;
+    vec3 bow = mRainbow(uv, u_t, u_rms, u_pulse, u_centroid, bowAmt);
+    col += bow * bowAmt * W_rainbow * 1.25;
   }
   col += u_c4 * clamp(spec, 0.0, 1.0) * (0.16 + u_gloss * 0.5);
   // Wisps are their own small light sources, added rather than mixed: they
@@ -1932,6 +1951,7 @@ function createMotionSmoother() {
     // wrong about a room it has not measured.
     const wTau = f.rms > v.weather ? WEATHER_RISE_TAU : WEATHER_FALL_TAU;
     v.weather += (f.rms - v.weather) * (1 - Math.exp(-dt / wTau));
+
     return v;
   };
 }
@@ -2101,10 +2121,16 @@ function createGL(canvas, reducedMotion) {
   }
   const resize = () => setSize(lastW, lastH); // context restore resets the viewport
 
-  function setTheme(theme) {
+  function setTheme(theme, seamless) {
     cur = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
     tgt = theme;
     morph = 0;
+    // A seamless change keeps the clock running. Between kin (see themes.js)
+    // this is not a new visit to a new mood — the rain that was falling goes on
+    // falling at the same phase while the palette and the motif weights lerp
+    // underneath it — so restarting would put a jump into the one thing the
+    // transition exists to carry through.
+    if (seamless) return;
     // The travel clock restarts with every mood. It is what "the longer you
     // play" means — frost thickening, the cave's light swinging round, the
     // sea and the forest travelling — and the only reading of that which

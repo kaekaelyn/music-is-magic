@@ -1,0 +1,52 @@
+{
+  "name": "sunshower",
+  "palette": [
+    "#101736",
+    "#2f3d78",
+    "#6b7ac0",
+    "#c8b9c6",
+    "#ffe6bd"
+  ],
+  "params": {
+    "scale": 1.9,
+    "speed": 0.32,
+    "warp": 1.0,
+    "sparkle": 0.6,
+    "gloss": 0.3,
+    "glint": 0,
+    "canopy": 0,
+    "slant": 0.18,
+    "base": 0.26,
+    "drift": 0.45,
+    "travel": 0.4,
+    "travelX": 0.16,
+    "travelY": 0
+  },
+  "mappings": {
+    "warpBass": 0.3,
+    "sparkleTreble": 1.1,
+    "pulseFlux": 1.0,
+    "shiftCentroid": 0.25
+  },
+  "motifs": {
+    "rays": 0.58,
+    "columns": 0,
+    "dapple": 0.25,
+    "drips": 0.66,
+    "facets": 0,
+    "caustics": 0,
+    "crags": 0,
+    "snow": 0,
+    "tunnel": 0,
+    "ridge": 0,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0,
+    "aurora": 0,
+    "clouds": 0.55,
+    "crystals": 0,
+    "storm": 0,
+    "rainbow": 1.0
+  },
+  "textures": []
+}
