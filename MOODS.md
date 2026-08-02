@@ -305,7 +305,145 @@ purple through to pale blue-white. Leave it.
 
 ## rain
 
-*Awaiting reference.*
+**Reference.** Five images. (1)–(3) are grey storm: rain over open water, a night
+bolt through cloud, a city river under heavy rain and branching lightning. The
+owner places these as *"more in line with what we have right now"*. (4) is a
+sunshower — green garden, sun blazing through trees, rain falling lit gold.
+(5) is a full rainbow arc against dark storm cloud over a lit field.
+
+Owner's direction, three separate asks:
+
+> *"it would be nice if it were a little more responsive. Like if it could go
+> from a drizzle to a storm depending on the volume. But that might make it too
+> fickle."*
+>
+> *"other potential rainy sub-moods … Maybe this could be the beginning of an
+> implementation of a sub-mood system that I can work with from the control
+> panel."*
+>
+> *"a way to conjure a rainbow would be really cool."*
+
+Images 4 and 5 are sub-mood candidates, not corrections to rain.
+
+### 1. Responsiveness — the "too fickle" worry is correct, and measurable
+
+Rain already answers the room, but on the wrong timescale. Both of its motifs
+ride fast envelopes:
+
+- drips density: `duty = (0.012 + 0.988 * w * w) * (0.5 + drive * 1.3)`
+  (viz.js:241), where `drive` is `rms`, smoothed at **attack 0.04s / release
+  0.3s** (features.js:60).
+- lightning: gated on the onset envelope, faster still — `flux` runs
+  **0.015 / 0.12** (features.js:96) and `mStorm` squares it twice so only real
+  attacks throw a bolt.
+
+Those are tuned for *notes*, which is right for lightning — a bolt is an event.
+It is wrong for rainfall. Mapping drizzle→storm onto a 0.3s release means the
+weather changes several times a bar. The owner's instinct is exactly right: done
+naively, this is fickle.
+
+**Fix: a second, much slower follower.** `_smooth` already takes per-feature
+time constants — flux uses `(0.015, 0.12)`, centroid `(0.4, 0.6)` — so adding a
+slow one is idiomatic rather than a new mechanism. A "weather" follower on rms
+with taus in the seconds-to-tens-of-seconds range (start around **attack 6s,
+release 20s**) makes a loud passage *build* a storm and a quiet one let it
+clear. Asymmetry matters: weather should gather faster than it disperses.
+
+That is the whole answer to fickleness — not less response, but response with
+inertia. Lightning keeps its fast envelope; only rainfall gets the slow one.
+
+**The trap that will make this silently not work.** `_norm` (features.js:52–57)
+divides every feature by its own peak with a **20-second half-life**. Features
+are relative to *recent* loudness, not absolute. After a couple of minutes of
+soft playing, soft playing reads as full scale — so "drizzle when quiet, storm
+when loud" would storm through a quiet passage and look broken for no visible
+reason.
+
+A weather follower keyed on dynamics must therefore read **pre-normalisation
+rms**, or carry its own much longer auto-gain. This is the most likely way this
+feature fails, and the failure is baffling rather than obvious. Do not skip it.
+
+### 2. Sub-moods — the system already exists
+
+This needs no new machinery. Two comments in the build already guarantee it:
+
+> *"Buttons come from the same index.json the portal uses — adding a theme
+> folder updates this page too, no edits here."* (control.html:205–206)
+
+> *"Every theme carries every motif key, so morphing between two themes is a
+> plain lerp with nothing missing on either side."* (themes.js:225–226)
+
+So a sub-mood **is** a theme. Add `portal/assets/themes/rain-sunshower/`, add
+one line to `index.json`, and it appears as a control-panel button and
+cross-fades smoothly from rain. No protocol change, no engine change, nothing in
+`control.html` to edit.
+
+Name them with a prefix — `rain-sunshower`, `rain-rainbow` — which costs nothing
+now and gives free grouping later. The only thing that degrades as sub-moods
+multiply is that the control panel is a flat row of buttons; grouping by prefix
+is a presentation change in `control.html` when it becomes annoying, not
+architecture.
+
+**`rain-sunshower` is data-only.** Image 4 is, almost exactly, forest plus rain:
+forest already runs `canopy: 0.95`, `rays: 0.62`, `columns: 0.85`, `dapple: 0.8`
+over a green palette. Add drips at ~0.7, warm the top palette step toward the
+gold of the reference, and that is the sunshower. A folder and one line — no
+shader work at all. Good first proof of the sub-mood idea precisely because it
+needs nothing built.
+
+### 3. The rainbow
+
+Nothing in the motif library does this; it is genuinely new. But it does **not**
+break the theme-is-palette contract, because crystals already set the precedent:
+the quartz minerals at viz.js:1355–1361 are hardcoded `vec3`s, not palette
+entries — a material is allowed its own colour. A rainbow is a material with its
+own colour. Build it that way and it is consistent with the engine as it stands.
+
+Shape: distance from an off-screen centre, banded; spectral sweep across the
+band's width; additive and faint; masked to the upper field. Image 5 shows it
+reading strongest against dark cloud, which is worth preserving — it should want
+a dark sky behind it, which is what makes it a *rain* element rather than a
+decoration.
+
+**How to conjure it — the two triggers, and they can share one motif.**
+
+The slow weather follower from §1 hands the good trigger over for free: a
+rainbow is what a *passing* storm looks like. A weather value that is high and
+now **falling** means the storm has spent itself. Fade the rainbow in on that
+falling edge and the gesture becomes: play hard, then ease off, and a rainbow
+arrives. Earned rather than switched on, and it costs nothing extra once the
+follower exists.
+
+The other trigger is a `rain-rainbow` sub-mood button, for summoning it on
+demand from the control panel.
+
+These are not alternatives — same motif, two ways in. Suggested order: build the
+motif first and drive it from a plain theme weight so it can be seen and tuned
+at all, then add the falling-edge trigger, which depends on §1 landing first.
+
+### Feel
+
+| | |
+|---|---|
+| **Quiet is** | Drizzle. Grey, even, low — and no lightning at all, since bolts are gated on real attacks. |
+| **The music is** | Rainfall thickening over seconds rather than beats, with the weight of weather that has to gather. Lightning on genuine attacks only. And, on the far side of a passage that has spent itself, a rainbow. |
+
+### Changes
+
+**Data**
+- Main rain `theme.json`: nothing yet. The responsiveness work is engine-side.
+- New folder `rain-sunshower/` — forest's params and motifs plus `drips ~0.7`,
+  palette warmed at the top. Data-only.
+- New folder `rain-rainbow/` — once the motif exists.
+- One `index.json` line per folder. Nothing else.
+
+**Engine** (`portal/js/viz.js`, `portal/js/features.js`)
+1. Slow "weather" follower on rms in `features.js`, reading pre-normalisation,
+   plus the uniform to carry it. Drives drips density; leave lightning fast.
+2. Rainbow motif in `viz.js`, its own colour, masked to the upper field.
+3. Falling-edge trigger on the weather follower — after 1 and 2.
+
+Steps 1 and 2 are independent and can land in either order; 3 needs both.
 
 ## sunshine
 
