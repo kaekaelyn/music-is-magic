@@ -802,7 +802,119 @@ exists is a palette entry.
 
 ## forest
 
-*Awaiting reference.*
+**Reference status — read this before assuming one exists.** No dedicated forest
+image set was supplied. The observations below come from two places: the
+sunshower image in the *rain* batch (a sunlit garden under trees, which is
+forest's material seen in another mood), and reading the build. One further
+image was supplied specifically for wisps, with the owner's caveat:
+
+> *"It is not accurate to the feel or color scheme of the forest mood itself, but
+> you might get an idea of the zigzagging orbs I'm trying to conjure up."*
+
+That image is a misty wood with glowing orbs in yellow, blue and orange. Per the
+owner's own words it is **motion reference only** — not colour, not atmosphere.
+
+### What was noticed earlier
+
+- **Forest is the mood the sunshower is made of.** It already runs `canopy: 0.95`,
+  `rays: 0.62`, `columns: 0.85`, `dapple: 0.8` over a green palette, which is why
+  `rain-sunshower` comes out data-only (see rain §2). Forest is the donor.
+- **Forest is where the shared engine gets tested honestly.** `mRays` carries a
+  fix for an `atan` seam with the note that *"Sunshine's own rays mostly
+  disguised it; forest's fainter ones did not, which is where it was spotted"*
+  (viz.js:148–151). Its fainter light exposes what sunshine's brightness hides —
+  worth remembering when changing anything shared.
+- **The depth cue is already built and is two-part.** `mColumns` runs two stands
+  at different distances passing at different rates, *"parallax is what makes it
+  a walk among the trees rather than a texture scrolling by"*, while the rays stay
+  anchored to the sky as the other half (viz.js:183–188). Trunk edges are hard on
+  purpose: *"a trunk is an object in front of the mist"*.
+- **Canopy breaks the beams properly.** Under `canopy`, shafts are cut by two
+  scales sampled in the travel frame, one lagging the other, so the pattern
+  reorganises rather than sliding past as a rigid stencil (viz.js:174–177).
+
+None of this needs changing. If forest gets its own reference set later, start
+from the fact that it is already carrying more machinery than any other mood.
+
+### The wisp ask: zigzag, not orbit
+
+Current motion, one line:
+
+```
+vec2 c = g + 0.5 + 0.34 * vec2(sin(t * (0.21 + h.x * 0.19) + h.y * 6.28),
+                               cos(t * (0.17 + h.y * 0.21) + h.x * 6.28));
+```
+(viz.js:861–862)
+
+Sine against cosine at slightly different rates is a **smooth ellipse** — a
+closed, cornerless orbit with a period somewhere around 16–37 seconds per wisp.
+The header calls them *"a few slow lights wandering between the trunks"*, and that
+is exactly what they do. Wandering is not zigzagging. **A sine has no corners,
+and a zigzag is nothing but corners.** That is the whole gap.
+
+**Cheapest route: add a triangle term.** A triangle wave
+(`2.0 * abs(fract(x) - 0.5)`) is a zigzag by construction. Keep the slow ellipse
+as the overall wander — it is what seats the wisp in the forest — and add a
+faster, smaller triangle component on top so the path acquires kinks. Two scales,
+one lagging, is the same trick the canopy already uses.
+
+**If that reads too regular: dart-and-hold.** Quantise time into segments
+(`floor(t * rate)` with a per-wisp rate), hash a fresh heading per segment, and
+ease sharply between them. That gives dart–pause–dart, which is closer to what
+the word "conjure" implies. Bigger change; try the triangle first and only
+escalate if it looks like a wobble rather than a dart.
+
+**Optional, and idiomatic:** wisps already flare with treble
+(`clamp(u_sparkle, …)` at the call site, viz.js:1286) — *"high sparkling playing
+excites the little lights, where the bass end belongs to the mist and the warp"*.
+Letting treble drive the **dart rate** as well as the brightness would make
+excited lights move erratically, not merely glow harder. Natural extension, but
+add it after the motion itself reads right.
+
+### What must survive the change
+
+These are all load-bearing, each fixing a specific past failure:
+
+- **Per-wisp periods stay distinct.** *"Wisps that breathe together read as a
+  light rig; the whole illusion is that each one is a separate body."* A shared
+  zigzag clock would undo this — hash the dart phase per cell.
+- **They stay rare.** `on = step(1.0 - 0.2 * w, …)` lights roughly an eighth of
+  cells at forest's weight. An earlier pass lit a third and *"they ran together
+  into exactly the green cloud this motif was added to fix."*
+- **They stay off the trunks' pace.** The `flow * 0.32` offset seats them
+  mid-distance *"so they read as creatures drifting among the trees rather than
+  furniture bolted to them."*
+- **They stay soft.** *"Phosphorescent, not sparkly … foxfire on wet wood, not
+  glitter."* A hard core read as a lens flare. Faster motion must not tempt a
+  brighter centre.
+
+### Not the colours
+
+The reference's yellow/blue/orange orbs are explicitly excluded by the owner.
+Worth knowing that the engine **already** gives each wisp its own colour — cold
+green through a rarer blue-cyan, plus a warm gold on about one in seven
+(viz.js:876–879) — so the reference's variety is not a missing feature. Leave
+this alone; only the path changes.
+
+### Feel
+
+| | |
+|---|---|
+| **Quiet is** | Mist, hard-edged trunks passing at two depths, broken shafts overhead, and a few lights hanging almost still between the trees. |
+| **The music is** | Bass in the mist and the warp; treble in the wisps — high sparkling playing excites them. With the change: excitement that reads as *darting*, not just brightening. |
+
+### Changes
+
+**Data** — none. Wisp weight, rarity and colour are all right.
+
+**Engine** (`portal/js/viz.js`, `mWisps`)
+1. Add a per-wisp triangle-wave term to the orbit so the path has corners.
+   Keep the ellipse underneath as the wander.
+2. Only if too smooth: replace with hashed per-segment headings for dart-and-hold.
+3. Optional, afterwards: let treble drive dart rate as well as brightness.
+
+Forest is the mood where faint shared changes show up first, so check sunshine
+after touching anything here — and vice versa, since both run `mRays`.
 
 ## ice
 
