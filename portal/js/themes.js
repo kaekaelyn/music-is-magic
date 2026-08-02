@@ -188,6 +188,7 @@ export const MOTIFS = Object.freeze({
   clouds: 0,    // billowing cumulus, sunward edges rimmed in the palette's gold
   crystals: 0,  // prisms growing out of the rock, lit face and shadowed face
   storm: 0,     // forked lightning and the flash that follows it
+  rainbow: 0,   // a spectral arc against dark weather — conjured, not ambient
 });
 
 // Spread under every theme so each one carries every key. Morphing is then a

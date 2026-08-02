@@ -21,7 +21,8 @@ import { createThemeStore } from './themes.js';
 import { createMicEngine, listInputs } from './mic.js';
 import { createRelay, EYE_LIVE, EYE_SEALED } from './relay.js';
 import {
-  FeatureExtractor, syntheticFeatures, IDLE, CENTROID_LO_HZ, CENTROID_HI_HZ,
+  FeatureExtractor, syntheticFeatures, manualFeatures, IDLE,
+  CENTROID_LO_HZ, CENTROID_HI_HZ,
 } from './features.js';
 
 const qs = new URLSearchParams(location.search);
@@ -67,6 +68,12 @@ const el = {
   wake: document.getElementById('bWake'),
   seal: document.getElementById('bSeal'),
   mock: document.getElementById('bMock'),
+  mockPanel: document.getElementById('mockPanel'),
+  mLevel: document.getElementById('mLevel'),
+  mReg: document.getElementById('mReg'),
+  mRead: document.getElementById('mRead'),
+  strike: document.getElementById('bStrike'),
+  auto: document.getElementById('bAuto'),
   devices: document.getElementById('devices'),
   moods: document.getElementById('moods'),
 };
@@ -106,6 +113,13 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.key === 'm' || e.key === 'M') {
     setMock(!mockAudio);
+    return;
+  }
+  // Strike from the keyboard: judging an onset gesture means firing it over
+  // and over while watching, and a mouse trip to the button each time is
+  // enough friction to stop you looking properly.
+  if (e.key === 's' || e.key === 'S') {
+    if (mockAudio) strike();
     return;
   }
   // 1-9 pick a mood. Judging a look means flipping through them repeatedly,
@@ -223,6 +237,14 @@ let armed = false;
 // would mean a broadcast whose picture ignores the piano, and the failure is
 // silent from the operator's side. It costs one keystroke to turn back on.
 let mockAudio = false;
+// Within mock: hand-driven by default, because being able to aim it is the
+// reason the panel exists. `auto` returns the animated stand-in for when you
+// want to walk away and watch it move on its own.
+let mockAuto = false;
+// The strike envelope, decayed in the loop. 0.12s to match the release the
+// extractor gives flux (features.js), so a mocked onset dies at the same rate
+// a real one does and a motif tuned against this is tuned against the truth.
+let strikeEnv = 0;
 
 // What the audio row would say about capture alone, kept so the row can be
 // re-rendered when mock toggles without re-querying the device.
@@ -237,13 +259,34 @@ function sayAudio(text, cls) {
   else say(el.audio, audioState.text, audioState.cls);
 }
 
+const mockLevel = () => (el.mLevel ? Number(el.mLevel.value) / 100 : 0.45);
+const mockRegister = () => (el.mReg ? Number(el.mReg.value) / 100 : 0.45);
+
+// The register slider IS the centroid, so showing its frequency turns the
+// panel and the pitch row into one instrument: dial 0.62, read 1246 Hz, and
+// that is exactly where the aurora reaches full.
+function readMock() {
+  if (!el.mRead) return;
+  const r = mockRegister();
+  el.mRead.textContent = mockAuto
+    ? 'auto — sliders idle'
+    : `level ${mockLevel().toFixed(2)} · register ${r.toFixed(2)} · ${Math.round(centroidHz(r))} Hz`;
+}
+
 function setMock(on) {
   mockAudio = !!on;
   if (el.mock) {
     el.mock.classList.toggle('on', mockAudio);
     el.mock.blur(); // or the HUD cannot fade back out on a broadcast machine
   }
+  if (el.mockPanel) el.mockPanel.hidden = !mockAudio;
+  readMock();
   sayAudio();
+}
+
+function strike() {
+  strikeEnv = 1;
+  if (el.strike) el.strike.blur();
 }
 
 async function startAudio() {
@@ -425,6 +468,18 @@ el.seal.addEventListener('click', () => {
 // Local only — never published. What drives this machine's picture is nobody
 // else's business, and a phone has no reason to learn about it.
 if (el.mock) el.mock.addEventListener('click', () => setMock(!mockAudio));
+if (el.strike) el.strike.addEventListener('click', strike);
+if (el.auto) {
+  el.auto.addEventListener('click', () => {
+    mockAuto = !mockAuto;
+    el.auto.classList.toggle('on', mockAuto);
+    el.auto.blur();
+    readMock();
+  });
+}
+for (const s of [el.mLevel, el.mReg]) {
+  if (s) s.addEventListener('input', readMock);
+}
 
 // --- render ----------------------------------------------------------------
 
@@ -519,7 +574,10 @@ function loop(now) {
   // `live` is still read every frame above, mock or not: the meter and the
   // pitch row are measurement, and they go on telling the truth about the room
   // while the picture runs on something else.
-  const driving = mockAudio ? null : live;
+  strikeEnv *= Math.exp(-dt / 0.12);
+  const driving = mockAudio
+    ? (mockAuto ? syntheticFeatures(t) : manualFeatures(mockLevel(), mockRegister(), strikeEnv))
+    : live;
 
   let feats = IDLE;
   if (state === EyeState.COMMUNING || state === EyeState.DROWSING) {

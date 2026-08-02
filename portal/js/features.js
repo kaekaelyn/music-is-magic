@@ -109,6 +109,38 @@ export class FeatureExtractor {
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
+// Operator-driven features: the mock panel's two sliders and its strike,
+// shaped into the same vector the extractor produces.
+//
+// syntheticFeatures animates on its own, which proves the eye still breathes
+// and is useless for judging a motif that only wakes under particular playing:
+// you cannot AIM it. The aurora is the case that forced this — it is gated on
+// centroid, so "is it too subtle" is unanswerable until you can hold the
+// register somewhere and look.
+//
+//   level     dynamics, straight onto rms
+//   register  timbre brightness, straight onto centroid — the same 0–1 the
+//             pitch readout shows, so a slider position and a HUD reading are
+//             the same number
+//   strike    a decaying onset envelope, supplied by the caller
+export function manualFeatures(level, register, strike) {
+  // Energy splits across the bands the way a keyboard does: low playing is
+  // nearly all bass, high playing nearly all treble, and the middle carries
+  // both, because a real chord is never one band. Combining range and
+  // dynamics is the whole point of the panel, so this cannot be a single knob.
+  const lo = clamp01(1.25 - register * 2.1);
+  const hi = clamp01(register * 2.1 - 0.85);
+  const mid = clamp01(1.15 - Math.abs(register - 0.5) * 2.3);
+  return {
+    bass: clamp01(lo) * level,
+    mid: clamp01(mid) * level,
+    treble: clamp01(hi) * level,
+    rms: level,
+    flux: strike,
+    centroid: register,
+  };
+}
+
 // Gentle stand-in motion for mock mode / when no analyser exists, so the
 // visualization still breathes instead of freezing.
 export function syntheticFeatures(t, gain = 1) {

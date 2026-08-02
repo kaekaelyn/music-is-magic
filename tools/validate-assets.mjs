@@ -197,6 +197,41 @@ for (const name of names) {
   }
 }
 
+// --- the shader source is a JS template literal ---------------------------
+//
+// VERT and FRAG are backtick strings, so a backtick anywhere inside them ends
+// the string and takes the whole module with it. The failure is total and the
+// message is useless — the browser reports a JavaScript syntax error pointing
+// at whatever GLSL identifier happened to follow, and the page renders
+// nothing at all. It has happened twice, both times from quoting a variable
+// name in a comment the way one would in prose. Cheaper to forbid it here
+// than to rediscover it from a black frame.
+{
+  const src = readFileSync(join(ROOT, 'portal/js/viz.js'), 'utf8');
+  for (const name of ['VERT', 'FRAG']) {
+    const open = src.indexOf(`const ${name} = \``);
+    if (open === -1) {
+      warn(`js/viz.js: no ${name} template literal found — has the shader moved?`);
+      continue;
+    }
+    const body = src.slice(open + `const ${name} = \``.length);
+    const end = body.indexOf('\n`;');
+    if (end === -1) {
+      fail(`js/viz.js: ${name} template literal is never closed`);
+      continue;
+    }
+    const glsl = body.slice(0, end);
+    const line = glsl.slice(0, glsl.indexOf('`')).split('\n').length;
+    if (glsl.includes('`')) {
+      fail(
+        `js/viz.js: a backtick inside the ${name} shader source (around line ` +
+        `${line} of it) closes the template literal early — the whole file ` +
+        `becomes a syntax error. Quote GLSL identifiers without backticks.`
+      );
+    }
+  }
+}
+
 // --- §5.3 eye ------------------------------------------------------------
 
 // Shape-check the example even though its files don't exist: it is what an

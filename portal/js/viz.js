@@ -1259,7 +1259,13 @@ void main() {
     ridgeLayer = layer;
     // The silhouette replaces the field rather than tinting it: past the
     // ridgeline you are looking at rock, and what is above it is sky.
-    g = mix(g, v, W_ridge * 0.88);
+    //
+    // FULLY replaces, at W_ridge and not W_ridge * 0.88. The old factor left
+    // about a fifth of the shared fog showing through solid rock, and against
+    // a painted sky that reads exactly as the owner described: "glassy edges
+    // to the mountains that you can, oddly enough, see the snow drifts
+    // through". A mountain is opaque. Whatever is behind it is behind it.
+    g = mix(g, v, W_ridge);
     skyward = max(skyward, crest);
     skyMask = sky;
     // Spindrift is snow in the air, so it rides the same overlay snow does.
@@ -1389,11 +1395,33 @@ void main() {
     // is how a snowline becomes an ice floe covering the whole aperture: the
     // shot showed white in the valleys and white in the sky. Multiplying says
     // snow can only lie where there is something for it to lie on.
-    float s = smoothstep(0.3, 0.72, base)
-            * smoothstep(0.40, 0.68,
-                fbm(p * 4.6 + 5.0 + vec2(u_flow * 0.7 + u_t * 0.02, -u_flow * 0.08)));
-    s *= smoothstep(-0.5, 0.32, uv.y); // a snowline
-    s *= 1.0 - skyMask;                // and never in the sky
+    // CAPS, and by ALTITUDE. Driving coverage off the crest band alone gave a
+    // fixed-width white stroke hugging every ridgeline — piping on a cake, not
+    // a snowfield, because crest is a constant offset below the line whatever
+    // the terrain does. Real snow is an altitude phenomenon: everything above
+    // the line is white, everything below is rock, and the boundary between
+    // them wanders with the ground.
+    float tear = fbm(p * 4.6 + 5.0 + vec2(u_flow * 0.7 + u_t * 0.02, -u_flow * 0.08));
+    // The snowline itself, made ragged by noise so it crosses the range as a
+    // torn edge instead of a horizontal cut.
+    // The line sits HIGH. A first pass put it near the middle of the aperture
+    // and the ranges came out white to their feet — no rock left to be a
+    // mountain, and the summits lost against a pale sky, which is a different
+    // way of failing than the piping was. Snow is the exception on this
+    // silhouette, not the rule: only the top of the frame is above it.
+    float alt = uv.y * 2.2 + (tear - 0.5) * 0.4;
+    float s = smoothstep(0.26, 0.64, alt);
+    // Upward faces hold more of it than steep ones — the crest band earns its
+    // keep here, as a bias rather than as the gate.
+    s *= mix(0.45, 1.0, clamp(base, 0.0, 1.0));
+    // And genuinely torn at the lower edge, where a cap frays into gullies.
+    // At smoothstep(0.20, 0.54) this passed everything and did nothing.
+    s *= smoothstep(0.34, 0.64, tear + s * 0.22);
+    // Never in the sky. Hard, not smooth: at the silhouette the snow noise
+    // lives in warped texture space while the edge lives in screen space, so
+    // a soft mask let flecks of drift sit just outside the rock — which reads
+    // as seeing the snow THROUGH the mountain's edge.
+    s *= 1.0 - smoothstep(0.0, 0.3, skyMask);
     snow = max(snow, s * W_snow);
     spec += s * W_snow * 0.4;
     site = max(site, s);
@@ -1470,8 +1498,34 @@ void main() {
   // on it — the far range mostly sky-tint, the near one almost untouched.
   // Fenced to ridge moods; skyMask keeps it off the sky itself.
   if (W_ridge > 0.0) {
-    float hazeAmt = clamp(0.5 - ridgeLayer * 0.23, 0.0, 1.0) * (1.0 - skyMask) * W_ridge;
-    col = mix(col, mix(u_c3, u_c4, 0.5), hazeAmt);
+    // THE SKY. Its own colour, not the ramp's dark end — the same licence snow
+    // and the aurora take, and for the same reason: a cold thin sky is a
+    // material, and no arrangement of a rock palette produces one. Without
+    // this the space above the ridgeline was whatever the fog field happened
+    // to be doing, which is the "generic darkness" the owner asked to be rid
+    // of. Mountain is a DAYTIME mood now.
+    //
+    // Thin air is the whole brief. Little scattering high up, so the zenith
+    // keeps a deep cold blue; a lot of it near the horizon, so the base of the
+    // sky washes out almost to white and the far ridges dissolve into it.
+    // That gradient is what altitude looks like, and it is deliberately paler
+    // and less saturated than a sea-level sky would be.
+    vec3 skyHigh = vec3(0.38, 0.56, 0.80);
+    vec3 skyLow = vec3(0.86, 0.91, 0.96);
+    float up = clamp(uv.y * 1.15 + 0.42, 0.0, 1.0);
+    vec3 sky = mix(skyLow, skyHigh, up * up);
+    col = mix(col, sky, clamp(skyMask, 0.0, 1.0) * W_ridge);
+
+    // Aerial perspective in COLOUR, on the rock only. The shade term inside
+    // mRidge walks far ranges up the brightness ramp, which leaves them paler
+    // but still fully coloured; distance takes the colour out too, and hands
+    // back the sky's. Keyed on which range is frontmost here, so the far one
+    // half dissolves and the near one is barely touched.
+    // Held well short of dissolving the far range entirely: at 0.62 it took
+    // so much colour out that the back of the chain stopped being rock.
+    float hazeAmt = clamp(0.42 - ridgeLayer * 0.19, 0.0, 1.0)
+                  * (1.0 - clamp(skyMask, 0.0, 1.0)) * W_ridge;
+    col = mix(col, skyLow, hazeAmt);
   }
   col = mix(col, mix(u_c2, u_c4, 0.45), clamp(cloud, 0.0, 1.0) * 0.5);
   col += mix(u_c3, u_c4, 0.35) * clamp(cloudRim, 0.0, 1.0) * 0.85;

@@ -58,6 +58,25 @@
 
     #hud .btns { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 
+    /* The mock instrument. Only present while mock is driving, because it is
+       meaningless otherwise and the HUD is already dense. */
+    #mockPanel { display: grid; gap: 0.3rem; }
+    #mockPanel[hidden] { display: none; }
+    #mockPanel .slider { display: grid; grid-template-columns: 4.3rem 1fr; gap: 0.5rem; align-items: center; }
+    #mockPanel .slider > span { opacity: 0.5; }
+    #mockPanel input[type="range"] {
+      width: 100%;
+      accent-color: #8d80b8;
+      background: transparent;
+      cursor: pointer;
+    }
+    #mockPanel .read {
+      opacity: 0.55;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.72rem;
+      padding-left: 4.8rem;
+    }
+
     /* The mood panel. §5.9's rig can be driven from a phone, but a mood is
        the one control you reach for constantly while judging the look, and
        walking to the phone to try eight of them is how you stop trying them.
@@ -172,6 +191,25 @@
       <button id="bMock">mock</button>
       <select id="devices" hidden></select>
     </div>
+
+    <!-- The instrument. Two sliders and a strike, so a motif that only wakes
+         under particular playing can be aimed at deliberately instead of
+         waited for. `register` is the same 0–1 the pitch row reports, and its
+         frequency is shown beside it, so dialling to a number and reading a
+         number are the same act. -->
+    <div id="mockPanel" hidden>
+      <div class="slider"><span>level</span>
+        <input id="mLevel" type="range" min="0" max="100" value="45"
+               aria-label="mock level"></div>
+      <div class="slider"><span>register</span>
+        <input id="mReg" type="range" min="0" max="100" value="45"
+               aria-label="mock register"></div>
+      <div class="read" id="mRead">—</div>
+      <div class="btns">
+        <button id="bStrike">strike</button>
+        <button id="bAuto">auto</button>
+      </div>
+    </div>
     <!-- Filled from assets/themes/index.json, like the control page's panel:
          adding a theme folder updates both, with no edit here. -->
     <div id="moods"></div>
@@ -184,7 +222,8 @@
     </form>
     <div class="hint">
       Type the same code here and on your phone. Moods are 1–9 · m mocks the
-      audio · h hides this · it fades on its own · ?hud=0 never shows it
+      audio, s strikes · h hides this · it fades on its own · ?hud=0 never
+      shows it
     </div>
   </div>
 
