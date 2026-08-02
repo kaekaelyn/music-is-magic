@@ -17,7 +17,7 @@ import { CONFIG, readRelayTopic, writeRelayTopic, isValidTopic } from './config.
 import { EyeState, createEyeMachine } from './state.js';
 import { createEye } from './eye.js';
 import { createViz } from './viz.js';
-import { createThemeStore, isKin } from './themes.js';
+import { createThemeStore, isKin, familiesOf } from './themes.js';
 import { createMicEngine, listInputs } from './mic.js';
 import { createRelay, EYE_LIVE, EYE_SEALED } from './relay.js';
 import {
@@ -122,11 +122,17 @@ window.addEventListener('keydown', (e) => {
     if (mockAudio) strike();
     return;
   }
-  // 1-9 pick a mood. Judging a look means flipping through them repeatedly,
-  // and a keystroke keeps your hands where they are.
+  // 1-9 pick a FAMILY and always land on its base mood; shift walks that
+  // family's sub-moods. Judging a look means flipping through them repeatedly,
+  // and a keystroke keeps your hands where they are — but only if one of them
+  // reliably gets you home.
   if (e.key >= '1' && e.key <= '9') {
     const name = moodOrder[Number(e.key) - 1];
     if (name) chooseTheme(name);
+    return;
+  }
+  if (e.shiftKey && e.code && /^Digit[1-9]$/.test(e.code)) {
+    cycleFamily(Number(e.code.slice(5)) - 1);
   }
 });
 stirHud();
@@ -181,7 +187,8 @@ function applyTheme(token) {
 // panels are two views of one state, never two sources of truth.
 
 const moodButtons = new Map();
-let moodOrder = [];
+let moodOrder = [];   // one entry per FAMILY, in panel order
+let moodFamilies = [];
 
 function markMood(name) {
   for (const [key, b] of moodButtons) b.classList.toggle('on', key === name);
@@ -192,12 +199,27 @@ function chooseTheme(name) {
   if (relay.active) relay.publish({ theme: name });
 }
 
+// Grouped by family, one row per base mood with its sub-moods beside it.
+//
+// A flat row was fine at eight and is not at sixteen: the seasons sat fourteen
+// buttons away from the forest they belong to, and the number keys only ever
+// reached the first nine, so half the set had no shortcut at all.
+//
+// The number now belongs to the FAMILY, and pressing it always lands on the
+// base mood — so getting back from forest-blooming to forest is one key, from
+// anywhere, without having to know where either sits in the list. Shift plus
+// the same number walks that family's sub-moods.
 function buildMoodPanel(names) {
   if (!el.moods) return;
-  moodOrder = names.slice();
   el.moods.innerHTML = '';
   moodButtons.clear();
-  names.forEach((name, i) => {
+  moodFamilies = familiesOf(names);
+  moodOrder = moodFamilies.map((f) => f.parent);
+
+  moodFamilies.forEach((fam, i) => {
+    const row = document.createElement('div');
+    row.className = 'fam';
+
     const b = document.createElement('button');
     if (i < 9) {
       const n = document.createElement('span');
@@ -205,15 +227,38 @@ function buildMoodPanel(names) {
       n.textContent = String(i + 1);
       b.appendChild(n);
     }
-    b.appendChild(document.createTextNode(name));
+    b.appendChild(document.createTextNode(fam.parent));
     b.addEventListener('click', () => {
-      chooseTheme(name);
+      chooseTheme(fam.parent);
       b.blur(); // or the HUD cannot fade back out on a broadcast machine
     });
-    el.moods.appendChild(b);
-    moodButtons.set(name, b);
+    row.appendChild(b);
+    moodButtons.set(fam.parent, b);
+
+    for (const child of fam.children) {
+      const c = document.createElement('button');
+      c.className = 'sub';
+      // Labelled by what distinguishes it, not by its full name: under the
+      // forest button, "blooming" says everything "forest-blooming" does.
+      c.textContent = child.slice(fam.parent.length + 1);
+      c.title = child;
+      c.addEventListener('click', () => { chooseTheme(child); c.blur(); });
+      row.appendChild(c);
+      moodButtons.set(child, c);
+    }
+    el.moods.appendChild(row);
   });
   if (currentToken) markMood(currentToken);
+}
+
+// Shift+N walks the family's sub-moods, wrapping back to the base. Plain N is
+// left alone as the way home, so there is always one key that gets you out.
+function cycleFamily(index) {
+  const fam = moodFamilies[index];
+  if (!fam || !fam.children.length) return;
+  const ring = [fam.parent, ...fam.children];
+  const at = ring.indexOf(currentName);
+  chooseTheme(ring[(at + 1 + ring.length) % ring.length]);
 }
 
 // --- liveness --------------------------------------------------------------

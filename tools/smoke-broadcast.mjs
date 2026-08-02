@@ -756,6 +756,66 @@ try {
     await ctx.close();
   }
 
+  // === 6e. getting home from a sub-mood ==============================
+  //
+  // The owner's question, and the reason the panel was regrouped: from inside
+  // forest-blooming, can you get back to forest easily? A number key has to
+  // land on the BASE mood every time, from anywhere in the family, without the
+  // operator having to know where either one sits in a list of sixteen.
+  {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    const assertClean = watch(page, 'families');
+    await page.goto(BC);
+    await relaySend(page, { eye: 'live' });
+    await eyeIs(page, 'communing');
+    await page.waitForTimeout(600);
+
+    // The panel is grouped: one row per family, sub-moods labelled by only
+    // what distinguishes them.
+    const shape = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('#moods .fam')];
+      return {
+        rows: rows.length,
+        buttons: document.querySelectorAll('#moods button').length,
+        forestRow: rows
+          .map((r) => [...r.querySelectorAll('button')].map((b) => b.textContent.replace(/^\d+/, '')))
+          .find((labels) => labels[0] === 'forest'),
+      };
+    });
+    check(shape.rows === 12, 'the panel groups sixteen moods into twelve families',
+      `got ${shape.rows} rows / ${shape.buttons} buttons`);
+    check(
+      JSON.stringify(shape.forestRow) === JSON.stringify(['forest', 'blooming', 'autumn', 'barren']),
+      'the forest keeps its seasons beside it, named by what differs',
+      JSON.stringify(shape.forestRow)
+    );
+
+    const pick = (label) => page.evaluate((n) => {
+      const b = [...document.querySelectorAll('#moods button')]
+        .find((x) => (x.title || x.textContent.replace(/^\d+/, '')) === n);
+      if (b) b.click();
+      return !!b;
+    }, label);
+
+    check(await pick('forest-blooming'), 'a season is one click from its parent row');
+    await themeIs(page, 'forest-blooming', 9000);
+    await page.waitForTimeout(900);
+
+    // The whole point: one key home, pressed from a sub-mood.
+    await page.keyboard.press('2');
+    await themeIs(page, 'forest', 9000);
+    check(true, 'a number key returns to the base mood from inside the family');
+
+    // And shift walks the family without needing the mouse.
+    await page.keyboard.press('Shift+Digit2');
+    await themeIs(page, 'forest-blooming', 9000);
+    check(true, 'shift and the same key walks that family');
+
+    assertClean();
+    await ctx.close();
+  }
+
   // === 7. a denied microphone does not stop the show =================
   {
     // No fake-device flags and no granted permission: getUserMedia rejects,

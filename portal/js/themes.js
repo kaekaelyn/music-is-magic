@@ -255,7 +255,7 @@ export const BUILTIN = {
   // The same sand under a moon, and not merely a recolour: the light works
   // differently. Stars carry the sky, the ripples take a hard cold specular
   // rather than a diffuse glare, and the whole field sits far lower.
-  'night-desert': {
+  'desert-night': {
     palette: ['#05070f', '#131c33', '#37456b', '#8090b4', '#e8eeff'],
     params: { scale: 1.5, speed: 0.08, warp: 0.5, sparkle: 0.8, gloss: 0.16, base: 0.34, drift: 0.08, travel: 0.22, travelX: 0.1, angular: 0.1 },
     motifs: { ridge: 0.9, ripples: 0.6, snow: 0.22, stars: 0.9 },
@@ -319,9 +319,40 @@ const KIN = Object.freeze({
   'forest-autumn': ['forest', 'forest-blooming', 'forest-barren'],
   'forest-barren': ['forest', 'forest-blooming', 'forest-autumn'],
   // Same sand, sun down.
-  desert: ['night-desert'],
-  'night-desert': ['desert'],
+  desert: ['desert-night'],
+  'desert-night': ['desert'],
 });
+
+// Families, derived from the names. A theme called `x-y` is a sub-mood of `x`
+// whenever `x` is itself in the list — which is why night-desert was renamed
+// desert-night: it is a child of the desert, and the old name said it belonged
+// to the night. Anything with no such parent stands on its own.
+//
+// Derived rather than declared so that adding a folder still costs one line in
+// index.json. A second list of who-belongs-to-whom is a second thing to forget
+// to update.
+export function familiesOf(names) {
+  const set = new Set(names);
+  const parentOf = (n) => {
+    const cut = n.indexOf('-');
+    if (cut < 0) return null;
+    const head = n.slice(0, cut);
+    return set.has(head) ? head : null;
+  };
+  const families = [];
+  const byParent = new Map();
+  for (const n of names) {
+    if (parentOf(n)) continue;
+    const fam = { parent: n, children: [] };
+    families.push(fam);
+    byParent.set(n, fam);
+  }
+  for (const n of names) {
+    const p = parentOf(n);
+    if (p && byParent.has(p)) byParent.get(p).children.push(n);
+  }
+  return families;
+}
 
 export function isKin(a, b) {
   if (!a || !b || a === b) return false;

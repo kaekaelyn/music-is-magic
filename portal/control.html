@@ -40,10 +40,25 @@
     }
     #dot.live { background: #7fae62; box-shadow: 0 0 10px #7fae62; }
     #dot.offline { background: #7a4040; }
+    /* One row per family. Was a two-column grid, which at sixteen themes put
+       a sub-mood diagonally opposite the mood it belongs to. */
     #buttons {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.8rem;
+      gap: 0.55rem;
+    }
+    #buttons .fam {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: stretch;
+    }
+    #buttons .fam > button:first-child { flex: 1 1 8rem; }
+    #buttons button.sub {
+      flex: 0 1 auto;
+      font-size: 0.85rem;
+      opacity: 0.72;
+      padding-left: 0.7rem;
+      padding-right: 0.7rem;
     }
     /* §5.8 — only meaningful when a relay is configured, so the whole block
        is removed rather than shown dead when it is not. */
@@ -214,14 +229,32 @@
       }
     } catch (_) {}
 
+    // Grouped by family, same as the broadcast HUD. This is the surface
+    // reached for one-handed from a phone mid-set, so sixteen equal buttons in
+    // a wrap is the worst possible arrangement of them: a sub-mood belongs
+    // beside the mood it came from, and its label only needs to say what makes
+    // it different.
+    const { familiesOf } = await import('./js/themes.js');
     const buttonsEl = document.getElementById('buttons');
     const buttons = new Map();
-    for (const name of names) {
+    for (const fam of familiesOf(names)) {
+      const row = document.createElement('div');
+      row.className = 'fam';
       const b = document.createElement('button');
-      b.textContent = name;
-      b.addEventListener('click', () => setTheme(name, b));
-      buttonsEl.appendChild(b);
-      buttons.set(name, b);
+      b.textContent = fam.parent;
+      b.addEventListener('click', () => setTheme(fam.parent, b));
+      row.appendChild(b);
+      buttons.set(fam.parent, b);
+      for (const child of fam.children) {
+        const c = document.createElement('button');
+        c.className = 'sub';
+        c.textContent = child.slice(fam.parent.length + 1);
+        c.title = child;
+        c.addEventListener('click', () => setTheme(child, c));
+        row.appendChild(c);
+        buttons.set(child, c);
+      }
+      buttonsEl.appendChild(row);
     }
 
     function flashButton(b, cls) {

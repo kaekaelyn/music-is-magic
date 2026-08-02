@@ -266,7 +266,10 @@ fog in a new color.
 > Open `broadcast.html`, arm it, press **wake**, then **mock** (or the `m`
 > key) — the visuals run on synthetic motion, so the shapes move in a silent
 > room and onsets still fire, which means lightning and meteors show up
-> without you playing a note. Then flip moods with the **1–9** keys.
+> without you playing a note. Then flip moods with the **1–9** keys: each one
+> picks a family and always lands on its base mood, so one key is always the
+> way home. **Shift+1–9** walks that family's sub-moods (forest → blooming →
+> autumn → barren → forest).
 > The mic keeps metering underneath, so the level meter and the `pitch` row
 > stay honest while you look. Mock is off again after any reload, on purpose:
 > a broadcast whose picture ignores the piano fails silently.
