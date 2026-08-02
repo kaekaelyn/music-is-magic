@@ -1,0 +1,165 @@
+# Mood direction
+
+Owner-supplied references and what it takes to hit them. One section per mood.
+
+Each section records the reference, the feel in PLAN.md's quiet/loud terms, and
+the concrete changes — split into **data** (`theme.json`: palette, params, motif
+weights, which is cheap and per-mood) and **engine** (`viz.js`, which is shared
+by every mood and both builds, so it needs care).
+
+Working order: mountain, cave → rain, sunshine → night, ocean → forest, ice.
+
+---
+
+## mountain
+
+**Reference.** Three photographs. (1) A wide dark-rock massif under pale blue
+sky, soft cumulus along the top, snow held in the gullies and fall lines.
+(2) A single sharp white summit against deep saturated blue. (3) An aerial view
+of ranges receding into near-white haze, almost no colour left in the far ones.
+
+Owner's direction: *"make the sky look cold and thin. the pic on the left is
+good at that, where the clouds and snowdrifts have a similar character (but that
+doesn't mean they should be interchangeable!)"*
+
+Image 1 is the target for the sky. Image 2 is **not** — its blue is dense and
+deep, which is the opposite of thin. Image 3 is the target for distance.
+
+### The gap
+
+Mountain has `clouds: 0`. There is no sky in it at all right now — the entire
+upper aperture is empty ramp above the ridgeline. Everything below follows from
+filling it.
+
+### Cold is free — don't let the shader comment mislead you
+
+`mClouds`' comment (viz.js:889) says the sun-facing rim "takes the gold". That
+is true of sunshine, not of mountain. Both cloud colours are drawn from the
+theme's own palette:
+
+- body → `mix(u_c2, u_c4, 0.45)` (viz.js:1342)
+- rim  → `mix(u_c3, u_c4, 0.35)` (viz.js:1343)
+
+Against mountain's `#525e6f → #97aabe → #f4f9ff` those land pale blue-white
+unaided. No engine work, and no palette change needed, to get cold.
+
+The crepuscular-ray coupling (viz.js:1066–1077) is gated behind `W_rays > 0` and
+mountain has `rays: 0`, so switching clouds on leaks no sunbeam light either.
+
+### "Similar character, not interchangeable" — the real risk, and the fix
+
+The two families already share what they should: both are `fbm` fields, both
+take their white from the top two palette steps. That is the "similar
+character" half, and it is free.
+
+The danger is spatial. Snow is fenced in hard — it may only lie on skyward
+faces, below a snowline, and **never in the sky**:
+
+```
+s *= smoothstep(-0.5, 0.32, uv.y);  // a snowline
+s *= 1.0 - skyMask;                 // and never in the sky
+```
+(viz.js:1279–1280)
+
+Clouds have no such fence. `mClouds` is called unmasked (viz.js:1061–1065), so
+switching it on paints cloud across the **whole** aperture — over the summit as
+well as above it. White fbm over the rock, sitting in the same pixels as white
+fbm on the rock, is exactly the two reading as one material. That is the
+interchangeability failure, and it is structural rather than a tuning problem.
+
+**Fix: gate cloud by `skyMask`.** `skyMask` is already computed from the ridge
+silhouette (viz.js:1156) and mountain has `ridge: 0.92`, so it is live. Multiply
+cloud by it and the two families become spatially disjoint, divided by the
+silhouette itself — clouds strictly above the ridgeline, snow strictly below.
+Same material vocabulary, never in the same place, and the peak cuts a hard
+edge across the sky the way it does in image 1.
+
+Keep them kin, not clones, by frequency: `mClouds` samples at
+`vec2(uv.x * 1.5, uv.y * 2.6)` — low frequency, vertically stretched, soft
+threshold, so it reads rounded and billowy. Snow's coverage noise runs at
+`p * 4.6` with a tighter `smoothstep(0.40, 0.68, …)`, so it reads finer and
+sharper-edged, cut by rock. That contrast is already right; don't equalise them.
+
+**Where they are allowed to meet: spindrift.** Snow torn off the near crest
+when the room is loud (viz.js:818, 1157–1158), riding `W_ridge`. It is snow
+becoming air — the one legitimate crossing between the families, it only
+happens under drive, and it is the best answer to the owner's note. Leave it
+alone and let it be the only bridge.
+
+### "Thin" is the one thing that needs engine work
+
+Aerial perspective exists but only as a **luminance** effect:
+
+```
+float shade = 0.46 - fi * 0.17;   // fi: 0 = far, 2 = near
+v = mix(v, shade, below);
+```
+(viz.js:804–807)
+
+That walks far ranges up the brightness ramp, so a far range lands near
+`#525e6f` — pale**r**, but still fully coloured. Image 3's far ridges have lost
+their colour, not just their darkness; they have taken on the sky's tint.
+
+The hook is already there: `ridgeLayer` (viz.js:1049) carries which range is
+frontmost at each pixel and is already used for parallax and rock grain. The
+change is a haze lerp in **colour** space keyed on `ridgeLayer`, pulling far
+ranges toward the pale step (`u_c3`/`u_c4`) rather than up the ramp — applied
+after the palette, near the snow/cloud tinting at viz.js:1342–1347.
+
+Scope it to `W_ridge > 0` so no other mood's colour moves.
+
+### Feel
+
+| | |
+|---|---|
+| **Quiet is** | High thin cloud barely drifting, the summit sharp against it, snow holding still on the ridges, far ranges ghosted almost into the sky. |
+| **The music is** | Coverage swelling — `mClouds` drops its threshold with loudness (`0.52 - drive * 0.1`) so a working room builds weather — and spindrift tearing off the near crest. Weather closing in, from a sky that was empty. |
+
+### Changes
+
+**Data** (`portal/assets/themes/mountain/theme.json`)
+- `motifs.clouds`: `0` → **~0.35**. A band of high cloud, not overcast. Tune
+  against image 1, where sky still outweighs cloud.
+- Palette unchanged — it already produces cold cloud. Note that `c3`/`c4` colour
+  snow *and* cloud rim, so any later palette move hits both; that shared tint is
+  wanted, the shared *position* is not.
+- `params` unchanged to start. `speed: 0.1` suits high slow cloud and
+  `travel: 0.4` drives the drift through `flow * 0.35`.
+
+**Engine** (`portal/js/viz.js`) — both small, both scoped
+1. Gate cloud by `skyMask` so weather cannot paint over rock.
+2. `ridgeLayer`-keyed haze lerp toward the pale step, for image 3's distance.
+
+Change 1 affects any mood running clouds and ridge together; today only mountain
+would. Change 2 is fenced to `W_ridge > 0`. Check `index.html` as well as
+`broadcast.html` after either — `js/` is shared by both builds.
+
+---
+
+## cave
+
+*Awaiting reference.*
+
+## rain
+
+*Awaiting reference.*
+
+## sunshine
+
+*Awaiting reference.*
+
+## night
+
+*Awaiting reference.*
+
+## ocean
+
+*Awaiting reference.*
+
+## forest
+
+*Awaiting reference.*
+
+## ice
+
+*Awaiting reference.*
