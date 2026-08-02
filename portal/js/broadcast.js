@@ -20,7 +20,9 @@ import { createViz } from './viz.js';
 import { createThemeStore } from './themes.js';
 import { createMicEngine, listInputs } from './mic.js';
 import { createRelay, EYE_LIVE, EYE_SEALED } from './relay.js';
-import { FeatureExtractor, syntheticFeatures, IDLE } from './features.js';
+import {
+  FeatureExtractor, syntheticFeatures, IDLE, CENTROID_LO_HZ, CENTROID_HI_HZ,
+} from './features.js';
 
 const qs = new URLSearchParams(location.search);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -60,12 +62,18 @@ const el = {
   relay: document.getElementById('hRelay'),
   viz: document.getElementById('hViz'),
   frame: document.getElementById('hFrame'),
+  pitch: document.getElementById('hPitch'),
   meter: document.getElementById('meterFill'),
   wake: document.getElementById('bWake'),
   seal: document.getElementById('bSeal'),
   devices: document.getElementById('devices'),
   moods: document.getElementById('moods'),
 };
+
+// The inverse of features.js's centroid scale, which is logarithmic between its
+// two bounds. Imported rather than restated so retuning the scale moves the
+// readout with it instead of leaving it confidently wrong.
+const centroidHz = (c) => CENTROID_LO_HZ * Math.pow(CENTROID_HI_HZ / CENTROID_LO_HZ, c);
 
 // In window-capture mode this page is the broadcast frame, so the furniture
 // has to be able to leave completely.
@@ -473,6 +481,19 @@ function loop(now) {
     meterAt = now;
     const rms = live ? live.rms : 0;
     el.meter.style.width = `${Math.min(100, rms * 100).toFixed(1)}%`;
+    // The centroid, beside the frequency it stands for — the bare 0–1 is not
+    // judgeable by ear, and the whole point of this row is to be checked
+    // against what is actually being played.
+    //
+    // `live`, never `feats`: feats falls back to syntheticFeatures, and a
+    // calibration readout showing invented numbers is worse than no readout.
+    // Dashes mean no microphone, which is itself the answer to a different
+    // question.
+    if (el.pitch) {
+      el.pitch.textContent = live
+        ? `${live.centroid.toFixed(2)} · ${Math.round(centroidHz(live.centroid))} Hz`
+        : '—';
+    }
   }
 
   noteFrame(raw, now);

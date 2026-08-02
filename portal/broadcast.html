@@ -154,6 +154,12 @@
       <div class="row"><span class="k">control</span><span class="v" id="hRelay">—</span></div>
       <div class="row"><span class="k">render</span><span class="v" id="hViz">—</span></div>
       <div class="row"><span class="k">frame</span><span class="v" id="hFrame">—</span></div>
+      <!-- Spectral centroid, the feature the shader calls `pitch`. Shown for
+           calibration: it gates the aurora and leans the ray fan, and whether
+           it reads sensibly depends on the room and the microphone, so it can
+           only be settled by looking. Live values only — never the synthetic
+           stand-in, or the sound-check would lie. -->
+      <div class="row"><span class="k">pitch</span><span class="v" id="hPitch">—</span></div>
     </div>
     <div id="meter"><div id="meterFill"></div></div>
     <div class="btns">

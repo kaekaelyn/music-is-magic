@@ -787,7 +787,23 @@ float mRidge(vec2 uv, float t, float flow, float drive,
     // which is most of what "squished and cartoonish" was describing. The
     // multiplicative half does the work of breaking the shoulders; the
     // additive half only needs to keep the small ones from disappearing.
-    ridged = clamp(ridged * (0.7 + 0.52 * fine * fine) + fine * fine * 0.07, 0.0, 1.5);
+    //
+    // The multiplicative half was fine*fine, and squaring was the rest of
+    // that same fault rather than a cure for it. A ridged fold is roughly
+    // uniform over 0..1, so squaring it piles the distribution up near zero:
+    // the multiplier then sat below 0.8 across FOUR TENTHS of the ridgeline
+    // and only reached its top in the last decile. That is not a shoulder
+    // being broken, it is a profile held down to a floor with occasional
+    // spikes let through — the owner's drawing of the wrong answer, exactly:
+    // a flat baseline with needles standing on it, where a range wants a
+    // continuous rise and fall of broad peaks and deep valleys.
+    //
+    // Unsquared, the same octave varies the shoulders instead of flattening
+    // them, and the big triangular fold underneath survives to be the shape.
+    // The constants are rebalanced (0.7/0.52 -> 0.64/0.48) to hold the mean
+    // multiplier where it was, because the complaint here has never been
+    // height: "adjust the lower end, don't exaggerate the upper".
+    ridged = clamp(ridged * (0.64 + 0.48 * fine) + fine * fine * 0.07, 0.0, 1.5);
     // Heights live where the aperture actually is. The lens is wide and
     // short, so a range built for a square canvas puts its whole silhouette
     // off the top and leaves only the valley floor in shot.

@@ -152,6 +152,33 @@ becoming air — the one legitimate crossing between the families, it only
 happens under drive, and it is the best answer to the owner's note. Leave it
 alone and let it be the only bridge.
 
+### The ridgeline profile — diagnosed and changed (unverified)
+
+The owner reported mountains still looking wrong after the relief pass, and drew
+the difference: **"No"** was a near-flat baseline with thin needles standing on
+it; **"Yes"** was a continuous rise and fall of broad peaks and deep valleys.
+
+Cause found in `mRidge`'s third octave. The line multiplied the profile by
+`0.7 + 0.52 * fine * fine`, and squaring a ridged fold — which is roughly
+uniform over 0..1 — piles its distribution up near zero. Measured over the
+range, that multiplier sat **below 0.8 across 44% of the ridgeline**, with a
+median of 0.83, reaching its top only in the last decile. That is not a shoulder
+being broken up; it is a profile pinned to a floor with occasional spikes let
+through, which is the "No" drawing precisely.
+
+Changed to `0.64 + 0.48 * fine` — unsquared, so the octave varies the shoulders
+instead of flattening them and the big triangular fold underneath survives as
+the shape. Constants rebalanced to hold the **mean multiplier where it was**
+(0.873 → 0.880), because the standing instruction has never been about height:
+*"adjust the lower end, don't exaggerate the upper"*. Below 0.8× drops from 44%
+to 19%; the median rises to 0.96; the top decile comes *down* slightly.
+
+**Not yet seen running.** If it still reads as spiky, the next knob is the
+additive `fine * fine * 0.07` on the same line — narrow by the same mechanism,
+already reduced once from 0.16, and left alone here so this change stays
+attributable. If it now reads as too smooth or too rolling, raise 0.48 before
+touching anything else.
+
 ### "Thin" is the one thing that needs engine work
 
 Aerial perspective exists but only as a **luminance** effect:

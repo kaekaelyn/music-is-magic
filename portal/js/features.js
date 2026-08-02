@@ -17,8 +17,11 @@ const BANDS = { bass: [20, 250], mid: [250, 2000], treble: [2000, 8000] };
 // piano's working range lands mid-scale (≈1 kHz → 0.5), which is what IDLE and
 // syntheticFeatures assume. A linear bin fraction would pin real music near
 // 0.1 and leave the shiftCentroid mapping doing nothing.
-const CENTROID_LO_HZ = 60;
-const CENTROID_HI_HZ = 8000;
+// Exported so a readout can invert them. Keeping these private meant anything
+// displaying the centroid had to restate the bounds, and would then go on
+// quietly lying if they were ever retuned.
+export const CENTROID_LO_HZ = 60;
+export const CENTROID_HI_HZ = 8000;
 const CENTROID_SPAN = Math.log2(CENTROID_HI_HZ / CENTROID_LO_HZ);
 
 export const IDLE = Object.freeze({
