@@ -726,6 +726,37 @@ Do this **before** touching either the gate or the centroid. It is the cheapest
 measurement in the project and it decides which of two different repairs is
 correct.
 
+### First real measurement — the scale is calibrated too high
+
+With the HUD readout in place, the owner reported: *"The very highest pitch on
+the piano gets to about 2500."*
+
+On the current scale that is **0.76**:
+
+```
+log2(2500 / 60) / log2(8000 / 60) = 5.381 / 7.059 = 0.762
+```
+
+So `CENTROID_HI_HZ = 8000` is roughly an octave and a half above anything the
+instrument can actually drive the centroid to. **The top quarter of the range is
+unreachable**, and every consumer of `centroid` is working inside the bottom
+three-quarters, biased low — the aurora's `wake`, the ray fan's lean, `mFacets`,
+the storm tint, and every theme's `shiftCentroid`.
+
+For the aurora specifically: full brightness needs 0.62, which is **1246 Hz** —
+near the last octave of the keyboard. That is why ordinary playing leaves the
+curtain dim and stuck at green, and it corroborates the owner's original report
+from memory.
+
+**Still needed before recalibrating:** a mid-register reading and a bass
+reading. One endpoint does not define a scale, and `CENTROID_LO_HZ` is as
+untested as the top. With three points the bounds can be set to span what the
+instrument genuinely occupies, and only then should the aurora's `wake`
+thresholds be re-sited — against measurements, not by feel.
+
+Do not move `wake` first. Re-siting a gate to compensate for a mis-scaled input
+bakes the miscalibration into a second place.
+
 ### The owner is right that this is not only night
 
 `u_centroid` also drives the aurora's colour band (viz.js:1383), the ray fan's
