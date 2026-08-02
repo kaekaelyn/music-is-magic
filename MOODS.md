@@ -25,6 +25,9 @@ doesn't mean they should be interchangeable!)"*
 Image 1 is the target for the sky. Image 2 is **not** — its blue is dense and
 deep, which is the opposite of thin. Image 3 is the target for distance.
 
+Confirmed by the owner: *"The pale blue is good."* Image 1's sky is the
+reference; do not reach for image 2's saturation.
+
 ### The gap
 
 Mountain has `clouds: 0`. There is no sky in it at all right now — the entire
@@ -138,7 +141,132 @@ would. Change 2 is fenced to `W_ridge > 0`. Check `index.html` as well as
 
 ## cave
 
-*Awaiting reference.*
+**Reference.** Four images. (1) and (2) are owner-generated with AI — *"nothing's
+quite right but perhaps you can get the idea of it"* — dark purple-black wet
+rock, crystal clusters rooted at the base of the walls in several distinct
+minerals (lilac, clear-white, warm amber, a small teal), water along the floor,
+and a single water drop caught mid-fall from the ceiling. (3) is a receding
+tunnel of layered rock converging on a small bright violet cluster at the far
+end. (4) is a glowworm cave: blue-black, ceiling pinpoints, stalactites, still
+water.
+
+Owner's direction: *"the third image's main value is in the shape of the tunnel.
+That is what I am looking for, though there should be a sense of it being wider
+so that there is room for more crystal structures."*
+
+### Cave owns its machinery
+
+Cave is the **only** theme with `tunnel` or `crystals` above zero (every other
+theme is 0 for both). So `TUNNEL_SIDES`, the depth coefficient, and
+`CRYSTAL_CLUSTERS` are cave-private in practice: changing them cannot disturb
+another mood, even though they are engine constants rather than theme data.
+
+`drips` is **not** private — rain runs it at 0.95. Cave's own `drips` weight is
+safe to change; the shape of `mDrips` is not.
+
+### Already right — leave alone
+
+**The minerals are done.** viz.js:1355–1361 already varies quartz per cluster:
+amethyst `(0.62, 0.45, 0.95)` → clear → smoky → citrine `(1.0, 0.85, 0.5)` →
+a rare aqua `(0.5, 0.9, 0.92)`, one mineral per cluster, held fixed while the
+light swings across it. That is precisely the lilac / white / amber / teal mix
+in images 1 and 2. Nothing to do.
+
+**Crystals already come out of the wall.** They are grown in `rockP`, the rock
+frame handed out by `mTunnel` (viz.js:558–562), so they inherit the passage's
+perspective — deep clusters small, mouth clusters large. That correlation
+between architecture and crystal is what the references show and it is built.
+
+**The lone drip is the right idea.** At `drips: 0.16` the engine puts ~0.27
+drips on screen at a time (viz.js:235) — deliberately *"a small droplet falling
+fast and alone"*, not thin rain. That matches images 1 and 2, which each show a
+single suspended drop rather than weather. If it wants to be more present, nudge
+the weight; do not reach for the shape.
+
+### "Wider" — the primary ask
+
+The bore's width is set by one constant:
+
+```
+float dep = -log(rad) * 1.55 + t * 0.03;   // viz.js:429
+```
+
+`-log(rad)` is the perspective compression: lowering **1.55** means less depth
+travelled per unit of radius, so cells stay larger and fewer of them stack
+between the mouth and the vanishing point. That reads as a wider, shorter
+passage — which is the ask. This is the knob to turn first.
+
+Secondary: `TUNNEL_SIDES = 11.0` (viz.js:414) sets facets around the ring.
+Image 3's rock lobes are chunky; 9–10 may suit better than 11. Lower is wider
+per facet.
+
+Neither is exposed in `theme.json`, so widening is an engine edit. Given cave
+is the only user, that is acceptable — but if it needs iterating against the
+owner's eye, consider promoting the depth coefficient to a theme param first so
+tuning stops requiring a shader edit.
+
+### "Room for more crystal structures" — a separate knob
+
+Width does not by itself add crystals. Two constants govern how many exist:
+
+```
+#define CRYSTAL_CLUSTERS 4
+#define CRYSTAL_SPEARS   3
+```
+
+and a selection clock staggers those four slots so only one or two are near
+full brightness at any moment. That stagger is deliberate — it guarantees
+*some* cluster is always nominated, which was the fix for the owner's earlier
+*"I can't see any crystals"* (viz.js:582–591). **Do not widen the envelope in a
+way that breaks that guarantee.**
+
+More visible structures means raising `CRYSTAL_CLUSTERS`, and possibly widening
+the hold so more overlap.
+
+**Measure it.** The cost is `CLUSTERS × SPEARS` spear evaluations per fragment
+in the worst case — 12 today, 18 at six clusters. This mood was rewritten this
+session *specifically* for that cost (viz.js:548–556: enumerate, don't search a
+lattice), so raising the count spends the exact budget that rewrite bought.
+`tools/perf.mjs` exists now; take a before and after rather than raising blind.
+
+### Two open questions for the owner
+
+**The light at the end.** Image 3's focal point is a small glowing violet
+cluster at the vanishing point. The engine has nothing there — `mTunnel`'s
+`flare` (viz.js:482) is per-cell wet-rock sparkle gated by loudness, not a light
+source — and crystal placement deliberately biases *toward the mouth*
+(`hc.y * hc.y`, viz.js:603) on the grounds that a cluster deep in the passage is
+a few pixels of nothing. So image 3's composition and the current design
+actively disagree. Ask whether the glowing terminus is wanted, or only the
+tunnel's shape. It is a different mechanism from a crystal cluster.
+
+**Image 4.** The owner did not comment on it. Its ceiling pinpoints are close to
+the `stars` motif — fixed, non-moving, which is what separates stars from glints
+(viz.js:931–934) — and cave runs `stars: 0`. Adding them would need masking to
+the upper aperture. Do not design for this until asked; it may have been
+included only for the blue.
+
+### Feel
+
+| | |
+|---|---|
+| **Quiet is** | The passage still, one seam lit, wet rock holding a little light, a drip every several seconds. |
+| **The music is** | *Which* seam is lit changes rather than whether one is — the selection clock rides intensity. Drips thicken (`duty` scales with drive, viz.js:241) and the wet-rock flare picks up. |
+
+### Changes
+
+**Data** (`portal/assets/themes/cave/theme.json`)
+- `motifs.drips`: `0.16` → **~0.22** if the lone drop should be more present.
+  Small moves only; this knob is quadratic.
+- Palette unchanged — `#04040a → #282340 → #5d5480 → #d6e2f5` already sits where
+  images 1–3 live, and the mineral colours are independent of it.
+
+**Engine** (`portal/js/viz.js`) — cave-private, but measure
+1. Lower the `-log(rad) * 1.55` depth coefficient for the wider bore. Consider
+   promoting it to a theme param if it needs iterating.
+2. `TUNNEL_SIDES` 11 → 9–10 for chunkier lobes, if wanted after (1).
+3. `CRYSTAL_CLUSTERS` 4 → 5–6 for more structures. Perf-check with
+   `tools/perf.mjs`; keep the always-one-nominated guarantee.
 
 ## rain
 
