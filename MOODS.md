@@ -72,6 +72,42 @@ judged independently.
 Two things are explicitly **not** on the list: bird flocks in sunshine, and
 giving sunshine rain's kind of responsiveness. Both are argued against in place.
 
+## Implemented 2026-08-02 — none of it yet verified by eye
+
+The owner reported three shape failures — cave "warped or bent", rain's
+lightning "bent/curved… branches not attached", mountain "lumpy and pokey
+instead of craggy triangle-ish juts" — and all three shared one cause: the
+engine had only smooth noise, and rock, lightning and crystal are angular
+materials. A linear-interpolation twin (`lnoise`, viz.js) now exists; angular
+things sample it, weather keeps the smooth one.
+
+- **mountain** — ridge profile folds `lnoise`, blended by nearness (far range
+  stays soft: distance rounds); the quadratic sharpen that bent straight
+  flanks into parabolas is removed. Clouds on at 0.32, gated by `skyMask`;
+  colour haze keyed on `ridgeLayer`.
+- **rain** — bolt path is piecewise-linear at two scales (`boltPath`); the
+  fork now leaves from the channel's own x at a hashed branch height, offset
+  zero at the branch. Attached by construction.
+- **cave** — crystals grow in the **unwarped** tunnel frame (straight spears
+  in a crooked passage; rock keeps its slump); lattice warp halved; bore
+  1.55 → 1.15; sides 11 → 9; clusters 4 → 5. Perf: cave 1.31× the cheapest
+  mood (suite budget intact).
+- **ice** — frost has its own composite channel; the 0.45-through-snow
+  ceiling is gone, filaments reach near-white.
+- **ocean** — `c4` mint → near-white; foam can finally be white water.
+- **night** — palette warmed at top (gold reaches stars and fog), ground
+  leaned teal. Aurora untouched, per the palette-independence fix.
+- **forest** — rays 0.62 → 0.78; motes: glint 0.16 pinned to the ray field
+  (site nomination in the rays block); wisps carry a triangular zigzag over
+  the orbit — corners, per the reference.
+
+Still open: slow weather follower (rain/sunshine), sunshine coverage range,
+centroid rescale (awaiting mid + bass readings), sub-mood folders, rainbow.
+
+**First look checklist:** mountain silhouette straight-flanked? cave crystals
+straight? bolts jagged with attached forks? frost dominant when grown? foam
+white? Every mood — `?mock=live&theme=<name>` cycles them without sound.
+
 ---
 
 ## mountain

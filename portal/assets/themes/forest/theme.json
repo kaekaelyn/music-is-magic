@@ -13,7 +13,7 @@
     "warp": 1.25,
     "sparkle": 0.45,
     "gloss": 0.1,
-    "glint": 0,
+    "glint": 0.16,
     "canopy": 0.95,
     "slant": 0,
     "base": 0.42,
@@ -29,7 +29,7 @@
     "shiftCentroid": 0.32
   },
   "motifs": {
-    "rays": 0.62,
+    "rays": 0.78,
     "columns": 0.85,
     "dapple": 0.8,
     "drips": 0,

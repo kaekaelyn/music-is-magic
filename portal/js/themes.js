@@ -27,7 +27,12 @@ export const BUILTIN = {
     // Still deliberately brighter than a real night: this is the face shown
     // if a theme.json fetch ever fails, and an aperture that barely differs
     // from sealed stone reads as broken rather than as night.
-    palette: ['#030714', '#101d40', '#1c3468', '#4467af', '#ecf3ff'],
+    // Warmed at the top and leaned teal in the ground (owner's reference: a
+    // teal starfield with GOLD nebula cloud). Safe for the aurora precisely
+    // because the aurora stopped drawing from the palette — its greens are
+    // its own. The gold reaches what should carry it: the stars and the
+    // brightest fog, via c4.
+    palette: ['#030714', '#0f2340', '#1d3e66', '#4467af', '#f6edd8'],
     // No ambient glint: the stars ARE this theme's points of light, and a
     // second scattered set on top of them was just noise.
     params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.7, gloss: 0.1, base: 0.66, drift: 0.18, travel: 0.12, travelX: 0.08 },
@@ -49,11 +54,13 @@ export const BUILTIN = {
     // travel: a walk among the trees. Near trunks pass fastest, wisps at a
     // middle rate, the mist drifts with you, and the rays stay anchored to
     // the sky — the parallax is the depth. Loud playing quickens the walk.
-    // Earthy: no glint at all. The wisps are phosphorescent bodies, and the
-    // beams are broken by a canopy that shifts as you walk — that unevenness
-    // is where the light-and-dark contrast comes from now.
-    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.42, drift: 0.35, travel: 0.55, travelX: 0.3, canopy: 0.95 },
-    motifs: { columns: 0.85, dapple: 0.8, rays: 0.62, wisps: 0.6 },
+    // glint here means MOTES, not sparkle: the rays nominate their own beam
+    // as the glint site (see viz.js), so these are dust hanging in the
+    // shafts — the thing that makes a beam read as a volume of air. Rays
+    // raised toward the references, where the shafts are the subject of the
+    // frame rather than an accent in it.
+    params: { scale: 1.8, speed: 0.22, warp: 1.25, sparkle: 0.45, gloss: 0.1, base: 0.42, drift: 0.35, travel: 0.55, travelX: 0.3, canopy: 0.95, glint: 0.16 },
+    motifs: { columns: 0.85, dapple: 0.8, rays: 0.78, wisps: 0.6 },
     mappings: { warpBass: 0.5, sparkleTreble: 1.2, pulseFlux: 1, shiftCentroid: 0.32 },
   },
   // Wet dark. Rounded stone receding into a passage, crystal clusters
@@ -107,7 +114,9 @@ export const BUILTIN = {
     // near ones fastest, sped by the music. The snow streams one way on the
     // same clock; nothing here ever slides back.
     params: { scale: 1.4, speed: 0.1, warp: 0.9, sparkle: 0.5, gloss: 0.2, base: 0.6, drift: 0.25, travel: 0.4, glint: 0.12 },
-    motifs: { ridge: 0.92, snow: 0.8, dapple: 0.4 },
+    // clouds on, gated by the ridge silhouette in the shader: weather above
+    // the line, snow below it, and the two never trade places.
+    motifs: { ridge: 0.92, snow: 0.8, dapple: 0.4, clouds: 0.32 },
   },
   // The sea as one moving body. The watery fog is BACK (the owner missed
   // it: it looked more like ocean than the bare surf did) — but now it, the
@@ -115,7 +124,10 @@ export const BUILTIN = {
   // across, on the flow clock. One direction, always; the music sets the
   // pace. Loudness also works the surf harder: sharper crests, more white.
   ocean: {
-    palette: ['#02101c', '#043a57', '#0b6d85', '#39ac9b', '#c9f2e2'],
+    // Top step near-WHITE, not mint. Foam is drawn from c3/c4, and with a
+    // mint c4 white water was unreachable — the one thing every ocean
+    // reference agrees on. The water stays turquoise through c3.
+    palette: ['#02101c', '#043a57', '#0b6d85', '#39ac9b', '#eaf9f4'],
     // drift is LOW so the water's internal churn cannot fight the current:
     // the whole body — fog, caustics, crests — now translates together.
     params: { scale: 1.6, speed: 0.45, warp: 1.15, sparkle: 0.4, gloss: 0.35, base: 0.62, drift: 0.12, travel: 0.9, travelX: -0.05, travelY: 0.42 },

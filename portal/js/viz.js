@@ -99,6 +99,21 @@ float noise(vec2 p) {
   float d = hash(i + vec2(1.0, 1.0));
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
+// The same lattice as noise() with LINEAR interpolation — no smoothstep on f.
+// noise() rounds everything it touches: right for fog, water and cloud, and
+// quietly wrong for every angular material in the set. Three separate owner
+// complaints turned out to be this one primitive missing: curved lightning,
+// lumpy ridgelines, warped-looking rock. lnoise is straight segments meeting
+// at corners, so a profile folded from it is jagged by construction. Rock
+// silhouettes and bolt paths sample this; weather keeps sampling noise().
+float lnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
 float fbm(vec2 p) {
   float v = 0.0, a = 0.5;
   for (int i = 0; i < 5; i++) {
@@ -411,7 +426,9 @@ float mCrags(vec2 p, out float upface, out float joint) {
 // SIDES is file-scope because the crystals are grown in this motif's frame and
 // have to wrap the same way it does: a cluster sitting on the seam at angle 0
 // must still reach the fragments just the other side of it.
-const float TUNNEL_SIDES = 11.0;
+// 11 -> 9: fewer, chunkier lobes around the ring. The reference bore is a
+// handful of big rock shoulders, not a fine polygon.
+const float TUNNEL_SIDES = 9.0;
 
 float mTunnel(vec2 uv, float t, float strike, float drive,
               out float face, out float joint, out float flare,
@@ -426,7 +443,11 @@ float mTunnel(vec2 uv, float t, float strike, float drive,
   // Around the tunnel, and into it. -log(rad) grows without bound toward the
   // centre, which is exactly the perspective compression we want: cells get
   // shorter and shorter as they recede.
-  float dep = -log(rad) * 1.55 + t * 0.03;
+  // 1.55 -> 1.15: less depth travelled per unit of radius, so fewer, larger
+  // cells stand between the mouth and the dark — a wider, shorter bore with
+  // room for bigger crystal structures (the owner's ask), instead of a long
+  // thin throat.
+  float dep = -log(rad) * 1.15 + t * 0.03;
 
   // Warp the lattice before cells are found, exactly as crags does — clean
   // cells are a mosaic whatever space they live in. The warp is sampled around
@@ -435,14 +456,22 @@ float mTunnel(vec2 uv, float t, float strike, float drive,
   vec2 ring = vec2(cos(a), sin(a)) * 1.7;
   float wa = fbm(ring + vec2(dep * 0.35, 0.0));
   float wd = fbm(ring + vec2(dep * 0.35, 11.0));
-  vec2 p = vec2((a / 6.2831853 + 0.5) * SIDES + (wa - 0.5) * 2.4,
-                dep + (wd - 0.5) * 1.7);
+  // Amplitudes roughly halved (2.4/1.7 -> 1.3/0.95): at the old sizes a cell
+  // could smear a third of the way around the passage, and the whole bore
+  // read as melting. Irregular is the point; molten is not.
+  vec2 p = vec2((a / 6.2831853 + 0.5) * SIDES + (wa - 0.5) * 1.3,
+                dep + (wd - 0.5) * 0.95);
   // Handed out so the crystals can be grown in the ROCK's frame rather than
-  // in a lattice of their own. This is the whole fix for "no correlation
-  // between the architecture of the cave and the crystals": they were being
-  // placed in screen space and merely masked by the geometry, so they sat in
-  // front of the wall instead of coming out of it.
-  rockP = p;
+  // in a lattice of their own — carried by the passage, scaled by its
+  // perspective. But the UNWARPED frame, deliberately. Quartz is the one
+  // material in this cave that is straight, and drawing straight spears in
+  // the warped lattice bent every one of them along the rock's own smear —
+  // "warped or bent... not straight" was exactly this. The rock keeps its
+  // warp (stone is allowed to slump); the crystals get the same angles and
+  // depths without it, so they stand straight in a crooked passage. The
+  // correlation that mattered — carried by the travel clock, small in the
+  // deep, large at the mouth — lives in (angle, dep), not in the warp.
+  rockP = vec2((a / 6.2831853 + 0.5) * SIDES, dep);
 
   vec2 i = floor(p), f = fract(p);
   float d1 = 8.0, d2 = 8.0;
@@ -564,7 +593,10 @@ float mFrost(vec2 q, float t, float grow, float strike) {
 // Structure is quartz, not a spike: parallel sides down the body, a blunt
 // pyramidal termination at the tip, and facet bands running the length, each
 // catching the light at its own angle.
-#define CRYSTAL_CLUSTERS 4
+// 4 -> 5 with the wider bore: more wall in shot wants more structures. Worst
+// case is CLUSTERS x SPEARS = 15 spear evaluations against 36 before the
+// enumeration rewrite — still well inside the budget that rewrite bought.
+#define CRYSTAL_CLUSTERS 5
 #define CRYSTAL_SPEARS 3
 float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
                 float strike, float drive, out float tint, out float faceGlow) {
@@ -694,6 +726,15 @@ float mCrystals(vec2 rockP, float t, float selClock, vec2 lightDir,
   return best;
 }
 
+// The bolt's descent, shared by the channel and its fork so the fork can
+// leave from exactly where the channel is at the branch height. Two scales
+// of LINEAR noise: the walk and the stutter. No fbm anywhere in it — smooth
+// noise cannot make a corner, and a bolt is nothing but corners.
+float boltPath(float y, float seed) {
+  return (lnoise(vec2(y * 5.0 + seed * 11.0, 1.7)) - 0.5) * 0.5
+       + (lnoise(vec2(y * 16.0 + seed * 5.0, 6.3)) - 0.5) * 0.14;
+}
+
 // Lightning. A bolt is a path down the frame, jittered by noise, with a fork
 // off it — plus the flash, which is most of what a storm actually looks like
 // from inside one. Everything is gated on the onset envelope squared, so
@@ -704,22 +745,37 @@ float mStorm(vec2 uv, float t, float strike, out float flash) {
   float hit = strike * strike;              // sharpens: soft playing throws none
   flash = hit * hit * (0.55 + h.y * 0.45);
 
-  // The channel wanders as it descends; noise of uv.y IS the path, and the
-  // distance from it is the bolt. Cheaper and more convincing than any
-  // attempt to walk a polyline in a shader.
+  // The channel is PIECEWISE LINEAR: lnoise of uv.y is the path, so the bolt
+  // is straight runs meeting at corners, at two scales — the big zigzag and
+  // the small kinks along each run. It was fbm of uv.y, and fbm is smooth by
+  // construction: the bolt came out as a drifting S-curve however hard it
+  // flashed — "bent/curved instead of purely jagged". A curved bolt reads as
+  // a crack in glass, not electricity. Same fix as the ridgeline, same
+  // primitive.
   float x0 = h.x * 1.3 - 0.65;
-  float wander = (fbm(vec2(uv.y * 3.2 + seed * 11.0, 1.7)) - 0.5) * 0.55;
-  float px = x0 + wander;
+  float px = x0 + boltPath(uv.y, seed);
   float top = 0.5;
   float core = smoothstep(0.014, 0.0, abs(uv.x - px)) * step(uv.y, top);
   // Bolts fade toward the ground rather than ending on a line.
   core *= smoothstep(-0.35, 0.1, uv.y);
 
-  // One fork, branching below the midpoint, present about half the time.
+  // One fork, present about half the time — and ATTACHED. It leaves the main
+  // channel AT a hashed branch height, from the channel's own x there, and
+  // exists only below that point: zero offset at the branch, leaning away as
+  // it falls, growing its own kinks only once it is clear. The old fork
+  // carried an independent base offset and its own noise, so it hung beside
+  // the bolt as a second unrelated scribble — "branches not attached to each
+  // other" was literally true of it.
   float fseed = hash(vec2(seed, 21.0));
-  float fx = px + (fseed - 0.5) * 0.5 + (fbm(vec2(uv.y * 6.0 + seed * 3.0, 9.0)) - 0.5) * 0.4;
+  float yb = 0.30 - fseed * 0.32;              // the branch height
+  float below = yb - uv.y;                     // how far under the branch we are
+  float fdir = sign(hash(vec2(seed, 27.0)) - 0.5);
+  float fx = x0 + boltPath(yb, seed)           // = the main channel at yb
+           + fdir * below * (0.5 + fseed * 0.5)
+           + (lnoise(vec2(uv.y * 13.0 + seed * 7.0, 9.0)) - 0.5)
+             * 0.3 * clamp(below * 5.0, 0.0, 1.0);
   float fork = smoothstep(0.008, 0.0, abs(uv.x - fx))
-             * step(uv.y, 0.12) * smoothstep(-0.3, 0.0, uv.y) * step(0.45, fseed);
+             * step(0.0, below) * smoothstep(-0.3, -0.02, uv.y) * step(0.45, fseed);
 
   return (core + fork * 0.75) * hit;
 }
@@ -752,8 +808,21 @@ float mRidge(vec2 uv, float t, float flow, float drive,
     // Two octaves, not fbm's five. A ridgeline profile made of fine noise is a
     // wavy line — which is the banding failure in a hat — and a mountain's
     // outline is a few big decisions with detail hung off them.
-    float n = noise(vec2(x, fi * 11.0 + 3.3)) * 0.72
-            + noise(vec2(x * 2.7 + 5.0, fi * 11.0)) * 0.28;
+    //
+    // LINEAR noise, blended in by nearness. Smooth noise interpolates through
+    // a smoothstep, so a profile folded from it is built of rounded lumps
+    // whatever the weights say — "lumpy and pokey" was the report, and lumps
+    // are the only shape smooth noise can make. lnoise is straight segments
+    // meeting at corners, and folding it gives the straight-flanked,
+    // sharp-summited triangles a crag line actually has. The far range keeps
+    // most of the old softness on purpose: distance rounds a ridgeline off,
+    // and that difference in edge is depth doing to shape what aerial
+    // perspective already does to contrast.
+    vec2 s1 = vec2(x, fi * 11.0 + 3.3);
+    vec2 s2 = vec2(x * 2.7 + 5.0, fi * 11.0);
+    float ang = 0.45 + fi * 0.275; // fi 0 = far, softened; fi 2 = near, angular
+    float n = mix(noise(s1), lnoise(s1), ang) * 0.72
+            + mix(noise(s2), lnoise(s2), ang) * 0.28;
     float ridged = 1.0 - abs(2.0 * n - 1.0);            // peaks, not dunes
     // Tried and rejected: falling at different rates either side of the crease,
     // to get the long-slope-and-steep-face asymmetry a real ridgeline has. The
@@ -763,24 +832,18 @@ float mRidge(vec2 uv, float t, float flow, float drive,
     // fix. Asymmetry is still the right idea; it has to come from somewhere
     // that cannot flatten, so warp the profile's x before the fold rather than
     // reshaping the fold's output.
-    // Sharper summits, but only a little. Squaring this — together with the
-    // fine octave below and a raised amplitude — compounded into the squashed,
-    // cartoonish profile the owner objected to: "I didn't mean make the peaks
-    // look squished... adjust the lower end, don't exaggerate the upper."
-    // This is pow(ridged, 1.3) without the transcendental (within ~2% over
-    // 0..1), which keeps the summits pointed without pinching them.
-    // Sharper toward the front. Distance rounds a ridgeline off — that is
-    // aerial perspective doing to shape what it already does to contrast —
-    // so the far range keeps a soft profile and the near one gets an angular
-    // one. A single sharpness for all three is what makes three ranges read
-    // as three copies of one drawing at different sizes.
-    ridged *= (0.8 - fi * 0.06) + (0.2 + fi * 0.06) * ridged;
+    // The quadratic sharpen that lived here (a pow-1.3 stand-in, stronger
+    // toward the front) is gone. Its job — angular near, soft far — moved
+    // into the lnoise blend above, and applied on top of a piecewise-linear
+    // fold it could only bend the straight flanks back into parabolas,
+    // undoing the very corners the linear noise was brought in for. A
+    // linear fold is already pointed at the summit; it does not need help.
     // A third, finer ridged octave breaks the smooth shoulders into
     // subsidiary spurs. Without it the profile is two big humps per screen —
     // rolling hills, which is what the owner saw. Mountains have detail all
     // the way down their sides, and that detail is what says "rock" rather
     // than "landscape wallpaper".
-    float fine = 1.0 - abs(2.0 * noise(vec2(x * 5.3 + 17.0, fi * 7.0)) - 1.0);
+    float fine = 1.0 - abs(2.0 * lnoise(vec2(x * 5.3 + 17.0, fi * 7.0)) - 1.0);
     // Spurs, not needles. The additive half of this was 0.16, and since a
     // ridged noise folds to a sharp point wherever it crosses its midline, an
     // added octave of it puts a thin spike at every one of those crossings —
@@ -876,6 +939,14 @@ vec3 mWisps(vec2 uv, float t, float w, float flow, float drive) {
       // as a light rig; the whole illusion is that each one is a separate body.
       vec2 c = g + 0.5 + 0.34 * vec2(sin(t * (0.21 + h.x * 0.19) + h.y * 6.28),
                                      cos(t * (0.17 + h.y * 0.21) + h.x * 6.28));
+      // And a zigzag riding the wander. Sine against cosine is an ellipse —
+      // a closed path with no corners — and the owner asked for corners:
+      // "zigzagging orbs". Triangle waves are nothing but corners, so a
+      // smaller, quicker triangular jitter sits on top of the orbit, each
+      // wisp on its own two hashed rates. The orbit stays: it is what seats
+      // the wisp among the trunks. The triangles are the dart.
+      c += (vec2(abs(fract(t * (0.11 + h.x * 0.09) + h.y * 3.1) - 0.5),
+                 abs(fract(t * (0.09 + h.y * 0.08) + h.x * 5.7) - 0.5)) * 2.0 - 0.5) * 0.22;
       // Each wisp breathes on its own period, and all of them flare with
       // TREBLE — high sparkling playing excites the little lights, where the
       // bass end belongs to the mist and the warp. Different registers now
@@ -1048,6 +1119,7 @@ void main() {
   float mass = 0.0;
   float spec = 0.0;
   float snow = 0.0; // coverage, applied after the ramp rather than through it
+  float frostCover = 0.0; // ice's frost: its own channel now, not snow's
   float rays = 0.0; // ditto: light has a colour of its own, not a value
   float foam = 0.0; // ditto again — foam is white, whatever the water is doing
   vec3 wisp = vec3(0.0);
@@ -1091,6 +1163,14 @@ void main() {
     // be visible, because they get their own colour below.
     lift += rays * 0.3;
     spec += rays * 0.25;
+    // The beam nominates itself as a glint site: MOTES. Dust hanging in the
+    // shaft is most of what makes one read as a volume of air rather than a
+    // bright stripe, and it is what the forest references show. Only themes
+    // that opt in via params.glint get any — sunshine keeps glint 0, so its
+    // open sky stays clean — and the site's authority rides the canopy,
+    // because dust needs something overhead to fall from.
+    site = max(site, clamp(rays, 0.0, 1.0));
+    own = max(own, u_canopy * 0.7);
   }
   if (W_dapple > 0.0) lift += mDapple(uv, u_t, u_flow, u_rms) * W_dapple * 0.55;
   if (W_caustics > 0.0) {
@@ -1173,6 +1253,14 @@ void main() {
     // Spindrift is snow in the air, so it rides the same overlay snow does.
     snow = max(snow, plume * W_ridge * 0.85);
     spec += plume * W_ridge * 0.7;
+    // Weather stays in the sky. Snow has always been fenced by skyMask;
+    // clouds were drawn unmasked, so switching them on over a ridge painted
+    // white fbm across the summit — the same material as the snow, in the
+    // same pixels, which is exactly the "interchangeable" failure the owner
+    // warned about. The silhouette itself is the divider: cloud strictly
+    // above it, snow strictly below it, spindrift the only crossing.
+    cloud *= skyMask;
+    cloudRim *= skyMask;
   }
   if (W_crags > 0.0) {
     float upface, joint;
@@ -1323,7 +1411,14 @@ void main() {
     // it further out. It seeds from the seams, where real frost starts.
     float frost = mFrost(p * 0.55, u_t, u_flow, u_pulse) * W_facets;
     frost = clamp(frost + seam * 0.25 * frost, 0.0, 1.0);
-    snow = max(snow, frost * 0.45);
+    // Frost used to ride the snow channel at 0.45 weight, and snow blends at
+    // 0.88 — a ceiling of ~40% of the way to the pale step however hard the
+    // frost grew, inherited from a blend tuned for lying snow on mountain
+    // rock. The references make frost the SUBJECT: near-white ferns over
+    // dark ice. Its own channel, its own strength; the dark ground the
+    // filaments need survives because the growth front only ever passes the
+    // top slice of the field.
+    frostCover = frost;
     spec += frost * 0.3;
     site = max(site, frost);
     site = max(site, max(seam, flare));
@@ -1355,12 +1450,26 @@ void main() {
   // Clouds: a pale body veiling whatever is behind it, and a rim of the
   // palette's gold on every edge that faces the sun — the billow is lit by
   // the same light the rays are made of, which is what keeps it one sky.
+  // Aerial perspective in COLOUR. The shade term inside mRidge walks far
+  // ranges up the brightness ramp, which leaves them paler but still fully
+  // coloured; the reference's far ridges have lost their colour to the sky,
+  // not just their darkness. ridgeLayer already knows which range is
+  // frontmost at this pixel, so haze is a lerp toward the pale steps keyed
+  // on it — the far range mostly sky-tint, the near one almost untouched.
+  // Fenced to ridge moods; skyMask keeps it off the sky itself.
+  if (W_ridge > 0.0) {
+    float hazeAmt = clamp(0.5 - ridgeLayer * 0.23, 0.0, 1.0) * (1.0 - skyMask) * W_ridge;
+    col = mix(col, mix(u_c3, u_c4, 0.5), hazeAmt);
+  }
   col = mix(col, mix(u_c2, u_c4, 0.45), clamp(cloud, 0.0, 1.0) * 0.5);
   col += mix(u_c3, u_c4, 0.35) * clamp(cloudRim, 0.0, 1.0) * 0.85;
 
   // Snow lies over the palette, mixing the two brightest steps so it reads as
   // lit crust rather than blown-out highlight.
   col = mix(col, mix(u_c3, u_c4, 0.72), clamp(snow, 0.0, 1.0) * 0.88);
+  // Frost is whiter than snow — filaments read by contrast against the dark
+  // ice, and they are allowed nearly the whole distance to the top step.
+  col = mix(col, mix(u_c3, u_c4, 0.9), clamp(frostCover, 0.0, 1.0) * 0.85);
   // Foam is white water, not bright water — same rule as snow and rays.
   col = mix(col, mix(u_c3, u_c4, 0.8), clamp(foam, 0.0, 1.0) * 0.75);
   // A struck shard goes toward white in one step — lightning inside the ice,
@@ -1416,11 +1525,12 @@ void main() {
   // and the density is raised there, because a site is a small part of the
   // aperture and the same count of glints spread over it is nothing. Themes
   // with no structural motif keep the old behaviour exactly.
-  // Glints are OPT-IN now (params.glint), and every theme that isn't made of
-  // ice or crystal opts out. Scattered white specks were reading as dust on
-  // the lens in the forest and in the sunbeams — an earthy mood and a warm
-  // one have no business twinkling. Where they do run they are pinned to the
-  // motif's own sites: frost seams, crystal faces.
+  // Glints are OPT-IN now (params.glint). SCATTERED specks read as dust on
+  // the lens — that failure stands — but pinned to a motif's own sites they
+  // are material: frost seams, crystal faces, and the forest's sunbeams,
+  // where the rays nominate their own column of air and the glints become
+  // motes drifting in it. Sunshine still opts out: an open sky has nothing
+  // for dust to hang under.
   if (u_glint > 0.0) {
     float where = mix(smoothstep(0.12, 0.6, g),
                       max(clamp(site, 0.0, 1.0), 0.15) * smoothstep(0.04, 0.32, g),
