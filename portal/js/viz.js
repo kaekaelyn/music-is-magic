@@ -2057,8 +2057,14 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, vec2 thr, float body
   // topographic map; three is where a band is wide enough to read as colour
   // while still going round the spectrum more than once, which is what says
   // interference rather than dispersion.
-  float film = across * 0.78
-             + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 1.0;
+  // THE BANDS BELONG TO THE CLOUD, so the across term has to outweigh the noise.
+  // At 0.78 against 1.0 the film's thickness was mostly a field of its own, and
+  // the colour came out mottled — bands following the noise rather than running
+  // parallel to the cloud's edge, which is what makes iridescence read as
+  // belonging to the thing it is on. The noise is still there; it is the
+  // irregularity in the layer, not the layer.
+  float film = across * 1.55
+             + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 0.55;
   float skyAmt = fringe * (0.18 + nearSun * 0.70);
 
   // --- the puddles ---------------------------------------------------------

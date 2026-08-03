@@ -330,6 +330,35 @@ of the FIX rather than of the diagnosis.
   A rainbow that is always at full strength is the fixed-arc problem wearing a
   different costume.
 
+#### The iridescence took four cuts, and each one exposed the next
+
+Worth listing in order, because none of the four faults was visible until the
+one before it was fixed — which is the usual shape of getting a motif's PHYSICS
+right and its scale wrong.
+
+1. **Ten orders across the fringe** — a topographic map of thin concentric
+   rings. Cut to three, which is where a band is wide enough to read as colour
+   while still going round the spectrum more than once.
+2. **Then it was made chalky**, on a realism argument the owner overruled: the
+   photographs are boldly rainbowy and this is not a simulation. The right
+   answer was to make what the pastel version was reaching for a VARIABLE — a
+   saturation term the room drives, so quiet leaves a pale sheen and a working
+   phrase turns it to the reference colour.
+3. **Then it drew as a stroke around each cloud** rather than bands through it.
+   Gating on coverage confines the colour to one ramp-width, and that ramp is
+   narrow by design — being narrow is what gives a cloud an edge.
+4. **Then, gated on the across-the-edge coordinate instead, it covered the whole
+   sky.** A ramp-width is a distance in DENSITY, so where the field is flat it is
+   hundreds of pixels wide; coverage saturates and cannot run away, the across
+   coordinate cannot be stopped. The two sides of a fringe are different
+   questions and need different gates: coverage outside (there is nothing to
+   diffract in clear air), across inside (so the colour reaches into the cloud).
+
+A fifth, smaller: the noise term outweighed the across term in the thickness, so
+the bands followed the noise instead of running parallel to the cloud's edge —
+which is precisely what makes iridescence read as belonging to the thing it is
+on rather than being laid over it.
+
 ### What it cost
 
 Measured against HEAD in the same container, `tools/perf.mjs`. The set is wider
