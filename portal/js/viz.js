@@ -1951,12 +1951,25 @@ float mSmoke(vec2 uv, float t, float flow, float w, float drive, float srcY, out
 // no seam where an order wraps), and pastel by construction: the 0.55 floor
 // under a 0.45 swing is what keeps it from going to saturated primaries, which
 // would read as the confetti this motif has already been accused of being.
-vec3 filmSpectrum(float x) {
-  // 0.72 over 0.28, not 0.55 over 0.45. The wider swing reaches fully saturated
-  // hues, and the first render came out as vivid rainbow contours — which is
-  // oil on a puddle seen close up, not the chalky pastel of the sky references.
-  // Iridescence is white light with a little taken out of it.
-  return 0.72 + 0.28 * cos(6.2831853 * x + vec3(0.0, 2.094, 4.188));
+vec3 filmSpectrum(float x, float sat) {
+  // BOLD, and the saturation is the music's to set.
+  //
+  // This was briefly pulled back to a chalky pastel on the theory that real
+  // cloud iridescence is white light with a little taken out of it. The owner's
+  // correction: "the colors I showed you in the pics were quite boldly rainbowy.
+  // we don't have to make it fully realistic either." They are right about the
+  // photographs — cloud iridescence really does go to hot pink and cyan — and
+  // right about the licence. This engine's job is not to be a simulation.
+  //
+  // So the ramp is the full swing, and what the pastel version was reaching for
+  // becomes a variable instead of a constant: sat washes the whole thing toward
+  // white. Boldness is LIGHT rather than geometry, so it can ride a live feature
+  // without any of the retreat that would make a moving thing slide backwards —
+  // quiet playing leaves a pale sheen on the cloud's edge, and a working phrase
+  // turns it to the colour in the references.
+  return mix(vec3(0.94, 0.95, 0.97),
+             0.5 + 0.5 * cos(6.2831853 * x + vec3(0.0, 2.094, 4.188)),
+             clamp(sat, 0.0, 1.0));
 }
 
 // IRIDESCENCE — cloud iridescence in the sky, an oil sheen on the wet ground.
@@ -2006,12 +2019,14 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
   // that edge currently is — which keeps the colour on the fringe even as the
   // weather clock moves the threshold), plus the raw density for finer
   // structure, plus a slow drift so the orders creep rather than sitting still.
-  // TWO ORDERS ACROSS THE FRINGE, not ten. The references show two or three
+  // THREE ORDERS ACROSS THE FRINGE, not ten. The references show a handful of
   // broad bands hugging an outline; ten thin ones is a topographic map, and that
   // is what the first render drew. Thickness is the whole geometry of this
-  // motif, so its scale IS the picture.
-  float film = body * 1.5 + dens * 1.0
-             + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 0.8;
+  // motif, so its scale IS the picture — and three is where the bands are wide
+  // enough to read as colour rather than as contour lines, while still going
+  // round the spectrum more than once, which is what says interference.
+  float film = body * 2.4 + dens * 1.5
+             + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 1.1;
   // The fringe: present where the cloud is arriving and gone where it is solid.
   float fringe = smoothstep(0.03, 0.34, body) * smoothstep(0.95, 0.52, body);
   float skyAmt = fringe * (0.18 + nearSun * 0.70);
@@ -2024,8 +2039,8 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
   float below = smoothstep(0.0, 0.035, dep);
   float z = 1.0 / (dep + 0.11);
   vec2 gp = vec2(uv.x * z * 0.60, z * 0.75);
-  float pfilm = fbm(gp * 1.5 + vec2(flow * 0.08, t * 0.02)) * 2.4
-              + fbm(gp * 4.2 + 9.0) * 1.1;
+  float pfilm = fbm(gp * 1.5 + vec2(flow * 0.08, t * 0.02)) * 3.4
+              + fbm(gp * 4.2 + 9.0) * 1.6;
   // Not all of it is wet, and the film sits in the standing water.
   float wet = smoothstep(0.44, 0.68, fbm(gp * 0.85 + 21.0)) * below;
   // Foreshortened out near the horizon, like every other ground texture: the
@@ -2038,14 +2053,24 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
   // that answers the music as HUE rather than as brightness, and it is what
   // makes the sky feel like it is listening rather than merely lit.
   float shift = (pitch - 0.45) * 0.55;
-  vec3 skyCol = filmSpectrum(fract(film + shift));
-  vec3 pudCol = filmSpectrum(fract(pfilm + shift));
+  // HOW BOLD, from the room. A quiet passage leaves a pale sheen along the
+  // cloud's edge; a working one turns it to the colour in the photographs, and
+  // an onset pushes it past that for a moment. The floor is deliberately low —
+  // the motif should have somewhere to GO, and a rainbow that is always at full
+  // strength is the fixed-arc problem in a different costume.
+  float sat = 0.22 + drive * 0.80 + kick * 0.50;
+  // The puddles run a little bolder than the sky at the same level: a film on
+  // water is thicker and more uneven than one on a cloud, and the reference for
+  // it is the most saturated of the set.
+  vec3 skyCol = filmSpectrum(fract(film + shift), sat);
+  vec3 pudCol = filmSpectrum(fract(pfilm + shift), sat * 1.25);
 
-  // Kept where a light in the air belongs. The fringe is a BROAD band, unlike
-  // the thin filament field this replaced, so the same gains would have run it
-  // to better than 2.0 additive over a dark blue sky and blown the whole cloud
-  // edge to white — losing the colour, which is the entire motif.
-  amt = (skyAmt + pudAmt) * (0.16 + drive * 0.48 + kick * 0.34);
+  // HOW MUCH, also from the room, and separately: presence and boldness are two
+  // questions. The fringe is a BROAD band, unlike the thin filament field this
+  // replaced, so gains that suited filaments would run it past 2.0 additive over
+  // a dark blue sky and blow the cloud edge to white — losing the colour, which
+  // is the entire motif.
+  amt = (skyAmt + pudAmt) * (0.15 + drive * 0.60 + kick * 0.42);
   // Weighted so whichever one is actually present decides the colour, rather
   // than the two averaging into grey where they overlap.
   return (skyCol * skyAmt + pudCol * pudAmt) / max(skyAmt + pudAmt, 1e-4);

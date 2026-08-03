@@ -313,6 +313,23 @@ of the FIX rather than of the diagnosis.
   band near one. The same numbers ran to better than 2.0 additive and would have
   blown the cloud edge to white — losing the colour, which is the whole motif.
 
+- **and then it was pulled back too far.** The first render showed ten spectral
+  orders across each fringe, which is a topographic map; that part was a real
+  fault, and the cure (three orders) stands. But the same pass also made the
+  ramp chalky on the theory that cloud iridescence is white light with a little
+  taken out of it. The owner's correction: *"the colors I showed you in the pics
+  were quite boldly rainbowy. we don't have to make it fully realistic either.
+  the music can determine the presence and boldness."*
+
+  They are right on both counts, and the second half is the better design. What
+  the pastel version was reaching for is a VARIABLE, not a constant: the ramp
+  runs at full swing and `sat` washes it toward white. Boldness is light rather
+  than geometry, so it can ride a live feature with none of the retreat that
+  would make a moving thing slide backwards — which makes presence and boldness
+  two separate questions asked of the room, and gives the motif somewhere to go.
+  A rainbow that is always at full strength is the fixed-arc problem wearing a
+  different costume.
+
 ### What it cost
 
 Measured against HEAD in the same container, `tools/perf.mjs`. The set is wider
