@@ -24,13 +24,18 @@ broadcast branch. Changing the GitHub default to the broadcast branch would fix
 this permanently and does not touch the reference; it is the owner's call and
 has been raised.
 
-**There is a `main` on the remote.** One commit (`3a6e24f`, 2026-08-02,
-"Make main the trunk and write it down"), branched off a point 26 commits
-behind the broadcast branch, carrying a CLAUDE.md that the current one
-reverses. It is vestigial — a pull from it would look like the portal lost a
-day. Do not land anything on it. Deleting it was requested but the session's
-git relay refuses ref deletions (403), so it needs doing from the owner's
-machine or the GitHub branches page.
+**A `main` briefly existed and is gone again** — deleted by the owner on
+2026-08-03. It was one commit (`3a6e24f`, 2026-08-02, "Make main the trunk and
+write it down"), branched off a point 26 commits behind the broadcast branch
+and carrying a CLAUDE.md that the current one reverses; a pull from it would
+have looked like the portal lost a day. Recorded because a session that finds
+that commit in the reflog, or reads that older CLAUDE.md, should know it was
+ruled against and not treat it as a trunk to restore. There is no `main` and
+one is not wanted.
+
+Note for a session that needs a branch deleted: the git relay refuses ref
+deletions with a 403 even though ordinary pushes work. That is a guardrail, not
+a broken credential — report it and let the owner do it.
 
 ## 1. Branches — read before running any git command
 
