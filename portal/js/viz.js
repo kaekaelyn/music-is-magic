@@ -373,7 +373,12 @@ float mDrips(vec2 uv, float t, float w, float slant, float drive, float weather,
   // ones, on the theory that sheets drag — but rain does not drag, and at 0.4
   // the streaks crawled down the aperture and read as a meteor shower.
   float speed = mix(3.2, 2.9, w);
-  float tail = mix(0.05, 0.34, w);   // and are short
+  // SHORTER, and this is scale rather than taste. A streak of 0.34 in phase is
+  // four tenths of the frame's height, which reads as rain a metre from the
+  // lens; the mood is a landscape in weather, and the sky has to be able to
+  // contain a cloud deck at a distance without the rain in front of it being
+  // enormous.
+  float tail = mix(0.04, 0.22, w);   // and are short
   // Quadratic, so the sparse end is genuinely rare rather than merely thinner:
   // at w = 0.16 this is ~0.27 drips on screen at a time.
   // Loudness thickens it — the one thing the rain never did before was
@@ -387,7 +392,9 @@ float mDrips(vec2 uv, float t, float w, float slant, float drive, float weather,
   // storm and back, without changing its mind twice a bar.
   float duty = clamp((0.012 + 0.988 * w * w) * (0.35 + weather * 2.1), 0.0, 1.0);
 
-  float lanes = 3.0 + 23.0 * w;
+  // ...and finer. More lanes at the same weight is the same rainfall further
+  // away, which is the whole of what "shrink everything else" asks for.
+  float lanes = 4.0 + 34.0 * w;
   float col = floor(lx * lanes);
   vec2 h = hash2(vec2(col, 1.7));
   float rate = (0.62 + h.x * 0.46) * speed;
@@ -412,7 +419,8 @@ float mDrips(vec2 uv, float t, float w, float slant, float drive, float weather,
   // flat floor low enough to feel like ground in the middle would sit below
   // the opening entirely at the edges. A floor that rises toward the tips
   // keeps every lane's splash visible AND reads as the bottom of the lens.
-  float floorY = -0.235 - uv.x * uv.x * 0.18 - h.y * 0.02;
+  // The same line main draws, or the streaks land above or below the water.
+  float floorY = -0.38 - uv.x * uv.x * 0.09 - h.y * 0.02;
   // The phase AT the floor tells us which drop is landing and how long ago:
   // the streak's head is at fract(phase) == 0, so fract of the floor's phase
   // is the age of the last arrival, in the same units the fall is measured in.
@@ -424,8 +432,8 @@ float mDrips(vec2 uv, float t, float w, float slant, float drive, float weather,
   float life = 1.0 - smoothstep(0.0, 0.16, age);
   // A low wide crown rather than a circle — water goes sideways when it hits.
   vec2 rel = vec2((fract(lx * lanes) - 0.5) / lanes, (uv.y - floorY) * 2.6);
-  float ring = age * (0.09 + kick * 0.05);
-  float crown = smoothstep(0.028, 0.0, abs(length(rel) - ring));
+  float ring = age * (0.055 + kick * 0.032);
+  float crown = smoothstep(0.018, 0.0, abs(length(rel) - ring));
   // The splash answers the room: loudness widens the crowns, and an onset
   // arrives as a burst of them — the rain playing along, not just falling.
   splash = landed * life * crown * step(floorY - 0.02, uv.y)
@@ -786,7 +794,14 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
     float lean1 = 0.58 + (lnoise(vec2(along * 5.0 + armId * 3.3, 53.0)) - 0.5) * 0.62;
     float side = across < 0.0 ? 0.5 : 0.0;
     float bu = along - sq * lean1;              // this branch's root, along the arm
-    bu += (lnoise(vec2(bu * 9.0 + armId * 3.1, 61.0)) - 0.5) * 0.014;
+    // Warped by nearly half a pitch, not a fifth. At the fern size the last
+    // render settled on, a 22% jitter still leaves the barbs reading as evenly
+    // spaced — which is the "arrowheads all down them in a predictable pattern"
+    // the owner has named twice, surviving at a larger scale. Warping the
+    // coordinate before it is floored is what changes how MANY there are in a
+    // stretch, rather than only where each one sits.
+    bu += (lnoise(vec2(bu * 9.0 + armId * 3.1, 61.0)) - 0.5) * 0.030
+        + (lnoise(vec2(bu * 3.1 + armId * 7.7, 13.0)) - 0.5) * 0.018;
     const float P1 = 32.0;
     float bx = bu * P1 + armId * 1.7 + side;
     float bi = floor(bx);
@@ -2881,9 +2896,25 @@ vec3 mWisps(vec2 uv, float t, float w, float flow, float drive) {
 // that direction its edge faces the sun, and that edge takes the gold.
 // Coverage swells with loudness (a working room builds weather), and the
 // drift rides the travel clock, one way, at the music's pace.
-float mClouds(vec2 uv, float t, float flow, float drive, out float rim,
-              out float dens, out vec2 thr) {
-  vec2 q = vec2(uv.x * 1.5 + flow * 0.35 + t * 0.01, uv.y * 2.6);
+float mClouds(vec2 uv, float t, float flow, float drive, float horizon,
+              out float rim, out float dens, out vec2 thr) {
+  // A DECK, WITH A HORIZON UNDER IT.
+  //
+  // This used to be plain fbm over (uv.x * 1.5, uv.y * 2.6) — a field with no
+  // idea where the ground was, drawn at one size everywhere in the frame. Two
+  // things follow, and the owner saw both: clouds sat "close to the ground, even
+  // ON the ground sometimes", because nothing stopped them; and every cloud was
+  // the same size wherever it was, which is the one thing a sky never does.
+  //
+  // Height above the horizon becomes DISTANCE, the same divide the sand ripples
+  // use: a deck seen from beneath puts a far cloud low in the sky and a near one
+  // overhead, so the texture coordinate is 1/above. That crowds the field toward
+  // the horizon (many small clouds receding) and opens it out overhead (few
+  // large ones), which is the perspective that makes a sky feel deep — and it
+  // is also what leaves room in the upper frame for the iridescence to be seen.
+  float above = max(uv.y - horizon, 0.0);
+  float dz = 1.0 / (above + 0.16);
+  vec2 q = vec2(uv.x * dz * 0.62 + flow * 0.35 + t * 0.01, dz * 0.85);
   float cl = fbm(q);
   // The raw density, handed out for the iridescence: interference colours are a
   // function of how much water the light came through, so the film's thickness
@@ -2902,6 +2933,10 @@ float mClouds(vec2 uv, float t, float flow, float drive, out float rim,
   // the weather clock, so a window fixed in density space would drift off it.
   thr = vec2(0.74 - drive * 0.44, 0.92 - drive * 0.30);
   float body = smoothstep(thr.x, thr.y, cl);
+  // Nothing below the skyline, and nothing at the skyline either: the deck's
+  // features fall below resolving distance there long before the deck does, so
+  // it fades into haze rather than ending at a line.
+  body *= smoothstep(0.0, 0.11, above);
   float toSun = fbm(q + vec2(-0.055, 0.075)); // toward mRays' source
   rim = clamp((cl - toSun) * 9.0, 0.0, 1.0) * body;
   return body;
@@ -3207,6 +3242,21 @@ void main() {
   float rockDepth = 1.0;
   float haveRock = 0.0;
   float skyMask = 0.0;  // where ridge says sky is; motifs must not paint weather there
+  // THE GROUND LINE, hoisted so the clouds can see it. It used to be declared
+  // inside the floor block, three hundred lines below the weather that needs to
+  // know where the sky starts — which is most of why the clouds were drawing on
+  // the ground and, at times, under it.
+  //
+  // Lowered from -0.24 to -0.38, and the curvature halved. The owner's note:
+  // "the clouds in sunshower sure are close to the ground, even ON the ground
+  // sometimes… maybe there would be more room for them in the proper place if we
+  // shrank everything else?" A quarter of the frame given to a wet floor is a
+  // close-up of a puddle; a sky needs to be most of the picture before anything
+  // in it can sit at a believable height.
+  float groundY = -0.38 - uv.x * uv.x * 0.09;
+  // Where the sky begins. A mood with no floor and no silhouette (sunshine) has
+  // sky all the way down; a ridge mood keeps being fenced by skyMask as well.
+  float skyFloor = (W_drips > 0.0 && W_tunnel <= 0.0) ? groundY : -0.46;
   float ridgeLayer = 0.0; // which range is frontmost here, so its rock rides IT
   float ridgeHorizonY = 0.0; // and where that range's horizon runs, for the sand
   float coneDown = 0.0;   // depth below the volcano's skyline
@@ -3236,7 +3286,8 @@ void main() {
 
   if (W_clouds > 0.0) {
     float rimv;
-    cloudBody = mClouds(uv, u_t, u_flow, u_weather, rimv, cloudDens, cloudThr);
+    cloudBody = mClouds(uv, u_t, u_flow, u_weather, skyFloor,
+                        rimv, cloudDens, cloudThr);
     cloud = cloudBody * W_clouds;
     cloudRim = rimv * W_clouds;
   }
@@ -3315,7 +3366,6 @@ void main() {
   // drips are what asks for it, and only where there is no passage to land in.
   float floorAmt = W_drips * (1.0 - step(0.001, W_tunnel));
   if (floorAmt > 0.0) {
-    float groundY = -0.24 - uv.x * uv.x * 0.18;
     mass += smoothstep(groundY + 0.01, groundY - 0.04, uv.y) * floorAmt * 0.55;
     spec += smoothstep(0.02, 0.0, abs(uv.y - groundY)) * floorAmt * 0.3;
   }
