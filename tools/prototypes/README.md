@@ -15,8 +15,8 @@ it in place rather than minting a new one).
 
 **The question it existed to answer has been answered.** 2026-08-03, the owner:
 *"I always wanted it to be its own mood. it's way too costly to be a mere
-motif."* It now ships as the `murmuration` theme in `portal/`, built on the
-`flock` motif in `portal/js/viz.js`.
+motif."* It now ships as the `flock` theme in `portal/` — renamed from `murmuration` at
+the owner's request — built on the `flock` motif in `portal/js/viz.js`.
 
 This file stays, and is still worth having. It is far cheaper to iterate on the
 look here — one HTML file, sliders for every knob, no engine, no theme data, no

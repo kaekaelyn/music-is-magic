@@ -16,7 +16,7 @@
     "glint": 0,
     "canopy": 0,
     "slant": 0,
-    "base": 0.3,
+    "base": 0.2,
     "drift": 0.18,
     "travel": 0.12,
     "travelX": 0.08,
@@ -43,7 +43,7 @@
     "wisps": 0,
     "foam": 0,
     "stars": 0.95,
-    "aurora": 0.7,
+    "aurora": 0.6,
     "clouds": 0,
     "crystals": 0,
     "storm": 0

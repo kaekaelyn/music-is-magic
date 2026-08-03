@@ -40,8 +40,20 @@ export const BUILTIN = {
     // that base there was nothing for it to be bright against, which is most
     // of why it read as absent even once it was drawn. A night sky is mostly
     // black; the stars and the curtain are what is in it.
-    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.85, gloss: 0.1, base: 0.3, drift: 0.18, travel: 0.12, travelX: 0.08 },
-    motifs: { stars: 0.95, aurora: 0.7 },
+    // base DOWN again, 0.3 -> 0.2. With the aurora gated to the top of the
+    // register the shared fog is what is left carrying the sky most of the
+    // time, and at 0.3 it draws large pale masses that read as overcast rather
+    // than as night — the curtain used to sit on top of them and hide it. A
+    // night sky is mostly black, and the stars have to be the brightest thing
+    // in it or there is no depth anywhere.
+    params: { scale: 1.2, speed: 0.14, warp: 0.7, sparkle: 0.85, gloss: 0.1, base: 0.2, drift: 0.18, travel: 0.12, travelX: 0.08 },
+    // The aurora is the BONUS, not the subject — it is gated to the top of the
+    // register in the shader now, so most playing gets a night sky and the
+    // curtain is what bright high playing conjures. The stars carry the mood:
+    // two depths of them, real scintillation, temperature colour and spikes on
+    // the brightest. Weight down a little with the gate, so that when it does
+    // wake it is a curtain rather than a wash.
+    motifs: { stars: 0.95, aurora: 0.6 },
     mappings: { warpBass: 0.2, sparkleTreble: 1.3, pulseFlux: 1.1, shiftCentroid: 0.15 },
   },
   // Light through a canopy onto trunks, wisps drifting between them. The
@@ -224,7 +236,15 @@ export const BUILTIN = {
     // washed grey — the blue and violet the reference is built on never got
     // a look in. The sky has to be dark enough for backlit rain to be gold
     // against it.
-    palette: ['#101736', '#2f3d78', '#6b7ac0', '#c8b9c6', '#ffe6bd'],
+    // BLUER, AND GOLDER, and the two are one change: the middle steps were a
+    // muted lilac-grey that sat between the blue and the warm without being
+    // either, so the mood came out as a lighter shade of overcast — "just a
+    // lighter tone of muted gloom". A sunshower is a bright sky with weather
+    // falling through it. The lower steps take real blue, and c3 gives up the
+    // mauve for the low sun's gold: the rays draw their colour from mix(c3,c4),
+    // and so do the drips' highlights, so backlit rain now falls gold against
+    // blue rather than pearl against grey.
+    palette: ['#0e1738', '#28418f', '#6b8ad8', '#f0c78a', '#fff0cb'],
     params: { scale: 1.9, speed: 0.32, warp: 1.0, sparkle: 0.6, gloss: 0.3, slant: 0.18, base: 0.26, drift: 0.45, travel: 0.4, travelX: 0.16 },
     motifs: { rays: 0.58, dapple: 0.25, drips: 0.66, clouds: 0.55, rainbow: 1.0 },
     mappings: { warpBass: 0.3, sparkleTreble: 1.1, pulseFlux: 1.0, shiftCentroid: 0.25 },
@@ -242,9 +262,15 @@ export const BUILTIN = {
     mappings: { warpBass: 0.4, sparkleTreble: 1.0, pulseFlux: 1.3, shiftCentroid: 0.15 },
   },
 
-  // A murmuration at dusk. Its OWN mood — the owner's decision, and the right
-  // one: the flock's backwards-in-time trace is far too expensive to make
-  // every other mood carry it, and here exactly one mood does.
+  // A murmuration at dusk, and CALLED 'flock' — the owner's word for it. The
+  // motif has always been named flock; the mood carried the longer word for no
+  // reason beyond having been written first. (Old 'murmuration' tokens are
+  // simply unknown now and resolve to the fallback, which is the same path
+  // every retired name takes.)
+  //
+  // Its OWN mood — the owner's decision, and the right one: the flock's
+  // backwards-in-time trace is far too expensive to make every other mood carry
+  // it, and here exactly one mood does.
   //
   // "a dark dusky sanguine purple sky, a few stars and a moon maybe". So the
   // palette runs blood-dark violet up from near-black into a bruised rose,
@@ -256,7 +282,7 @@ export const BUILTIN = {
   // pull the eye off the one thing this mood is about. The moon does not
   // answer the music at all — a sky that reacts is a lamp, and the whole
   // effect depends on the sky being indifferent while the flock is not.
-  murmuration: {
+  flock: {
     palette: ['#0a0610', '#241030', '#4a1a3a', '#8c3050', '#e8a48c'],
     // speed is derived, not picked. The prototype ran its one clock at
     // dt * agile * 0.40 and the owner tuned the look at roughly agile 0.6, so
@@ -294,18 +320,29 @@ export const BUILTIN = {
   // Forest in blossom. The petals motif takes its colours from the palette's
   // upper steps, so putting pink and white there is what makes these blossom
   // rather than leaves — the engine never learns which it is drawing.
+  // Forest in blossom. leaf: 0 — the motif draws broad blunt petals, sparse in
+  // the air, each one fluttering on its own private phase. The palette's upper
+  // steps still decide the colour; what has changed is that colour is no longer
+  // the ONLY thing separating this from autumn.
+  //
+  // petals down from 0.8: "I'd like to see petals be more sparse". Weight is
+  // density here as well as presence, so this is the ask directly.
   'forest-blooming': {
     palette: ['#0b1a0d', '#2f3a22', '#3f8a52', '#e78fb8', '#fff2f6'],
-    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.5, drift: 0.35, travel: 0.5, travelX: 0.26 },
-    motifs: { columns: 0.75, dapple: 0.75, rays: 0.8, petals: 0.8, wisps: 0.25 },
+    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.5, drift: 0.35, travel: 0.5, travelX: 0.26, leaf: 0 },
+    motifs: { columns: 0.75, dapple: 0.75, rays: 0.8, petals: 0.5, wisps: 0.25 },
     mappings: { warpBass: 0.4, sparkleTreble: 1.2, pulseFlux: 1.1, shiftCentroid: 0.35 },
   },
 
-  // The same wood and the same motif, amber and rust in the upper steps.
+  // The same wood, amber and rust in the upper steps — and leaf: 1, which is
+  // the rest of what makes it autumn. Long pointed leaves with a rib, more of
+  // them, and all of them answering one gust rather than each fluttering alone.
+  // Blooming and autumn are kin, so a move between them lerps this from 0 to 1
+  // and the blossom becomes leaves in the open, without the eye closing.
   'forest-autumn': {
     palette: ['#140d07', '#3a2413', '#8a4a1c', '#d98a34', '#ffd98f'],
-    params: { scale: 1.8, speed: 0.22, warp: 1.15, sparkle: 0.55, gloss: 0.14, glint: 0.12, canopy: 0.8, base: 0.46, drift: 0.32, travel: 0.55, travelX: 0.28 },
-    motifs: { columns: 0.8, dapple: 0.7, rays: 0.72, petals: 0.7 },
+    params: { scale: 1.8, speed: 0.22, warp: 1.15, sparkle: 0.55, gloss: 0.14, glint: 0.12, canopy: 0.8, base: 0.46, drift: 0.32, travel: 0.55, travelX: 0.28, leaf: 1 },
+    motifs: { columns: 0.8, dapple: 0.7, rays: 0.72, petals: 0.8 },
     mappings: { warpBass: 0.45, sparkleTreble: 1.1, pulseFlux: 1.0, shiftCentroid: 0.3 },
   },
 
@@ -319,9 +356,16 @@ export const BUILTIN = {
   // whose whole subject is that they have finished falling. The owner's note
   // was that they "don't want to disappear when I switch to barren", and they
   // were correct that nothing was making them stop. Barren is bare.
+  //
+  // AND NOT MONOCHROME. "Make it white" was doing all the work of saying dry
+  // and dead, and one colour cannot carry a whole mood — the owner's note.
+  // bark: 0.62 gives the trunks a material of their own, bleached bone through
+  // pale dusty brown, varying from trunk to trunk; the mColumns cylinder term
+  // then shades each one round. The palette stays cold and pale, so the brown
+  // is a warmth found among the white rather than a recolour of it.
   'forest-barren': {
     palette: ['#171a1f', '#3d3f44', '#71757c', '#a8adb5', '#e9edf2'],
-    params: { scale: 1.7, speed: 0.16, warp: 1.0, sparkle: 0.4, gloss: 0.1, base: 0.82, drift: 0.3, travel: 0.6, travelX: 0.3 },
+    params: { scale: 1.7, speed: 0.16, warp: 1.0, sparkle: 0.4, gloss: 0.1, base: 0.82, drift: 0.3, travel: 0.6, travelX: 0.3, bark: 0.62 },
     motifs: { columns: 0.95, rays: 0.5, petals: 0 },
     mappings: { warpBass: 0.5, sparkleTreble: 0.9, pulseFlux: 1.0, shiftCentroid: 0.25 },
   },
@@ -473,6 +517,14 @@ export const DEFAULT_PARAMS = Object.freeze({
               // belong to ice and crystal and read as dust anywhere else
   canopy: 0,  // foliage overhead breaking the shafts. Only a theme with trees
               // in it should say anything here — an open sky has no canopy
+  leaf: 0,    // what the petals motif is drawing. 0 is blossom: sparse, broad,
+              // blunt, and moved by its own private flutter. 1 is dead leaves:
+              // thicker, long and pointed with a rib, and moved by a gust the
+              // whole frame shares. Continuous, so blooming morphs into autumn
+              // rather than cutting to it — they are kin, and a season turns
+  bark: 0,    // how far the trunks take a wood colour of their own instead of
+              // standing as silhouettes. A wood with light still in it wants 0;
+              // a barren one is nothing but its trunks and wants them legible
   slant: 0,   // how far falling things lean from vertical — wind, basically
   base: 1,    // how much the shared fog field contributes; 0 leaves a dark floor
   drift: 1,   // how fast that field evolves; 0 freezes it into something solid

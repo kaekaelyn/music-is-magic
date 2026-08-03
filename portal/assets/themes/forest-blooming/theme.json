@@ -21,7 +21,8 @@
     "travel": 0.5,
     "travelX": 0.26,
     "travelY": 0,
-    "angular": 1
+    "angular": 1,
+    "leaf": 0
   },
   "mappings": {
     "warpBass": 0.4,
@@ -54,7 +55,7 @@
     "smoke": 0,
     "lava": 0,
     "ripples": 0,
-    "petals": 0.8
+    "petals": 0.5
   },
   "textures": []
 }

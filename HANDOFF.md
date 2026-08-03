@@ -137,8 +137,9 @@ available in `portal/js/viz.js`:
 - **ANSWERED, 2026-08-03: its own mood.** The owner: *"I always wanted it to be
   its own mood. it's way too costly to be a mere motif."* Ported into
   `portal/js/viz.js` as the `flock` motif plus a `moon`, and shipped as the
-  `murmuration` theme — dusk sky, a few stars, a moon. The prototype stays in
-  `tools/prototypes/` as the place to iterate on the look cheaply; the engine
+  `flock` theme — dusk sky, a few stars, a moon. (It was called `murmuration`
+  until the owner named it: *"Should be called 'flock.'"*) The prototype stays
+  in `tools/prototypes/` as the place to iterate on the look cheaply; the engine
   copy is the one that ships.
 
 ### Porting notes, for whoever touches it next
@@ -159,11 +160,13 @@ available in `portal/js/viz.js`:
   from it the flock washed out to a smudge at one size while looking right at
   another.
 - **Cost, measured** (`npm run perf`, software rendering — only the ratios
-  mean anything): murmuration is the dearest mood at **1.68x** the cheapest,
-  against cave's 1.43x, which already ships. The nearFlock early-out is what
-  keeps it there — most of the frame is open sky and never traces. Every other
-  mood is unchanged, so the uniform branch costs the rest of the library
-  nothing.
+  mean anything). It was the dearest mood in the set, and the reason was not the
+  trace but the GRADIENT: `fkField` was evaluated three times per fragment, twice
+  of them purely to take a forward difference. It now uses `dFdx`/`dFdy`, which
+  read the neighbouring fragments' already-computed values out of the quad, so
+  two of the three traces are gone. The `fkNear` early-out still does the rest of
+  the work — most of the frame is open sky and never traces at all. See the trap
+  in §3 about derivatives and early returns.
 - **Known limitation, not yet solved:** at the *website's* aperture (~180px
   tall) the flock is faint. The specks are sized in the body's frame, so below
   a certain resolution they fall under a pixel and the thinning threshold
@@ -230,7 +233,26 @@ at deliberately instead of waited for. Moods are `1`–`9`, sub-moods
 - **A backtick anywhere inside the `VERT`/`FRAG` template literals** closes the
   string early and breaks the module with a misleading JS syntax error. Cost
   two debugging rounds before `tools/validate-assets.mjs` gained a guard for
-  it — the guard has since caught it twice more. Do not remove it.
+  it — the guard has since caught it **three** times more, the last of them
+  from a comment quoting a new param name in prose. Do not remove it.
+- **A clock MULTIPLIED by a live feature is the single most repeated bug in
+  this engine.** `t * (a + drive * b)` rescales the phase already elapsed, so
+  the picture slides backwards whenever the room quietens. It has now shipped
+  in five places (snow, forest motes, embers, the flame's advection, the
+  flame's travelling wave) and the owner has caught every one. It keeps
+  returning because it is the obvious way to make something answer the music
+  and it is invisible in a still. **The lawful form is a SUM of monotonic
+  clocks: `t * a + flow * b`.** Grep any new motif for `t * (` before shipping.
+- **Anything driven by an onset envelope has a retreat built into it.** If the
+  envelope moves a threshold or a position, the thing moves out and then comes
+  back as the envelope decays. `mFrost` did this and the owner read it as the
+  frost swelling and thinning. `flowAcc` takes a pulse term now, so an onset
+  can be spent as a surge of the travel CLOCK, which cannot run backwards.
+- **A hardware derivative (`dFdx`/`dFdy`) in non-uniform control flow is
+  undefined,** and here that means a bright seam along an early-out's own
+  boundary: the lane that returned early never wrote the register the
+  difference reads. `mFlock` initialises its value in every lane, takes the
+  derivative unconditionally, and gates afterwards.
 - **`atan` wraps**, and the wrap is a visible seam. Sample angular things
   around a circle (on the direction vector), not by feeding `atan` to `fbm`.
 - **Smooth what moves geometry; leave what moves light alone.** A 40 ms attack
@@ -291,41 +313,74 @@ per-layer; stars fenced to the sky; the aurora given internal motion.
 expect it to be good — every single "it looks like…" so far has named a real
 structural fault. Read §4 before answering any of it.
 
+#### 2026-08-03, fifth pass — the owner's own machine
+
+Ten notes, all mechanism-level, all landed. `MOODS.md` "Fifth pass" records the
+faults; the commit message carries the reasoning. Summary of what changed:
+
+- fire and volcano: embers made monotonic (and the flame's advection and wave
+  with them); the flame's seat raised so its belly is in shot; the lava given
+  2D surface relief so it meanders and forks, a crust so it reads gooey, and
+  most of its speed moved off `u_flow` so it stops surging with the phrase
+- the forest seasons: a `leaf` param, so petals and leaves differ in shape,
+  density AND flight — petals flutter privately, leaves share a gust
+- barren: a `bark` param and a cylinder-shading term on `mColumns`
+- ice: frost's growth made fast enough to see, its strike-driven retreat
+  removed, its barbs made to leave the spine, and its three habits made to
+  own regions rather than overlay each other
+- night: the aurora gated to the top of the register, the stars rebuilt
+- sunshower: the rainbow rebuilt out of caustic filaments; palette bluer/golder
+- the murmuration mood renamed `flock`, and its gradient moved to `dFdx`/`dFdy`
+- cave: crystals resolved by DEPTH, and lit harder in the high register
+- desert: ripples fenced by `skyMask` and confined to the near range
+
+**Not verified by the owner's eye.** Renders were taken of fire, volcano, ice,
+night and desert and used to correct three faults the first cut introduced (a
+blown-out flame base, a triangular net instead of frost ferns, a summit of
+white icing on the volcano). Everything else is verified by test and by
+reasoning only — see §4 on what that distinction is worth here.
+
 #### Open, in the order it probably wants doing
 
-1. **Ice still is not the references.** The reported fault (blotches thickening
-   and shrinking) is fixed and the scale is retuned, but it renders as angular
-   splinters — near enough to cracks in glass. Mechanism, written into
-   `frond()`: the barbs BRIGHTEN the spine rather than protruding from it, so
-   what draws is a line of varying brightness, not a feather. The barbs have to
-   extend the level set perpendicular to the spine.
-2. **Cave's crystals are not attached to the wall.** `mCrystals` accumulates
-   spears with `if (v > best)` — a per-fragment max on BRIGHTNESS with no depth.
-   Where two spears cross, the boundary between them follows the lighting
-   rather than the geometry, so there is no silhouette edge of a near spear
-   against a far one and the eye reads flat decals stacked in a plane. Select by
-   the spear's depth instead; the cluster seat already knows its depth into the
-   passage. The owner also floated lighting the crystals only on high-register
-   playing with an ambient drip for the low end — that half is a mood decision
-   they framed as a question, so ask before building it.
-3. **The murmuration is faint at the website's aperture** (~180px tall). The
-   specks are sized in the body's frame and fall under a pixel there. Correct at
+1. **DONE (fifth pass): ice's barbs now leave the spine, cave's crystals are
+   resolved by depth.** Both are described in `MOODS.md` "Fifth pass". Neither
+   has been seen by the owner yet.
+   - Ice needed a second correction found only by rendering: three habits maxed
+     together draw three lattices over each other, which is a triangular NET.
+     A slow field now gives each region one habit to itself.
+   - The owner's half-question about lighting the crystals from the register was
+     answered in the fifth pass — *"Fuller crystal illumination might want to be
+     tied to a higher range as well"* — and built. The ambient-drip half of that
+     old idea was not raised again and was not built.
+2. **The flock is faint at the website's aperture** (~180px tall). The specks
+   are sized in the body's frame and fall under a pixel there. Correct at
    broadcast resolution. Making the grain resolution-aware without disturbing
-   the look the owner approved over ten rounds is the work.
-4. **Seeing the eye from the phone.** Asked for and not built: "it's hard to see
+   the look the owner approved over ten rounds is the work. (Untouched by the
+   `dFdx` change, which altered the cost and not the picture.)
+3. **Seeing the eye from the phone.** Asked for and not built: "it's hard to see
    my desktop from the piano in order to test responsiveness". `control.html`
    already talks to the relay; the cheap route is to render the same viz small
    there, driven by features the broadcast pushes over the relay, rather than
    streaming pixels.
-5. **Centroid rescale** — still blocked on two more readings. See above; do not
-   move the aurora's `wake` gate first.
-6. **viz.js's shared `hash()` ends in `fract(p.x * p.y)`**, which correlates
+4. **Centroid rescale** — still blocked on two more readings, and now it matters
+   more than it did: the aurora's gate was moved to 0.54-0.76 in the fifth pass
+   on the owner's instruction that it belongs to the high register, and that
+   number is only right if the scale under it is. If the top of the piano really
+   does read 0.76, the gate is the top third of the instrument, which is what
+   was asked for. Take the bass and mid readings before touching it again.
+5. **viz.js's shared `hash()` ends in `fract(p.x * p.y)`**, which correlates
    along both axes and draws a grid into whatever is built on it. That is the
-   murmuration's fault #4, and the flock carries a fixed hash privately rather
+   flock's fault #4, and the flock carries a fixed hash privately rather
    than disturb sixteen tuned moods. Worth investigating whether it is quietly
    banding other motifs — but it is a change that touches everything, so do it
    deliberately and re-render the whole set.
-7. Blooming wants *bursting* blossoms; petals only approximates it.
+6. Blooming wants *bursting* blossoms; petals only approximates it. The fifth
+   pass gave petals their own shape and flight but did not open a flower.
+7. **Barren could go further.** The owner said *"there have to be more
+   interesting ways to convey the idea of a barren, dry forest"*, and what was
+   built answers the specific half of that (pale brown trunks among the white,
+   varying trunk to trunk, shaded round). The open half is structural: bare
+   branches overhead, or standing deadfall. Both want a motif.
 
 ---
 

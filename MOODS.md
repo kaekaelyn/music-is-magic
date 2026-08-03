@@ -101,6 +101,110 @@ things sample it, weather keeps the smooth one.
   (site nomination in the rays block); wisps carry a triangular zigzag over
   the orbit — corners, per the reference.
 
+## Fifth pass — 2026-08-03, ten notes watched on the owner's own machine
+
+The rule held for a fifth time: every impression named a mechanism, and in no
+case was the answer a constant. Recorded by what was actually wrong.
+
+- **motes still slide backwards, and they always will.** `mEmbers` had
+  `t * sp * (1.0 + drive * 0.9)` — a clock MULTIPLIED by a live feature, so the
+  product shrinks when the room quietens and every spark on screen retreats down
+  its own path. This is the fourth motif to ship with that exact line (snow,
+  forest motes, embers, and `mFlame`'s advection and wave, both found while
+  fixing the embers). The owner: *"This issue is one that's been addressed
+  multiple times with other effects, but when there are new motes, it comes back
+  again."* They are right that it will keep coming back: multiplying the clock
+  is the obvious way to make a mote answer the music and it looks correct in a
+  still. **The lawful form is a SUM of monotonic clocks — `t * a + flow * b`.**
+  - Population has the same shape of fault. Lowering a spawn threshold by an
+    onset envelope pops motes into existence in mid-air and pops them out again
+    as it decays. It is also unnecessary: motes are born at a fixed spacing in
+    the CLIMB, so a faster climb births more of them per second by itself.
+- **fire's belly was below the frame.** The seat was dropped to -0.62 to hide
+  the base and overshot to -0.78, and the aperture's floor is uv.y = -0.5
+  whatever its aspect — so the whole lower third, which is where the drop shape
+  is, was off screen and what showed was the straight run to the tip. -0.62
+  keeps the base and its fade off frame and puts roughly seven eighths of the
+  flame in shot.
+- **volcano's lava had all its speed on `u_flow`,** whose rate swings fourteen
+  times between silence and a loud room, so the flows crawled and surged with
+  every phrase — the "jumping/stuttering". `u_flow` is the right clock for
+  DIRECTION and the wrong one to hang all the SPEED on; the steady clock carries
+  most of it now.
+- **and it ran in sticks down a smooth cone,** because the only roughness
+  available to it was the cone's PROFILE crag: one number per column, identical
+  all the way down. A flow needs relief that varies with depth as well as
+  across, or every channel bends the same way at every height. The fan also
+  stretched each stream as it spread them; multiplying the frequency back up by
+  the run keeps a stream its own width and lets new ones appear between —
+  distributaries. And the fine generation now PINCHES the channel instead of
+  shading it: forking is geometry, not brightness.
+- **petals and leaves were one round blob in two palettes.** The claim that the
+  compositor's per-mote tint was enough to make one motif serve both was true of
+  the colour and false of everything the eye uses. New `leaf` param (0 blossom,
+  1 leaves) drives shape, density AND flight — and it is a param rather than a
+  second motif precisely because blooming and autumn are kin, so the passage
+  between them morphs blossom into leaves in the open.
+  - The flight is the half that reads from across a room. A petal is light and
+    moved by its OWN flutter (incoherent, private phase); a leaf is heavy and
+    moved by the AIR, so leaves share one gust and answer it at their own lags.
+    Coherent motion, incoherently answered. Everything in lockstep is a curtain.
+- **barren was monochrome and that was the whole of it.** New `bark` param gives
+  the trunks their own material — bleached bone through pale dusty brown,
+  varying trunk to trunk — and `mColumns` now hands out a cylinder shading term,
+  because a mask alone is a flat cut-out however it is coloured.
+- **frost could not be seen because the arithmetic said so.** `reach = 1 -
+  exp(-grow * 0.08)` against a threshold starting ABOVE the field's ceiling is
+  about a hundred seconds of loud playing before anything appears. No render
+  harness run ever showed it either.
+  - And it thinned back, because `front -= strike * 0.07` moves the growth front
+    out on an onset and lets it return as the envelope decays. **Anything driven
+    by an envelope directly has a retreat built into it.** The crackle is kept by
+    putting the onset into the travel CLOCK instead (`flowAcc` takes a pulse
+    term now), which cannot run backwards — and every mood that rides that clock
+    gains a surge on a struck chord for free.
+  - The barbs finally leave the spine. The old `frond` multiplied a barb field
+    INTO a spine field, and a multiply can only modulate the value along the
+    spine's own level set — a line of varying brightness, never a shoot standing
+    off it. That is the "angular splinters" reading, twice. Barbs now have their
+    own geometry, maxed rather than multiplied, and the returned value is a
+    HEIGHT arranged so a descending threshold lights nuclei, runs along spines,
+    then sprouts and extends barbs. Growth, not a fade-in.
+- **the aurora was a fixed correction of a fixed fault.** It was hard to find
+  once because it drew from the palette (a green veil over a blue sky is a
+  bluer blue), and TWO cures were applied: its own colours, and a gate opened to
+  a floor of 0.3 under a 0.32–0.58 ramp. The colour fix was the one that was
+  needed. With a floor of 0.3 the curtain is simply on, and the synthetic
+  stand-in's centroid never leaves 0.24–0.60 so the ramp is mostly cleared too.
+  Gate is 0.54–0.76 with no floor: night is a night SKY with an aurora as a
+  bonus. The stars carry the mood instead — two depths, real scintillation with
+  a per-star modulation depth, temperature colour, spikes on the brightest.
+- **the rainbow failed twice on the same axis.** The arc was one fixed circle,
+  so gating could only change its brightness. The patches that replaced it fixed
+  the fixedness and kept the primitive a BLOB — three soft ellipses and a lattice
+  of round dots, which is "iridescent hail" and "rainbow confetti curtain". A
+  circle has no direction, length or edge, so however it moves it cannot read as
+  light. Light arrives in filaments: the crests of a domain-warped ridged field,
+  with the spectrum running across each one by its signed distance from the fold.
+  Drop glints are streaks sheared by the rain's own slant, not beads.
+- **desert's ripples were never fenced by `skyMask`.** Giving the motif a
+  per-layer patch was half the cure and read as none of it, because nothing kept
+  the result off the sky above a dune's dip. Same omission `mStars` had. Now
+  fenced, and — the owner's call — confined to the near range, so the boundary
+  IS the front dune's crest line.
+- **cave's crystals had no depth.** `if (v > best)` is a per-fragment max on
+  BRIGHTNESS, so where two spears crossed the join followed the lighting and
+  wandered as the lamp swung. Nearest-covering-spear wins now, whether or not it
+  is the brightest, and that cut is the silhouette. (The druzy bed is kept OUT of
+  the depth test: it is a faint halo over the whole cluster, and in the test a
+  near cluster's invisible crust would black out a bright spear behind it.)
+- **the flock cost three traces per fragment to draw one,** purely to obtain a
+  forward difference for its gradient. `dFdx`/`dFdy` read the neighbouring
+  fragments' already-computed values out of the quad instead. Note the trap: a
+  hardware derivative in non-uniform control flow reads a register the
+  early-returning lane never wrote, so the early-out had to become an
+  initialise-then-gate.
+
 ## Fourth pass — 2026-08-03, three notes from stills
 
 - **volcano's crater** — "a big scoop out of it… which makes perfect sense IF

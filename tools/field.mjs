@@ -36,6 +36,15 @@ function arg(name, fallback) {
 const W = Number(arg('width', 900));
 const H = Number(arg('height', 470)); // the aperture's proportions at 1080p
 const SECONDS = Number(arg('seconds', 6));   // how long the mood has been running
+// How finely that time is simulated. Several moods only become themselves after
+// a while — frost growing, the cave's lamp swinging, the walk through the trees
+// — and reaching 30s of mood at 60fps is 1800 full-size draws on a renderer with
+// no GPU behind it, which is minutes per mood. Every clock in the engine
+// integrates dt properly (the smoothers are exp(-dt/tau), the travel clock and
+// the onset envelope both integrate), so a coarser step lands in very nearly the
+// same state for a fifth of the work. Drop it for a fast look at a slow mood;
+// leave it at 60 when the thing being judged is per-frame motion.
+const FPS = Number(arg('fps', 60));
 const FRAMES = Number(arg('frames', 1));     // how many stills per mood
 const GAP = Number(arg('gap', 3));           // seconds between them
 const RMS = arg('rms', null);                // null = do both quiet and loud
@@ -73,7 +82,7 @@ await page.goto(`${portal.base}/broadcast.html?nomic=1&relay=none&fast=1`);
 await page.waitForFunction(() => document.body.dataset.viz, null, { timeout: 15000 });
 
 const shots = await page.evaluate(
-  async ({ names, w, h, seconds, frames, gap, levels, treble, pulse }) => {
+  async ({ names, w, h, seconds, frames, gap, levels, treble, pulse, fps }) => {
     // Same origin, so these are the engine's own modules — this photographs
     // the shipped shader, not a copy of it.
     const [{ createViz }, { createThemeStore }] = await Promise.all([
@@ -91,7 +100,7 @@ const shots = await page.evaluate(
     const store = createThemeStore();
     await store.init();
     const out = [];
-    const step = 1 / 60;
+    const step = 1 / fps;
 
     for (const name of names) {
       const theme = await store.load(name);
@@ -107,11 +116,11 @@ const shots = await page.evaluate(
         // sweep, the walk through the trees).
         let t = 0;
         const advance = (secs) => {
-          for (let i = 0; i < Math.round(secs * 60); i++) {
+          for (let i = 0; i < Math.round(secs * fps); i++) {
             t += step;
             // One onset every ~1.4s, decaying, so pulse-driven gestures are
             // somewhere in their life rather than always at rest.
-            f.flux = Math.abs((t % 1.4) - 0.0) < 0.02 ? pulse : 0;
+            f.flux = (t % 1.4) < step ? pulse : 0;
             viz.frame(t, step, f, 1);
           }
         };
@@ -131,7 +140,8 @@ const shots = await page.evaluate(
   },
   {
     names: themes, w: W, h: H, seconds: SECONDS, frames: FRAMES, gap: GAP,
-    levels, treble: Number(arg('treble', 0.5)), pulse: Number(arg('pulse', 0.9)),
+    levels, fps: FPS,
+    treble: Number(arg('treble', 0.5)), pulse: Number(arg('pulse', 0.9)),
   }
 );
 

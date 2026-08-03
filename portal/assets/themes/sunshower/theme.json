@@ -1,11 +1,11 @@
 {
   "name": "sunshower",
   "palette": [
-    "#101736",
-    "#2f3d78",
-    "#6b7ac0",
-    "#c8b9c6",
-    "#ffe6bd"
+    "#0e1738",
+    "#28418f",
+    "#6b8ad8",
+    "#f0c78a",
+    "#fff0cb"
   ],
   "params": {
     "scale": 1.9,

@@ -1712,6 +1712,23 @@ deep ("let's just go full on crafting our own visualization engine"):
 - **Smooth what moves geometry, leave what moves light alone** (§13,
   2026-08-01). Features arrive with a 40 ms attack. On a colour ramp that is
   correct; on a coordinate it is a twitch.
+- **Never multiply a clock by a live feature.** `t * (a + drive * b)` rescales
+  the phase that has already elapsed, so everything riding that clock slides
+  BACKWARDS the moment the room quietens. This is the most-repeated bug in the
+  engine — five motifs have shipped with it (snow, forest motes, embers, and
+  both of `mFlame`'s clocks) and the owner has caught every one, because it is
+  invisible in a still and it is the obvious way to make a mote answer the
+  music. The lawful form is a sum of monotonic clocks: `t * a + flow * b`.
+  Loudness buys RATE; what has moved stays moved. Grep a new motif for `t * (`.
+- **An onset envelope moving a threshold or a position always retreats.** It
+  goes out on the strike and comes back as the envelope decays, which reads as
+  the effect swelling and thinning. If a strike should leave something behind,
+  spend it on the travel clock instead — `flowAcc` takes a pulse term, and a
+  clock cannot run backwards.
+- **`dFdx`/`dFdy` in non-uniform control flow is undefined.** A fragment that
+  returned early never wrote the register the difference reads, and the artifact
+  is a bright seam exactly along the early-out's boundary. Initialise the value
+  in every lane, take the derivative unconditionally, gate afterwards.
 - **The aperture must never open past 1.0.** The field is drawn at the fixed
   full aperture box on purpose (D17), so anything beyond it shows the plane's
   edge as a black band.

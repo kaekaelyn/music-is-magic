@@ -21,7 +21,8 @@
     "travel": 0.6,
     "travelX": 0.3,
     "travelY": 0,
-    "angular": 1
+    "angular": 1,
+    "bark": 0.62
   },
   "mappings": {
     "warpBass": 0.5,
