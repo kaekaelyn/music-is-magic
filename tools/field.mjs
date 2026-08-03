@@ -82,7 +82,7 @@ await page.goto(`${portal.base}/broadcast.html?nomic=1&relay=none&fast=1`);
 await page.waitForFunction(() => document.body.dataset.viz, null, { timeout: 15000 });
 
 const shots = await page.evaluate(
-  async ({ names, w, h, seconds, frames, gap, levels, treble, pulse, fps }) => {
+  async ({ names, w, h, seconds, frames, gap, levels, treble, pulse, fps, centroid }) => {
     // Same origin, so these are the engine's own modules — this photographs
     // the shipped shader, not a copy of it.
     const [{ createViz }, { createThemeStore }] = await Promise.all([
@@ -107,7 +107,7 @@ const shots = await page.evaluate(
       for (const lv of levels) {
         const f = {
           bass: lv.rms * 0.8, mid: lv.rms * 0.8, treble: treble * lv.rms * 2,
-          rms: lv.rms, flux: 0, centroid: 0.45,
+          rms: lv.rms, flux: 0, centroid,
         };
         viz.setTheme(theme);
         // Run the mood forward from a standing start, so the travel clock has
@@ -142,6 +142,10 @@ const shots = await page.evaluate(
     names: themes, w: W, h: H, seconds: SECONDS, frames: FRAMES, gap: GAP,
     levels, fps: FPS,
     treble: Number(arg('treble', 0.5)), pulse: Number(arg('pulse', 0.9)),
+    // Register. Several motifs are gated on it and are meant to be absent
+    // outside their range — night's aurora most of all — so a fixed 0.45 can
+    // only ever photograph one of the two things those moods do.
+    centroid: Number(arg('centroid', 0.45)),
   }
 );
 

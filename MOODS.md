@@ -101,6 +101,113 @@ things sample it, weather keeps the smooth one.
   (site nomination in the rays block); wisps carry a triangular zigzag over
   the orbit — corners, per the reference.
 
+## Sixth pass — 2026-08-03, three notes from stills and limited testing
+
+Three of the fifth pass's ten came back. Each one is a different way of getting
+a fix wrong, and the three together are worth reading as a set: one stopped one
+level short, one moved a gate outside the reachable range, and one answered a
+complaint with a fence instead of with physics.
+
+- **ice: "continuous lines with arrowheads all down them in a predictable
+  pattern".** The frond had exactly two generations — a spine and one rank of
+  barbs — and both were regular: fixed pitch, fixed lean, so every barb on every
+  spine was a congruent triangle at even spacing. That is the arrowheads, named
+  precisely. A dendrite is *recursive*; two levels is a fishbone.
+
+  It has three generations now (trunk, branch, sub-branch), all built from the
+  same sheared lattice — a branch leaving its parent at 60° travels 0.58 along
+  for every 1 across, so `u - s * lean` finds the branch a point belongs to with
+  one subtraction and no search, and the pair (distance out, distance to the
+  centreline) is the child's own frame. The same eight lines therefore do all
+  three levels. And the three regular things are fields now: **spacing** (the
+  along-coordinate is warped by noise *before* it is floored, which changes how
+  many branches there are rather than merely where they sit), **lean** (a slow
+  function of position, so branch angle drifts along a trunk and differs between
+  ferns — this is what kills the congruent arrowheads), and **length**
+  (per-branch, so the fern's silhouette is ragged).
+
+  Two things beyond the recursion. Nucleation now reaches *zero*, so a trunk is a
+  run of separate ferns rather than a line crossing the pane — it was
+  `0.55 + 0.45 * nuc`, which never bottoms out, so every trunk cleared any
+  threshold that showed a barb. And there is **granular rime**: the references
+  are half fine frozen fog with ferns standing out of it into clear glass, and
+  drawing only the dendrites gives a diagram of frost rather than a pane of it.
+
+  Paid for by skipping fronds whose habit region is not selected — most of the
+  pane, for two of the three axes. About 1.3 evaluations per fragment instead of
+  a flat 3.
+
+- **night: the aurora will not appear at all.** The fifth pass moved the gate to
+  `smoothstep(0.54, 0.76, centroid)` with no floor. The synthetic stand-in's
+  centroid never leaves 0.24–0.60, so under `mock:auto` the aurora peaked at a
+  fifth of itself for two seconds in every forty-eight — and the owner's read
+  ("definitely not going to show up with real playing") is the same arithmetic
+  applied to the instrument.
+
+  The deeper fault is that a *single* gate cannot say what was asked for. "Night
+  should be a night sky theme with the aurora as a bonus" is two statements —
+  what is usually there, and what is occasionally there — and both attempts at
+  one gate missed in opposite directions. There are two gates now: `glow`
+  (0.30–0.46) lights the hem alone, a low green arc present through ordinary
+  playing; `wake` (0.44–0.68) raises the curtain, climbing the sky with the
+  folds, the rays and the violet crown. The body's ceiling rides `wake`, so at
+  low register the aurora is confined to just above the horizon by geometry
+  rather than by dimming.
+
+- **desert: foreground-only ripples make the perspective *worse*.** The fifth
+  pass fenced the ripples to the near dune because the pattern crossed layers.
+  That was the wrong fix for the right complaint: the fault was never *which*
+  layer carried the combing, it was that the pattern was drawn in SCREEN space —
+  `sin(uv.x * 0.55 + uv.y * 2.5)`, a fixed angle at a fixed frequency, with no
+  foreshortening anywhere in it. A flat pattern cannot belong to a receding
+  surface, and a flat pattern that stops dead at a line is a sticker.
+
+  `mRipples` works on a ground plane now. Each layer's own crest is the horizon
+  for the face beneath it; `z = 1/(crestY - uv.y)` is the perspective divide, so
+  even spacing on the sand crowds toward the crest and opens out at our feet, and
+  `gx = uv.x * z` gives the lines a vanishing point. One ground pitch for all
+  three layers, because ripples are the same size on the sand wherever the sand
+  is — three pitches was the engine drawing the perspective by hand, badly.
+
+  The layer fence is *gone*, and did not need replacing. A far range is only ever
+  visible in a thin band above the nearer one's crest, so its `dep` is small, its
+  `z` is large, and its ripples are beyond resolving — the anti-aliasing term
+  (screen frequency `PITCH * z²` measured against the actual pixel pitch) removes
+  them by itself. Distance takes the ribbing out because it is far away, not
+  because a `step()` says so, and that one expression is the aliasing guard and
+  the aerial perspective at once.
+
+### What the renders caught, after the sixth pass was written
+
+Three again, and the shape repeats: all three are failures of the fix rather
+than of the diagnosis.
+
+- **ice came out as bare scratches, twice over.** Two separate calibration
+  faults, both invisible in the code and obvious in a still. The nucleation
+  field varied over 2.4 q against a 2.1 q aperture, so a "fern" was longer than
+  the picture and the gaps between ferns fell off the edge of the frame — the
+  trunks read as continuous lines again, which is the complaint the recursion
+  existed to answer. And the generations' heights were spread too far apart, so
+  the growth front hit the floor of its ramp while the branches were a fifth of
+  the way out. The rule, now written down twice because it has now been got
+  wrong twice: **a child generation's ceiling sits JUST under its parent's
+  floor, not well under it.** Growth was also too slow to photograph — a
+  six-second render showed a mood that only becomes itself after a minute.
+- **the desert's ripples became a contour map.** Anchoring the perspective on
+  the exact silhouette makes the pattern's iso-lines offsets of that silhouette,
+  so every ripple traced the dune's outline. A horizon is a straight line; the
+  sand in front of it does not know what shape the crest above it is. The
+  horizon is mostly the layer's mean height now, with a quarter of the local
+  height kept so the plane still tilts with the dune.
+- **the rime was coarse white salt.** 12 px grain through a hard growth front
+  reads as debris on the lens. Rime is a fog of crystals too small to have
+  shapes, so the grain has to sit at the edge of resolution.
+
+`tools/field.mjs` gained `--centroid` in the same pass, and it should have had
+it from the start: the register was pinned at 0.45, so every render of a
+pitch-gated motif photographed one of the two things that motif does. Night's
+two gates are only checkable with it (0.45 gives the hem arc, 0.78 the curtain).
+
 ## Fifth pass — 2026-08-03, ten notes watched on the owner's own machine
 
 The rule held for a fifth time: every impression named a mechanism, and in no

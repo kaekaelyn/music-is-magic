@@ -1729,6 +1729,29 @@ deep ("let's just go full on crafting our own visualization engine"):
   returned early never wrote the register the difference reads, and the artifact
   is a bright seam exactly along the early-out's boundary. Initialise the value
   in every lane, take the derivative unconditionally, gate afterwards.
+- **A threshold on a feature must sit inside what that feature can reach.**
+  Night's aurora was gated to centroid 0.54-0.76 and the synthetic stand-in's
+  centroid never leaves 0.24-0.60, so the motif was simply off — a mood that
+  looks broken rather than a mood that is subtle. Check `features.js`
+  `syntheticFeatures` and the HUD pitch row before narrowing any range.
+- **"A is the theme, B is the bonus" is two gates, not one.** One threshold can
+  only choose between the two states, so tuning it swings the mood from too
+  present to absent and back. A low gate for the modest form that is usually
+  there, a high gate for the event — and let geometry (how far it climbs, how
+  much of it exists) ride the high one rather than dimming the whole thing.
+- **A texture on a receding surface must carry its own perspective.** A fixed
+  screen-space frequency is a sticker, and masking it to one layer does not
+  help — it makes the sticker's edge visible. Divide by depth:
+  `z = 1/(horizonY - uv.y)` along, `uv.x * z` across. The screen frequency is
+  then `pitch * z²`, and comparing that to the pixel pitch gives the aliasing
+  guard and the aerial perspective in the same expression.
+- **A branching structure needs more than two levels.** A spine with one rank
+  of ticks is a fishbone whatever the ticks look like, and the eye names it
+  immediately. Three levels of the same sheared lattice (`u - s * lean` finds
+  the parent branch with one subtraction) is cheap, and the regularity that
+  gives it away is fixed by making spacing, angle and length into FIELDS —
+  warp the along-coordinate before flooring it, or the spacing stays even
+  however far each member is made to wander.
 - **The aperture must never open past 1.0.** The field is drawn at the fixed
   full aperture box on purpose (D17), so anything beyond it shows the plane's
   edge as a black band.

@@ -263,6 +263,24 @@ at deliberately instead of waited for. Moods are `1`–`9`, sub-moods
   boundary: the lane that returned early never wrote the register the
   difference reads. `mFlock` initialises its value in every lane, takes the
   derivative unconditionally, and gates afterwards.
+- **A gate is only a gate if the feature can reach it.** The aurora was moved
+  to `smoothstep(0.54, 0.76, centroid)` on the owner's own instruction that it
+  belongs to the high register — and the synthetic stand-in's centroid never
+  leaves 0.24–0.60, so under `mock:auto` it was simply off. Before narrowing any
+  range, check what the driving feature actually spans: `features.js`
+  `syntheticFeatures` for the stand-in, and the HUD's pitch row for live audio.
+- **Two-sided asks need two gates.** "X should be a Y theme with Z as a bonus"
+  is a statement about what is usually there AND what is occasionally there. One
+  threshold can only choose between them, so tuning it oscillates: the aurora
+  was too present, then absent, then too present, over three passes. Split it —
+  a low gate for the modest permanent form, a high one for the event.
+- **A pattern lying on a receding surface needs the perspective IN the pattern.**
+  A fixed screen-space frequency reads as a sticker no matter how it is masked,
+  and no amount of fencing it to one layer fixes that — `mRipples` was fenced to
+  the near dune and came back *worse*. Divide: `z = 1/(horizonY - uv.y)` for
+  depth, `uv.x * z` for across. The screen frequency then falls out as
+  `pitch * z²`, and measuring that against the pixel pitch is the anti-aliasing
+  guard and the aerial perspective in one expression.
 - **`atan` wraps**, and the wrap is a visible seam. Sample angular things
   around a circle (on the direction vector), not by feeding `atan` to `fbm`.
 - **Smooth what moves geometry; leave what moves light alone.** A 40 ms attack
@@ -296,8 +314,17 @@ readable.
   which is 0.76 on a scale that runs to 8 kHz — so the whole usable range is
   squashed into the top quarter, and that is the likeliest reason the aurora
   rarely fires. Two more readings are needed (mid-register and bass) before
-  rescaling. **Do not move the aurora's `wake` gate first** — that would hide
-  the miscalibration rather than fix it.
+  rescaling.
+
+  This note used to say *"do not move the aurora's gate first — that would hide
+  the miscalibration rather than fix it"*, and the sixth pass moved it anyway.
+  Deliberately, and the reasoning matters: a gate placed outside what the
+  feature can reach is not a mood waiting on a calibration, it is a motif that
+  never draws, and the owner had by then reported it twice. The gates are inside
+  the reachable range now (0.30–0.46 and 0.44–0.68). **They are placed against
+  the scale as it currently is, so rescaling the centroid WILL move them** —
+  when the readings arrive, retune night's two gates in the same commit, and
+  check `mCrystals`' lamp and the `band` term in main while you are there.
 - **Sound testing** was deferred ("pretty late"). The `pitch` row in the HUD is
   built and waiting, and shows live values only — never the synthetic stand-in,
   or the sound-check would lie.
@@ -358,43 +385,71 @@ reaching 30s of mood at 60fps is 1800 full-size draws on a renderer with no GPU
 `--fps 15` lands in the same state for a quarter of the work. That is the
 difference between two render iterations in a session and eight.
 
+#### 2026-08-03, sixth pass — three of the ten came back
+
+The owner watched stills and did limited testing. `MOODS.md` "Sixth pass"
+records the faults in full; the short version:
+
+- **ice** — the frond had two generations and both were regular, which is a
+  fishbone, not a dendrite. Three generations now (trunk / branch / sub-branch),
+  built from one sheared lattice applied three times, with spacing, lean and
+  length all made into fields. Nucleation reaches zero so trunks break into
+  separate ferns, and there is granular rime for the ferns to stand out of.
+  Paid for by skipping fronds whose habit region is not selected.
+- **night** — the fifth pass's gate sat outside the reachable centroid range, so
+  the aurora never drew at all. Two gates now: a low one for a hem arc that is
+  usually there, a high one for the curtain that climbs the sky.
+- **desert** — the fifth pass answered "the ripples cross layers" with a fence.
+  Wrong fix: the pattern was drawn in screen space with no foreshortening in it,
+  and fencing a flat pattern to one layer makes it a sticker. `mRipples` works
+  on each layer's own ground plane now, and the layer fence is gone because
+  distance removes the far ranges' ribbing by itself.
+
+The three faults are worth reading together: one fix stopped a level short, one
+moved a gate out of reach, and one answered a complaint with a fence instead of
+with physics.
+
+The renders then caught three faults in these fixes — ice twice over, and the
+desert's new perspective turning the near dune into a contour map. They are in
+`MOODS.md` under "What the renders caught, after the sixth pass was written",
+and the shape is now reliable enough to plan around: **expect the first cut of
+any fix to be wrong in a way only a still will show, and budget a render round
+for it.** `--fps 15` is what makes that affordable.
+
+`tools/field.mjs` gained `--centroid` here. It was pinned at 0.45, so every
+render of a pitch-gated motif only ever photographed one of the two things that
+motif does — night's aurora is unjudgeable without it. Cost on the mood set is
+unchanged or better: ice 1.10x → 1.08x and desert 1.08x → 1.05x, because
+skipping unselected habit regions more than paid for the third generation.
+
 #### Open, in the order it probably wants doing
 
-1. **DONE (fifth pass): ice's barbs now leave the spine, cave's crystals are
-   resolved by depth.** Both are described in `MOODS.md` "Fifth pass". Neither
-   has been seen by the owner yet.
-   - Ice needed a second correction found only by rendering: three habits maxed
-     together draw three lattices over each other, which is a triangular NET.
-     A slow field now gives each region one habit to itself.
-   - The owner's half-question about lighting the crystals from the register was
-     answered in the fifth pass — *"Fuller crystal illumination might want to be
-     tied to a higher range as well"* — and built. The ambient-drip half of that
-     old idea was not raised again and was not built.
-2. **The flock is faint at the website's aperture** (~180px tall). The specks
+1. **The flock is faint at the website's aperture** (~180px tall). The specks
    are sized in the body's frame and fall under a pixel there. Correct at
    broadcast resolution. Making the grain resolution-aware without disturbing
    the look the owner approved over ten rounds is the work. (Untouched by the
    `dFdx` change, which altered the cost and not the picture.)
-3. **Seeing the eye from the phone.** Asked for and not built: "it's hard to see
+2. **Seeing the eye from the phone.** Asked for and not built: "it's hard to see
    my desktop from the piano in order to test responsiveness". `control.html`
    already talks to the relay; the cheap route is to render the same viz small
    there, driven by features the broadcast pushes over the relay, rather than
    streaming pixels.
-4. **Centroid rescale** — still blocked on two more readings, and now it matters
-   more than it did: the aurora's gate was moved to 0.54-0.76 in the fifth pass
-   on the owner's instruction that it belongs to the high register, and that
-   number is only right if the scale under it is. If the top of the piano really
-   does read 0.76, the gate is the top third of the instrument, which is what
-   was asked for. Take the bass and mid readings before touching it again.
-5. **viz.js's shared `hash()` ends in `fract(p.x * p.y)`**, which correlates
+3. **Centroid rescale** — still blocked on two more readings, and now it is the
+   most load-bearing open item. Night's two gates (0.30-0.46 and 0.44-0.68) were
+   placed against the scale as it currently reads, and the sixth pass had to
+   place them by measuring what the stand-in actually spans rather than by
+   trusting the scale. Rescaling will move them. Take the bass and mid readings,
+   rescale, then retune night's gates, `mCrystals`' lamp and main's aurora
+   `band` term in the same commit.
+4. **viz.js's shared `hash()` ends in `fract(p.x * p.y)`**, which correlates
    along both axes and draws a grid into whatever is built on it. That is the
    flock's fault #4, and the flock carries a fixed hash privately rather
    than disturb sixteen tuned moods. Worth investigating whether it is quietly
    banding other motifs — but it is a change that touches everything, so do it
    deliberately and re-render the whole set.
-6. Blooming wants *bursting* blossoms; petals only approximates it. The fifth
+5. Blooming wants *bursting* blossoms; petals only approximates it. The fifth
    pass gave petals their own shape and flight but did not open a flower.
-7. **Barren could go further.** The owner said *"there have to be more
+6. **Barren could go further.** The owner said *"there have to be more
    interesting ways to convey the idea of a barren, dry forest"*, and what was
    built answers the specific half of that (pale brown trunks among the white,
    varying trunk to trunk, shaded round). The open half is structural: bare

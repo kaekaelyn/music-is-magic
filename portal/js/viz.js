@@ -586,109 +586,149 @@ float mTunnel(vec2 uv, float t, float strike, float drive, vec2 lightDir,
 // along three fixed axes 60 degrees apart and take the strongest. Stretched
 // noise gives needles pointing along its long axis, and three needle
 // directions read as the hexagonal habit of ice.
-// One frond: a spine running along a, with barbs growing out across it.
+// ONE FERN, THREE GENERATIONS: a trunk, branches off the trunk, and
+// sub-branches off those. Recursion is what a dendrite IS, and every previous
+// version of this function stopped at one level.
 //
-// The barbs are MULTIPLIED into the spine, not maxed with it, and that is the
-// whole difference between a fern and a crosshatch — a barb may only exist
-// where a spine already does. Maxing three stretched ridges (what this was)
-// gives streaks that cross each other, which is why the owner read the old
-// frost as "water moving beneath the ice": long soft flowing filaments with
-// no structure hanging off them.
+// Two levels is a spine with ticks down it, and the owner has now named that
+// exactly: "continuous lines with arrowheads all down them in a predictable
+// pattern". The arrowheads were the ticks; the predictability was a fixed
+// pitch and a fixed lean, so every tick on every spine was the same shape at
+// the same spacing at the same angle. Frost has none of those properties.
 //
-// lnoise, not noise. Smooth interpolation rounds every filament into a blur;
-// frost is sharp, and a dendrite is a series of straight runs meeting at
-// angles. Same primitive the ridgelines and the lightning use.
-// THE BARBS LEAVE THE SPINE. That is the whole change, and it is what the
-// motif has been missing since it was written.
+// Everything here is a SHEARED LATTICE, applied three times over. Take a frame
+// (u along the parent, s across it). A branch leaving the parent at 60 degrees
+// travels 0.58 along for every 1 across, so the branch a point belongs to is
+// found at u - s * lean — one subtraction, no search. Flooring that gives the
+// branch index, its fraction gives the distance to the branch's centreline,
+// and the pair (distance out, distance to centreline) is the child's own
+// (u, s) frame. So the same eight lines do trunk, branch and sub-branch, and
+// the whole fern costs three lattices rather than a tree walk.
 //
-// The old frond multiplied a barb field INTO a spine field. A multiply can
-// only ever modulate the value along the spine's OWN level set, so whatever
-// came out was a line of varying brightness — never a shoot standing off it.
-// Rendered, that is angular splinters, cracks in glass, and the owner has read
-// it as exactly that twice. A barb has to have its own geometry, in its own
-// coordinates, MAXED with the spine rather than multiplied into it.
+// The three things that were predictable are now fields:
 //
-// The value returned is a HEIGHT, not a mask, and the way that height is
-// arranged is what makes the growth in mFrost read as growth rather than as a
-// fade-in:
+//   SPACING — the along-coordinate is warped by noise BEFORE it is floored, so
+//   branch points crowd in one stretch and open out in the next. A lattice
+//   whose members merely wander is still evenly spaced; warping the
+//   parametrisation is what actually changes how many there are.
 //
-//   the spine is highest at its nucleation points and falls off along its
-//   length; a barb is lower than the spine it leaves and falls off along ITS
-//   length; a sub-serration is lower still.
+//   LEAN — the shear coefficient is a slow function of position rather than a
+//   constant, so the branch angle drifts along a trunk and differs between
+//   ferns. This is what breaks the arrowheads: they were all congruent because
+//   they all had one angle.
 //
-// So a threshold descending across this field lights nuclei first, then runs
-// ALONG the spines from them, then sprouts barbs, then extends those barbs out
-// to their feathery ends. Every stage of that is a dendrite growing, and none
-// of it is anything getting brighter. "It seems pre-drawn rather than growing
-// and expanding and tracing paths and forking into feathery terminations" was
-// a description of a field with no such arrangement in it.
+//   LENGTH — per-branch, from a hash of its own index, so the fern's outline is
+//   ragged. A fern is recognised by its silhouette more than by its filaments.
 //
-// lnoise throughout, not noise: smooth interpolation rounds every filament
-// into a blur, and frost is a series of straight runs meeting at angles. Same
-// primitive the ridgelines and the lightning use.
+// The value returned is a HEIGHT, not a mask, and the arrangement of that
+// height is what makes mFrost's descending threshold read as growth:
+//
+//   trunk     0.66 .. 1.06, tallest at its nucleation points
+//   branch    0.22 .. 0.77, tallest where it leaves the trunk
+//   sub       0.00 .. 0.41, tallest where it leaves the branch
+//
+// A front falling through that lights nuclei, runs along the trunks, sprouts
+// branches, and finally feathers out into sub-branches — every stage of it a
+// dendrite extending, and none of it anything getting brighter.
+//
+// lnoise throughout, not noise: smooth interpolation rounds every filament into
+// a blur, and a dendrite is a series of straight runs meeting at angles. ch1
+// for the per-branch hashes, because the shared hash() ends in fract(p.x * p.y)
+// and lays down visible bands when it is fed a lattice index directly.
 float frond(vec2 q, vec2 a, vec2 b, float ph) {
   float u = dot(q, a);
-  float v = dot(q, b);
-  // Spines run along a, stacked across b. Which one are we near, and how far
-  // off its centre — and the spine WANDERS, because a lattice of straight
-  // parallel lines is a comb rather than frost.
-  const float ROWS = 5.0;
-  // The spacing is warped before the lattice is taken, so spines crowd in one
-  // place and open out in another. An exactly even pitch is a comb however far
-  // each line is made to wander, because the wander cannot change how many
-  // there are.
-  float vv = (v + (lnoise(vec2(u * 0.5 + ph, 41.0)) - 0.5) * 0.30) * ROWS + ph;
+  float w = dot(q, b);
+
+  // --- TRUNKS -------------------------------------------------------------
+  // Warped before the lattice is taken, so the spacing itself varies; then
+  // each trunk wanders about its own line at two scales.
+  const float ROWS = 3.0;
+  float vv = (w + (lnoise(vec2(u * 0.31 + ph, 41.0)) - 0.5) * 0.58
+                + (lnoise(vec2(u * 0.95 + ph, 13.0)) - 0.5) * 0.19) * ROWS + ph;
   float row = floor(vv);
-  float wob = (lnoise(vec2(u * 2.3 + ph, row * 3.7)) - 0.5) * 0.85
-            + (lnoise(vec2(u * 6.1 + ph, row * 9.3)) - 0.5) * 0.22;
-  float w = (fract(vv) - 0.5) - wob;     // signed offset from the spine, in rows
-  float aw = abs(w);
+  float wob = (lnoise(vec2(u * 1.7 + ph, row * 3.7)) - 0.5) * 0.62
+            + (lnoise(vec2(u * 5.3 + ph, row * 9.3)) - 0.5) * 0.17;
+  float y = (fract(vv) - 0.5) - wob;   // signed offset from the trunk, in rows
+  float s = abs(y);
 
-  // NUCLEATION, and it has to BITE. Slow along the spine, so a stretch of it
-  // stands high and the next stretch does not: the highs are where the growth
-  // front finds this spine first, the lows are where one fern ends and the next
-  // begins. Its share of the spine's value is most of what decides whether this
-  // reads as ferns or as a comb — weight it lightly and every spine is above
-  // any useful threshold along its whole length, which is a continuous line
-  // from one edge of the frame to the other. Two generations of it, so a spine
-  // is broken at two scales rather than fading in and out at one.
-  float nuc = lnoise(vec2(u * 0.62 + ph * 0.7, row * 11.3)) * 0.68
-            + lnoise(vec2(u * 1.9 + ph, row * 5.1)) * 0.32;
+  // NUCLEATION, and it must reach zero. Where it does, the trunk simply is not
+  // there — that is what separates one fern from the next and keeps a trunk
+  // from being a line running the whole width of the pane. Weighted so it never
+  // bottoms out (the old 0.55 + 0.45 * nuc), every trunk clears any threshold
+  // that shows a branch, and the pane is ruled paper.
+  //
+  // THE FREQUENCY IS THE POINT, and the first render of the three-generation
+  // version got it wrong. At 0.42 the nucleation field varies over 2.4 q, and
+  // the whole aperture is 2.1 q tall — so a "fern" was longer than the picture
+  // and the gaps between them fell off the edge of the frame. The trunks came
+  // out continuous again, which is the exact complaint the recursion was
+  // supposed to answer. A fern wants to be a FEATURE, roughly a fifth of the
+  // frame, so the field has to vary several times across it.
+  float nuc = lnoise(vec2(u * 2.2 + ph * 0.7, row * 11.3)) * 0.66
+            + lnoise(vec2(u * 5.5 + ph, row * 5.1)) * 0.34;
+  float live = smoothstep(0.40, 0.62, nuc);
+  if (live <= 0.0) return 0.0;   // a good part of the pane, and it costs nothing
 
-  // The spine: a narrow ridge, highest at its centre, tallest where it nucleated.
-  float spine = (1.0 - smoothstep(0.0, 0.085, aw)) * (0.55 + 0.45 * nuc);
+  float trunk = (1.0 - smoothstep(0.0, 0.055, s)) * (0.62 + 0.30 * nuc);
 
-  // The barbs. Regularly pitched along the spine and LEANING toward its tip
-  // (the shear on the pitch coordinate, by how far out we are), tapering to a
-  // point, and reaching most of the way to the neighbouring spine without ever
-  // touching it — frost is mostly the dark between the filaments, and a barb
-  // that bridges two spines makes a net instead of a fern.
-  const float PITCH = 7.0;
-  float bp = (u + aw / ROWS * 1.65) * PITCH + row * 1.7;
-  float db = abs(fract(bp) - 0.5) / PITCH;   // along-spine distance to a barb
-  // Each barb its own length. At one length for all of them the fern is a
-  // comb turned sideways — evenly pitched ticks of equal size — and it is the
-  // RAGGEDNESS of the outline a fern makes that the eye reads as growth.
-  const float REACH = 0.34;                  // in rows
-  float reachB = REACH * (0.50 + 0.95 * lnoise(vec2(floor(bp) * 0.37, row * 2.9)));
-  float taper = max(0.0, 1.0 - aw / max(reachB, 0.02));
-  // Serrated: a fine ridge running down each barb's length narrows and widens
-  // it. Dendrites have dendrites, and at this size a serration is how one
-  // reads — it is the third generation without a third generation's cost.
-  float sub = 1.0 - abs(2.0 * lnoise(vec2(aw * 34.0, bp * 2.3)) - 1.0);
-  float bw = (0.010 + 0.020 * taper) * (0.55 + 0.45 * sub);
-  // taper raised to a power under 1 so a barb holds most of its value over most
-  // of its length and then falls away quickly at the tip — a shoot with a
-  // feathery end, rather than a wedge that is only ever half there.
-  // The barb's value has to sit JUST under the spine's, not well under it.
-  // Ranged too low, the growth front reaches the floor of its ramp while the
-  // barbs are still only a sixth of the way out, and what draws is bare
-  // spines — straight scratches on the glass, with the ferns never arriving.
-  // Just under, and the front walks out along them as it falls.
-  float barb = (1.0 - smoothstep(bw * 0.35, bw, db))
-             * pow(taper, 0.55) * (0.50 + 0.40 * nuc);
+  // --- BRANCHES -----------------------------------------------------------
+  float sq = s / ROWS;                       // distance out from the trunk, in q
+  // The lean is a field, not a constant. Computed from u alone so it is known
+  // before the branch index is — a per-branch angle would need the index first,
+  // and the index needs the angle.
+  float lean1 = 0.58 + (lnoise(vec2(u * 0.8 + row * 4.1, 53.0)) - 0.5) * 0.62;
+  // Alternate sides, as a dendrite does: half a pitch of offset between them,
+  // so the fern is not its own mirror image down the middle.
+  float side = y < 0.0 ? 0.5 : 0.0;
+  float bu = u - sq * lean1;
+  bu += (lnoise(vec2(bu * 1.9 + row * 7.3, 61.0)) - 0.5) * 0.045;
+  // Pitched wide enough that the NEXT generation has room to stand between
+  // them. Branches packed as tightly as a comb leave a sub-branch nowhere to
+  // go but into its neighbour, and three generations drawn on top of each
+  // other is a smear, not a fern.
+  const float P1 = 13.3;
+  float bx = bu * P1 + row * 1.7 + side;
+  float bi = floor(bx);
+  float bf = fract(bx) - 0.5;
+  float r1 = ch1(vec2(bi, row * 2.7 + side));
+  float reach1 = 0.16 + 0.30 * r1;           // in rows; short of the next trunk
+  float tap1 = max(0.0, 1.0 - s / reach1);
+  float bw1 = 0.0035 + 0.0075 * tap1;
+  float d1 = abs(bf) / P1;                   // to the branch's centreline, in q
+  // pow under 1 so a branch holds most of its value over most of its length and
+  // then falls away at the tip. Ranged linearly, the growth front reaches the
+  // floor of its ramp while the branches are a fifth of the way out and what
+  // draws is bare trunks — scratches on glass. This is the same fault the old
+  // barbs had, and it is worth naming twice: the CEILING of a child generation
+  // has to sit just under its parent's floor, not well under it.
+  float branch = (1.0 - smoothstep(bw1 * 0.30, bw1, d1))
+                * (0.30 + 0.46 * pow(tap1, 0.55)) * (0.80 + 0.25 * nuc);
 
-  return max(spine, barb);
+  // --- SUB-BRANCHES -------------------------------------------------------
+  // The branch's own frame: how far along it we are, and how far off it.
+  float alongP = sq;
+  float acrossP = bf / P1;
+  float sp = abs(acrossP);
+  float lean2 = 0.58 + (lnoise(vec2(alongP * 6.0 + bi * 1.3, 29.0)) - 0.5) * 0.66;
+  float side2 = acrossP < 0.0 ? 0.5 : 0.0;
+  float cu = alongP - sp * lean2;
+  cu += (lnoise(vec2(cu * 9.0 + bi * 3.1, 71.0)) - 0.5) * 0.008;
+  const float P2 = 100.0;
+  float cx = cu * P2 + bi * 2.3 + side2;
+  float ci = floor(cx);
+  float cf = fract(cx) - 0.5;
+  float r2 = ch1(vec2(ci, bi * 0.61 + row + side2));
+  float reach2 = 0.008 + 0.014 * r2;         // in q, well clear of bw1
+  float tap2 = max(0.0, 1.0 - sp / reach2);
+  float bw2 = 0.0018 + 0.0038 * tap2;
+  float d2 = abs(cf) / P2;
+  // Gated by tap1: a sub-branch cannot exist past the end of the branch it
+  // leaves. Without that the sub-lattice carries on into open glass and draws
+  // a haze of loose ticks where the fern has already finished.
+  float sub = (1.0 - smoothstep(bw2 * 0.30, bw2, d2))
+            * pow(tap2, 0.5) * pow(tap1, 0.5) * (0.38 + 0.14 * nuc);
+
+  return max(max(trunk, branch), sub) * live;
 }
 
 float mFrost(vec2 q, float grow) {
@@ -714,15 +754,32 @@ float mFrost(vec2 q, float grow) {
   // owns each region, and the borders between regions are where one fern's
   // barbs run into another's — which is the most characteristic thing in the
   // references and cannot happen while every axis is everywhere.
-  float sel = clamp((fbm(q * 0.30 + 3.0) - 0.28) * 2.3, 0.0, 1.0) * 3.0;
+  // At 0.30 this varied over 3.3 q against a 2.1 q aperture, so most frames got
+  // one habit and never showed a border. The borders are the most characteristic
+  // thing in the references — one fern's branches running into another's at the
+  // wrong angle — so the field has to turn over two or three times per frame.
+  float sel = clamp((fbm(q * 0.60 + 3.0) - 0.28) * 2.3, 0.0, 1.0) * 3.0;
   float k0 = smoothstep(1.05, 0.35, abs(sel - 0.5));
   float k1 = smoothstep(1.05, 0.35, abs(sel - 1.5));
   float k2 = smoothstep(1.05, 0.35, abs(sel - 2.5));
 
+  // Three axes is three angles, and a whole pane drawn at three angles reads
+  // as a printed pattern however good the ferns are. A slow rotation of the
+  // domain turns each region a little further, so ferns meet at every angle
+  // without a fourth lattice being drawn. The field is broad (one turn over
+  // roughly six frames' worth of q) so a single fern is straight — it is the
+  // ferns' orientations that vary, not the trunks that bend far.
+  float ang = (fbm(q * 0.35 + 21.0) - 0.5) * 1.6;
+  float ca = cos(ang), sa = sin(ang);
+  vec2 qr = vec2(q.x * ca - q.y * sa, q.x * sa + q.y * ca);
+
+  // Skipped where the region is not selected, which is most of the pane for
+  // two of the three axes. This is what pays for the third generation: the
+  // fronds cost about 1.3 evaluations per fragment now instead of a flat 3.
   float v = 0.0;
-  v = max(v, frond(q, a0, b0, 0.0) * k0);
-  v = max(v, frond(q, a1, b1, 4.0) * k1);
-  v = max(v, frond(q, a2, b2, 9.0) * k2);
+  if (k0 > 0.002) v = max(v, frond(qr, a0, b0, 0.0) * k0);
+  if (k1 > 0.002) v = max(v, frond(qr, a1, b1, 4.0) * k1);
+  if (k2 > 0.002) v = max(v, frond(qr, a2, b2, 9.0) * k2);
 
   // GROWTH, and it has to be growth rather than a cycle.
   //
@@ -754,23 +811,45 @@ float mFrost(vec2 q, float grow) {
   // motif: the render harness runs a mood for six seconds. Frost is still the
   // slowest thing in the set; it now arrives inside a piece rather than inside
   // a session.
-  float reach = 1.0 - exp(-grow * 0.5);
+  float reach = 1.0 - exp(-grow * 1.1);
   float patch = fbm(q * 0.9 + 5.0);
   float along = fbm(q * 0.5 + 17.0);
+
+  // GRANULAR RIME, and the references are half made of it. A window is not
+  // only ferns: there are whole regions of fine frozen fog — thousands of
+  // crystals too small to have a shape — with the ferns standing out of it
+  // into clear glass. Drawing only the dendrites gives filaments on bare
+  // glass, which is a diagram of frost rather than a pane of it.
+  //
+  // Two octaves of plain noise, not fbm: grain wants no structure, and this
+  // has to stay cheap enough to pay for the third dendrite generation. It
+  // lives in its own regions (the along field decides where) so it is patchy
+  // rather than a wash, and it sits at a height between the trunks and the
+  // branches so it arrives with the ferns rather than before them.
+  // Fine, and the first render says how fine. At q * 40 the grain was 12 px
+  // blobs, which through the hard growth front comes out as coarse white salt —
+  // rime is a fog of crystals too small to have shapes, so the grain has to be
+  // at the edge of resolution or it reads as debris on the lens.
+  float rime = noise(q * 90.0 + 41.0) * 0.62 + noise(q * 190.0 + 7.0) * 0.38;
+  rime = smoothstep(0.40, 0.86, rime) * smoothstep(0.34, 0.62, along);
+  v = max(v, rime * 0.48);
   // The threshold falls from ABOVE the frond field's ceiling — so at reach 0
   // there is genuinely nothing, not a faint everywhere — down toward its
   // floor. Falling across a static frond field, the level set expands out of
   // the spines and runs ALONG them as it goes, which is a dendrite extending.
   // A front that is one number applied everywhere can only fade in.
   //
-  // The ends of the ramp are set by what the frond field now CONTAINS: spines
-  // top out around 1.06 and barbs around 0.70 falling to nothing at their tips,
-  // so a front descending from just above the spines' ceiling to well under the
-  // barbs' floor walks the whole growth story and stops short of flooding. Taken
-  // further down the level set stops being filaments and merges into solid white
-  // areas with frost-shaped edges, which against the references — dense with
-  // fine, fully separate ferns — reads as spilt paint.
-  float front = mix(1.05, 0.44, reach * (0.55 + 0.45 * patch));
+  // The ends of the ramp are set by what the frond field now CONTAINS: trunks
+  // run 0.62-0.92, branches 0.80 down to 0.24 at their tips, and sub-branches
+  // up to 0.52. The three overlap on purpose — a generation whose ceiling sits
+  // well below its parent's floor does not sprout until the front has already
+  // finished with the parent, and what draws in between is bare parent. A front descending from just above
+  // the trunks' ceiling to under the sub-branches' floor walks the whole growth
+  // story: nuclei, then trunks, then branches, then feathering. It can be taken
+  // right down now without flooding, because what bounds the coverage is the
+  // filaments' WIDTHS rather than the threshold — the old field was mostly
+  // broad soft ridges, and a low front on that is spilt paint.
+  float front = mix(1.00, 0.14, reach * (0.55 + 0.45 * patch));
   // Tips reach ahead of the bulk. The references are a dense granular rime
   // with individual ferns standing out into clear glass in front of it, and
   // that is a looser threshold where the spine field leads the patch field.
@@ -1262,25 +1341,67 @@ float mLava(vec2 uv, float t, float flow, float drive, float kick,
 // travelling at its own rate. Get any one of the three wrong and the layers
 // read as a backdrop seen through a fixed ribbed window. Ripples belong to the
 // sand they lie on, and which sand that is is what layer says.
-float mRipples(vec2 uv, float t, float flow, float drive, float layer) {
+// Wind ripples on sand, drawn ON A GROUND PLANE rather than over the picture.
+//
+// Every previous version laid the pattern out in SCREEN space: a fixed angle
+// at a fixed frequency, sin(uv.x * 0.55 + uv.y * 2.5). A pattern with no
+// foreshortening in it cannot belong to a receding surface, and the eye knows
+// it immediately — "it messes with the perspective and physics" was the report
+// three passes running. Fencing it to the near dune did not fix that, because
+// the fault was never which layer carried it; it was that the pattern itself
+// was flat. Foreground-only made it worse if anything: a flat pattern that
+// stops dead at a line reads as a sticker.
+//
+// So: each layer's own crest is the horizon for the face beneath it, and this
+// works in that face's ground coordinates.
+//
+//   dep  how far below the horizon we are, in the picture
+//   z    ground distance, 1/dep — a perspective divide, so even spacing on the
+//        sand crowds toward the crest and opens out at our feet
+//   gx   ground across, uv.x * z, so the ripple lines converge on a vanishing
+//        point instead of running parallel to the frame
+//
+// One consequence falls out for free and is worth naming, because it is the
+// other half of the owner's complaint. A far range is only ever visible in a
+// thin band above the nearer one's crest, so its dep is always small, so its z
+// is always large, so its ripples are always beyond resolving — the aa fade
+// below removes them without any layer fence at all. The near dune is combed,
+// the ones behind it are smooth sand, and that now happens because of where
+// they are rather than because of a step() that says so.
+float mRipples(vec2 uv, float t, float flow, float drive, float layer, float horizonY) {
   vec2 o = vec2(layer * 37.0, layer * 13.0);
-  // Nearer sand is combed COARSER on screen and travels faster. That
-  // difference between the layers is the whole of what makes them read as
-  // three dunes at three distances rather than as one sheet of corduroy.
-  float pitch = 30.0 - layer * 7.0;
+  float dep = max(horizonY - uv.y, 0.0);
+  // The epsilon is the camera height, in effect: it bounds z at the skyline so
+  // the frequency stays finite there instead of dividing by zero.
+  float z = 1.0 / (dep + 0.085);
+  float gx = uv.x * z;
+  // ONE ground pitch for every layer. Ripples are the same size on the sand
+  // wherever the sand is; three pitches at three scales was the engine drawing
+  // the perspective by hand, badly, and it is exactly what made the layers read
+  // as three sheets of corduroy rather than as one desert.
+  const float PITCH = 26.0;
+  // Nearer layers still travel faster — that part was parallax and is real.
   float rate = 0.35 + layer * 0.45;
-  float bend = fbm(uv * (1.5 + layer * 0.7) + o + vec2(flow * 0.09 * rate, 0.0)) * 1.5;
-  float a = uv.x * 0.55 + uv.y * 2.5 + bend;
-  float r = 0.5 + 0.5 * sin(a * pitch + flow * rate + o.x);
+  // The meander lives on the ground too, so the ripple field bends around dunes
+  // in the sand's frame rather than in the frame's. Sampled at a clamped z: the
+  // bend only needs to be broad, and unclamped it turns to high-frequency hash
+  // near the skyline where it is about to be faded out anyway.
+  float zb = min(z, 6.0);
+  float bend = fbm(vec2(uv.x * zb * 0.30, zb * 0.55) + o + vec2(flow * 0.09 * rate, 0.0)) * 1.5;
+  float a = z + gx * 0.16 + bend;
+  float r = 0.5 + 0.5 * sin(a * PITCH + flow * rate + o.x);
   // Sharpened: a ripple has a crest and a trough. Left as a sine it is a
   // corduroy wash with no light in it.
   r *= r;
   r *= r;
-  // Combing smooths out with distance — on the far LAYERS as well as up the
-  // frame. Distance takes the ribbing out before it takes the dune out.
-  return r * smoothstep(0.36, -0.24, uv.y)
-           * mix(0.45, 1.0, clamp(layer * 0.5, 0.0, 1.0))
-           * (0.55 + drive * 0.5);
+  // Combing smooths out with distance, and now it does so because of the
+  // arithmetic rather than by decree. The pattern's screen frequency is
+  // PITCH * dz/dy = PITCH * z^2; measured against the actual pixel pitch, this
+  // fades it out as it approaches what the frame can resolve. That is both the
+  // anti-aliasing and the aerial perspective, and it is the same number.
+  float cpp = (PITCH * z * z) / (6.2832 * min(u_res.x, u_res.y));
+  float aa = smoothstep(0.30, 0.09, cpp);
+  return r * aa * (0.55 + drive * 0.5);
 }
 
 // Blossom and leaf-fall. The tumble is the entire difference between a petal
@@ -1797,12 +1918,14 @@ vec3 mRainbow(vec2 uv, float t, float drive, float kick, float pitch,
 // crest: the band immediately below whichever line is frontmost here — where
 // snow sits on a mountain, which is near the top and not on the valley floor.
 float mRidge(vec2 uv, float t, float flow, float drive,
-             out float crest, out float sky, out float plume, out float layer) {
+             out float crest, out float sky, out float plume, out float layer,
+             out float horizonY) {
   float v = 0.0;
   float cover = 0.0;
   float hN = 0.0;
   crest = 0.0;
   layer = 0.0;
+  horizonY = 0.0;
   for (int i = 0; i < 3; i++) {
     float fi = float(i);
     // Nearer ranges are wider (fewer, bigger peaks) and drift a hair faster,
@@ -1917,6 +2040,20 @@ float mRidge(vec2 uv, float t, float flow, float drive,
     // surface and the far peak's surface were visibly the same rock moving
     // at the same rate — the whole parallax illusion collapsed.
     layer = mix(layer, fi, step(0.5, below));
+    // ...and where that range's HORIZON runs. The ripples need it: a dune's
+    // skyline is the horizon for the face below it, and without that line
+    // there is no ground plane to lay a pattern on.
+    //
+    // Mostly the layer's mean height, not its actual crest, and the first
+    // render is why. A perspective anchored on the exact silhouette makes the
+    // pattern's iso-lines offsets of that silhouette — so every ripple traced
+    // the dune's outline and the near face came out as a contour map. A real
+    // horizon is a straight line; the sand in front of it does not know what
+    // shape the crest above it happens to be. A quarter of the local height is
+    // kept so the plane still tilts with the dune, which is the difference
+    // between flat sand and a face you are looking down.
+    float hMean = -0.02 - fi * 0.18 + 0.45 * (0.42 + fi * 0.12);
+    horizonY = mix(horizonY, mix(hMean, h, 0.25), step(0.5, below));
     cover = max(cover, below);
     if (i == 2) hN = h; // the near ridge, where spindrift is torn off
   }
@@ -2729,8 +2866,15 @@ float mAurora(vec2 uv, float t, float drive, float kick, float pitch, out float 
   // Taller. It used to fade out by uv.y 0.52, which left it hugging the
   // horizon in the bottom third of the sky; a curtain that does not climb
   // has nowhere to put the red-violet crown.
+  // How high the curtain climbs is the register's business — see the two gates
+  // below. Declared here because the body needs the tall gate; the ceiling and
+  // the shoulder both rise with it, and they can never meet: the gap between
+  // them is mix(0.06, 0.28, wake), which is positive at both ends.
+  float glow = smoothstep(0.30, 0.46, pitch);
+  float wake = smoothstep(0.44, 0.68, pitch);
   float body = smoothstep(hem - 0.02, hem + 0.12, uv.y)
-             * (1.0 - smoothstep(0.24, 0.52, uv.y));
+             * (1.0 - smoothstep(mix(hem + 0.04, 0.24, wake),
+                                 mix(hem + 0.10, 0.52, wake), uv.y));
   // How far up the curtain this fragment sits, for the colour gradient in
   // main: real aurora runs green at the bottom and red-violet at the top,
   // because different altitudes are different excited gases.
@@ -2739,40 +2883,43 @@ float mAurora(vec2 uv, float t, float drive, float kick, float pitch, out float 
   // densest and it is far brighter than the body above it — a uniform veil
   // throws away the one feature everybody recognises.
   float edge = smoothstep(0.13, 0.0, abs(uv.y - hem - 0.045));
-  // The aurora answers PITCH: bright, high playing wakes it, low dark
-  // playing leaves only a whisper on the horizon — and loudness then sets
-  // how hard the woken curtain burns. Two different questions asked of the
-  // same music, which is what makes the sky feel attentive.
+  // TWO GATES, and the difference between them is the whole mood.
   //
-  // CONFINED TO THE HIGH REGISTER, which is what it was always meant to be —
-  // and this is a correction of an overcorrection rather than a new idea.
+  // The history is one fault chased past itself in both directions. The aurora
+  // used to be nearly impossible to find, so the gate was thrown open: a floor
+  // of 0.3 under a 0.32-0.58 ramp, which is not a whisper, it is the curtain
+  // simply being ON. That made night an aurora theme with a sky behind it.
+  // The cure — one gate at 0.54-0.76 with no floor — overshot in the other
+  // direction and put the whole motif outside the reachable range: the
+  // synthetic stand-in's centroid never leaves 0.24-0.60, so under mock:auto
+  // the aurora peaked at a fifth of itself for two seconds in every forty-eight
+  // and was otherwise absent. "It's definitely not going to show up with real
+  // playing" is the same arithmetic.
   //
-  // The aurora was once nearly impossible to find, so the gate was opened: a
-  // floor of 0.3 under a 0.32-0.58 ramp. But 0.3 is not a whisper, it is the
-  // curtain simply being ON, and the synthetic stand-in's centroid never
-  // leaves 0.24-0.60, so under mock:auto the ramp is mostly cleared too. The
-  // mood became an aurora with a sky behind it, where it is meant to be a night
-  // sky with an aurora as a bonus.
+  // A single gate cannot express what the owner asked for, and that is why both
+  // attempts missed. "Night should be a night sky theme with the aurora as a
+  // bonus" is a statement about two different things: what is USUALLY there and
+  // what is OCCASIONALLY there. So there are two.
   //
-  // What had actually been hiding it back then was its COLOUR — it drew from
-  // the palette, so a green veil over a blue sky was a slightly bluer blue.
-  // That was fixed separately (the tints in main are the motif's own now), and
-  // fixing it is what made the widened gate an overcorrection: two cures were
-  // applied to one fault and only one of them was needed. So the gate goes back
-  // to meaning what it says, with no floor at all — below the register there is
-  // no curtain, and the sky is the mood.
+  //   glow (0.30-0.46) — the hem. A low green arc a little way above the
+  //   horizon, present through most of ordinary playing. This is the bonus:
+  //   something in the sky besides stars, small enough that the stars still win.
   //
-  // The owner's measurement puts the top of a piano at roughly 0.76 on this
-  // scale, so 0.54-0.76 is genuinely the top of the instrument: it takes bright,
-  // high playing to raise one. (The scale itself still wants rebasing once the
-  // bass and mid readings exist — see MOODS.md.)
-  float wake = smoothstep(0.54, 0.76, pitch);
+  //   wake (0.44-0.68) — the curtain. Bright, high playing raises it: the body
+  //   climbs the sky (see the ceiling in body, above), the folds and rays come
+  //   in, and the colour runs up into the violet crown. This is the event.
+  //
+  // Both gates are inside what the instrument and the stand-in actually reach,
+  // which is the thing the last pass got wrong. (The scale itself still wants
+  // rebasing once the bass and mid readings exist — see MOODS.md.)
   float v = body * (0.3 + smoothstep(0.35, 0.75, fold) * 0.7)
-          * (0.32 + rays * 0.9);
-  v += edge * body * 0.85;
+          * (0.32 + rays * 0.9) * wake;
+  // The hem burns on the low gate, so the arc survives when the curtain does
+  // not — and brightens into the curtain's own edge as the register climbs.
+  v += edge * 0.85 * glow * (0.30 + 0.70 * wake);
   // An onset ripples the hem AND flares the whole curtain briefly: a
   // substorm brightening, which is the moment worth waiting for.
-  return v * (0.5 + drive * 0.9 + kick * 0.5) * wake;
+  return v * (0.5 + drive * 0.9 + kick * 0.5);
 }
 
 void main() {
@@ -2825,6 +2972,7 @@ void main() {
   float haveRock = 0.0;
   float skyMask = 0.0;  // where ridge says sky is; motifs must not paint weather there
   float ridgeLayer = 0.0; // which range is frontmost here, so its rock rides IT
+  float ridgeHorizonY = 0.0; // and where that range's horizon runs, for the sand
   float coneDown = 0.0;   // depth below the volcano's skyline
   float coneCrag = 0.0;   // the profile's roughness alone — bends the flows over it
   float coneDescent = 0.0; // how far below the crater rim — how far the lava has run
@@ -2956,10 +3104,11 @@ void main() {
   }
   float skyward = 0.0; // where snow can lie, filled in by crags or ridge
   if (W_ridge > 0.0) {
-    float crest, sky, plume, layer;
+    float crest, sky, plume, layer, cy;
     float v = mRidge(uv, u_t, u_flow, clamp(u_rms * 1.7, 0.0, 1.0),
-                     crest, sky, plume, layer);
+                     crest, sky, plume, layer, cy);
     ridgeLayer = layer;
+    ridgeHorizonY = cy;
     // The silhouette replaces the field rather than tinting it: past the
     // ridgeline you are looking at rock, and what is above it is sky.
     //
@@ -3276,28 +3425,24 @@ void main() {
     // Sand is a SURFACE, so its combing goes into the field rather than over
     // it: the ripples have to be lit by the same light as the dune they lie
     // on, or they read as a pattern printed on the sand.
-    float rip = mRipples(uv, u_t, u_flow, u_rms, ridgeLayer) * W_ripples;
-    // FENCED TO THE SAND, AND TO THE NEAR DUNE ONLY.
+    float rip = mRipples(uv, u_t, u_flow, u_rms, ridgeLayer, ridgeHorizonY) * W_ripples;
+    // FENCED TO THE SAND. One fence, not two.
     //
-    // Giving the motif a per-layer patch of field was half the cure and read as
-    // none of it, because nothing kept the result off the layers it did not
-    // belong to. Two fences were missing:
+    // The sky fence stays and always should have been here: every other surface
+    // motif is held below the silhouette by skyMask and this one never was, so
+    // wherever a dune's crest dipped, the combing carried straight on across the
+    // sky above it. Same omission mStars had.
     //
-    // The sky. Every other surface motif is held below the silhouette by
-    // skyMask and this one never was, so wherever a dune's crest dipped, the
-    // combing carried straight on across the sky above it. That is what makes
-    // it read as one flat overlay laid over the whole picture rather than as
-    // something lying on the ground — and it is the same omission mStars had.
-    //
-    // The far ranges. Even correctly fenced, ribbing on all three layers gives
-    // three sheets of corduroy at three scales, and the eye cannot tell which
-    // is nearer from that. The owner's call settles it: "I'm fine with the
-    // ripples only affecting the front layer anyway". So the near dune is
-    // combed and the ones behind it are smooth sand — which is also true, since
-    // ripples fall below resolving distance long before a dune does. The step
-    // is hard on purpose: the boundary IS the near dune's own crest line, and a
-    // ripple pattern that stops dead at it is the perspective cue.
-    rip *= (1.0 - clamp(skyMask, 0.0, 1.0)) * step(1.5, ridgeLayer);
+    // The LAYER fence is gone. It was step(1.5, ridgeLayer) — near dune only —
+    // and it was the wrong answer to the right complaint. The far ranges had to
+    // be silenced because a screen-space pattern gave them ribbing at the wrong
+    // scale; now that the motif works in each face's own ground plane, distance
+    // silences them by itself (see mRipples' aa term, which is a resolving-power
+    // test rather than a decree). Keeping the step as well would have meant the
+    // near dune's combing ending at a hard line for no physical reason, which is
+    // what the owner saw next: "I actually don't like the look of the ripples
+    // only in the foreground. It makes the perspective seem off."
+    rip *= (1.0 - clamp(skyMask, 0.0, 1.0));
     g = clamp(g + (rip - 0.5) * 0.22, 0.0, 1.0);
     spec += rip * 0.22 * (0.4 + u_sparkle * 0.6);
   }
