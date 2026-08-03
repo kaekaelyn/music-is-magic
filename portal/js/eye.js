@@ -63,7 +63,11 @@ function fbm2(x, y, octaves) {
   return v;
 }
 
-export function createEye(canvas, { reducedMotion = false, field = null } = {}) {
+// `radius` overrides EYE_RADIUS. The default is the website's composition and
+// must not drift; broadcast (§5.9) passes a larger value because a 16:9 frame
+// is sized off its height and would otherwise strand the eye in black.
+export function createEye(canvas, { reducedMotion = false, field = null, radius = EYE_RADIUS } = {}) {
+  const eyeRadius = radius;
   const ctx = canvas.getContext('2d');
   let W = 0;
   let H = 0;
@@ -82,6 +86,73 @@ export function createEye(canvas, { reducedMotion = false, field = null } = {}) 
   let glowTargetRGB = glowRGB.slice();
   let features = null;
   let focusGlow = false;
+
+  // --- the lid -------------------------------------------------------------
+  //
+  // A gesture that closes the aperture and reopens it, held as a MULTIPLIER on
+  // the open amount rather than as a change to p.openTarget. That separation is
+  // the whole design: a blink cannot fight the ceremony. Land one mid-STIRRING
+  // and it rides on top of the opening curve, which carries on underneath and
+  // arrives where it was always going.
+  //
+  // Shape is close / hold / open, as fractions of the duration. Closing faster
+  // than opening is what makes it read as a lid and not a pulse — an eyelid
+  // snaps shut and rolls back up.
+  const BLINK = { dur: 0.19, closeF: 0.42, holdF: 0.06, depth: 1 };
+  // The changeover. Slower, deeper, and with a real hold at the bottom, which
+  // is the point: the mood swap happens while this is shut. PLAN.md §5.5 notes
+  // that resetting the travel clock cuts the outgoing mood's motion mid
+  // crossfade, accepted because "the whole image is dissolving at that moment
+  // anyway" — behind a closed lid it is not merely dissolving, it is unseen.
+  //
+  // The hold has to be long enough to CONTAIN the crossfade, and it was not:
+  // at 0.24 of 0.92s the eye was shut for 0.22s of a 2.2s dissolve, so 71% of
+  // it played with the lid fully open and the swap was in plain sight. The
+  // cut-mood crossfade is now 0.75s (viz.js), and the hold is sized around it
+  // — closed before the swap, still closed for most of the dissolve, opening
+  // onto a mood that has essentially arrived.
+  //
+  // depth is 1, not 0.94. At 0.94 the "closed" eye still showed 6% of the
+  // field, which is exactly the sliver a dissolve is most visible through, and
+  // it made the hold cosmetic. The blink has always closed fully; so does this.
+  const MOOD_LID = { dur: 1.45, closeF: 0.22, holdF: 0.42, depth: 1 };
+
+  let lid = null;
+  let lidT = 0;
+  let lidAtClosed = null; // fired once, at the instant the hold begins
+
+  // Blinks are scheduled on the frame clock rather than a timer, so a
+  // backgrounded tab (which stops rAF) does not wake to a queue of them.
+  let nextBlink = 0;
+
+  function startLid(shape, atClosed) {
+    lid = shape;
+    lidT = 0;
+    lidAtClosed = atClosed || null;
+  }
+
+  function lidAmount(dt) {
+    if (!lid) return 1;
+    lidT += dt;
+    const u = lidT / lid.dur;
+    if (u >= 1) {
+      // Never strand the callback: a gesture cut short by a resize or a stall
+      // still has to hand the swap over, or the mood would never arrive.
+      if (lidAtClosed) { lidAtClosed(); lidAtClosed = null; }
+      lid = null;
+      return 1;
+    }
+    let k;
+    if (u < lid.closeF) {
+      k = ease(u / lid.closeF);
+    } else if (u < lid.closeF + lid.holdF) {
+      k = 1;
+      if (lidAtClosed) { lidAtClosed(); lidAtClosed = null; }
+    } else {
+      k = ease(1 - (u - lid.closeF - lid.holdF) / (1 - lid.closeF - lid.holdF));
+    }
+    return 1 - lid.depth * k;
+  }
 
   // §5.3 manifest plug
   const layers = {};
@@ -109,7 +180,7 @@ export function createEye(canvas, { reducedMotion = false, field = null } = {}) 
     H = canvas.clientHeight;
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
-    R = Math.min(W, H) * EYE_RADIUS;
+    R = Math.min(W, H) * eyeRadius;
     hFull = R * APERTURE_RATIO;
     plate = buildPlate();
   }
@@ -147,6 +218,9 @@ export function createEye(canvas, { reducedMotion = false, field = null } = {}) 
     glowTargetRGB = [c[0] * 255, c[1] * 255, c[2] * 255];
   }
 
+  // Smoothed on the same principle as viz.js: features that move an edge
+  // need a far longer time constant than features that move light.
+  let bassSmooth = 0;
   function setAudio(f) { features = f; }
   function setFocus(v) { focusGlow = v; }
 
@@ -204,7 +278,7 @@ export function createEye(canvas, { reducedMotion = false, field = null } = {}) 
     const lg = low.getContext('2d');
     const img = lg.createImageData(LW, LH);
     const d = img.data;
-    const unit = Math.min(cw, chh) * EYE_RADIUS;
+    const unit = Math.min(cw, chh) * eyeRadius;
     const halfDiag = Math.hypot(cw, chh) / 2;
 
     for (let y = 0; y < LH; y++) {
@@ -377,11 +451,40 @@ export function createEye(canvas, { reducedMotion = false, field = null } = {}) 
       glowRGB[i] = approach(glowRGB[i], glowTargetRGB[i], dt, 0.4);
     }
 
+    bassSmooth += ((features ? features.bass : 0) - bassSmooth)
+      * (1 - Math.exp(-dt / 0.35));
+
     // The aperture widens a little with the music: the idol's one movement.
+    //
+    // Two rules, both learned the hard way. It must never exceed 1: the field
+    // is drawn at the *fixed* full aperture box, so an aperture that opens
+    // past full reveals the edge of the plane behind it — a black band above
+    // and below on loud notes, which is exactly what it looked like. And it
+    // rides a smoothed bass, not the raw one: §5.5 gives bass a 40 ms attack
+    // so hits land crisply, which on a moving edge is a flinch, not a breath.
+    // Blink only where there is an open eye to blink: sealed has no lid to
+    // move, stirring and drowsing are mid-ceremony and own the aperture for
+    // the moment. Rearmed from zero each time it opens, so the first blink
+    // after waking is a fresh interval rather than one that came due while
+    // the stone was shut.
+    const canBlink = state === EyeState.COMMUNING || state === EyeState.OPEN;
+    if (canBlink && !reducedMotion) {
+      if (nextBlink === 0) nextBlink = t + 3 + Math.random() * 5;
+      else if (t >= nextBlink && !lid) {
+        startLid(BLINK);
+        nextBlink = t + 5.5 + Math.random() * 7.5;
+      }
+    } else if (!canBlink) {
+      nextBlink = 0;
+    }
+
     let openEff = ease(clamp01(p.open));
     if (state === EyeState.COMMUNING && features && !reducedMotion) {
-      openEff *= 0.94 + features.bass * 0.1;
+      openEff *= 0.95 + bassSmooth * 0.05;
     }
+    // Applied last, over the breath and the ceremony alike, so a closing lid
+    // always wins: nothing should be able to hold the eye open through one.
+    openEff *= lidAmount(dt);
     const h = hFull * openEff;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -532,5 +635,21 @@ export function createEye(canvas, { reducedMotion = false, field = null } = {}) 
     draw('frame');
   }
 
-  return { resize, frame, setState, setTheme, setAudio, setFocus, apertureSize };
+  // Close, hand the mood over while shut, and open again on the new one. The
+  // caller passes the swap rather than doing it before or after, because the
+  // whole value of the gesture is WHEN it happens: behind the lid.
+  //
+  // Falls back to swapping immediately if there is no eye to close — sealed,
+  // or reduced motion, where a lid drop is unrequested movement and the plain
+  // crossfade is the gentler option.
+  function transition(swap) {
+    const shut = state === EyeState.SEALED || state === EyeState.STIRRING;
+    if (reducedMotion || shut) { if (swap) swap(); return; }
+    startLid(MOOD_LID, swap);
+  }
+
+  return {
+    resize, frame, setState, setTheme, setAudio, setFocus, apertureSize,
+    transition,
+  };
 }

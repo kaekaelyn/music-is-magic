@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex">
+  <title>music is magic — broadcast</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M10 50 Q50 22 90 50' fill='none' stroke='%238d80b8' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M10 50 Q50 72 90 50' fill='none' stroke='%238d80b8' stroke-width='7' stroke-linecap='round'/%3E%3Ccircle cx='50' cy='49' r='13' fill='%238d80b8'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/portal.css">
+  <style>
+    /* Everything below is operator furniture. It must be capable of vanishing
+       completely, because in window-capture mode this page IS the broadcast
+       frame — anything still on screen is on the stream. The HUD fades after
+       a few idle seconds, `h` toggles it, and ?hud=0 never shows it at all. */
+
+    #hud {
+      position: fixed;
+      inset: auto auto 0 0;
+      margin: 0.9rem;
+      padding: 0.7rem 0.9rem;
+      display: grid;
+      gap: 0.55rem;
+      font: 0.78rem/1.35 system-ui, sans-serif;
+      color: #cfc9e0;
+      background: rgba(8, 9, 16, 0.82);
+      border: 1px solid #2a2540;
+      border-radius: 0.6rem;
+      max-width: min(23rem, calc(100vw - 2rem));
+      opacity: 1;
+      transition: opacity 0.8s ease;
+      z-index: 10;
+    }
+    body.idle #hud { opacity: 0; pointer-events: none; }
+    body.idle { cursor: none; }
+    #hud[hidden] { display: none; }
+
+    #hud .rows { display: grid; gap: 0.2rem; }
+    #hud .row { display: flex; gap: 0.5rem; align-items: baseline; }
+    #hud .k { opacity: 0.5; min-width: 4.3rem; }
+    #hud .v { font-variant-numeric: tabular-nums; }
+    #hud .v.warn { color: #d8a657; }
+    #hud .v.bad { color: #d97070; }
+    #hud .v.good { color: #8fbf6f; }
+
+    #meter {
+      height: 0.28rem;
+      background: #241f38;
+      border-radius: 1rem;
+      overflow: hidden;
+    }
+    #meterFill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #6f7fae, #8fbf6f);
+      transition: width 0.09s linear;
+    }
+
+    #hud .btns { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+    /* The mock instrument. Only present while mock is driving, because it is
+       meaningless otherwise and the HUD is already dense. */
+    #mockPanel { display: grid; gap: 0.3rem; }
+    #mockPanel[hidden] { display: none; }
+    #mockPanel .slider { display: grid; grid-template-columns: 4.3rem 1fr; gap: 0.5rem; align-items: center; }
+    #mockPanel .slider > span { opacity: 0.5; }
+    #mockPanel input[type="range"] {
+      width: 100%;
+      accent-color: #8d80b8;
+      background: transparent;
+      cursor: pointer;
+    }
+    #mockPanel .read {
+      opacity: 0.55;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.72rem;
+      padding-left: 4.8rem;
+    }
+
+    /* The mood panel. §5.9's rig can be driven from a phone, but a mood is
+       the one control you reach for constantly while judging the look, and
+       walking to the phone to try eight of them is how you stop trying them.
+       Tighter type than the ceremony buttons: this is a palette, not a
+       decision, and it has to stay inside the HUD's width at eight moods. */
+    /* One row per family: the base mood, then its sub-moods beside it. At
+       sixteen themes a flat wrap put the forest's seasons fourteen buttons
+       away from the forest, which is not a palette, it is a haystack. */
+    #moods {
+      display: grid;
+      gap: 0.22rem;
+    }
+    #moods .fam {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.24rem;
+    }
+    #moods button.sub {
+      font-size: 0.68rem;
+      padding: 0.2rem 0.38rem;
+      opacity: 0.55;
+      border-color: #2b2740;
+    }
+    #moods button.sub::before {
+      /* A tie back to the parent, so a sub-mood reads as belonging rather
+         than as another peer that happens to sit nearby. */
+      content: '·';
+      opacity: 0.5;
+      margin-right: 0.28rem;
+    }
+    #moods button.sub:hover { opacity: 1; }
+    #moods button {
+      padding: 0.26rem 0.45rem;
+      font-size: 0.74rem;
+      opacity: 0.72;
+    }
+    #moods button:hover { opacity: 1; }
+    #moods button.on {
+      opacity: 1;
+      border-color: #8d80b8;
+      background: #241f38;
+    }
+    /* The number that selects it, so the shortcut is discoverable without a
+       legend. Dimmed, because it is a label on a label. */
+    #moods button .n {
+      opacity: 0.4;
+      margin-right: 0.3rem;
+      font-variant-numeric: tabular-nums;
+    }
+    #hud button {
+      font: inherit;
+      padding: 0.34rem 0.6rem;
+      border-radius: 0.4rem;
+      border: 1px solid #35304a;
+      background: #14121f;
+      color: #cfc9e0;
+      cursor: pointer;
+    }
+    #hud button:hover { background: #201b32; }
+    #hud button.on { border-color: #8d80b8; background: #241f38; }
+    #hud .hint { opacity: 0.4; font-size: 0.72rem; line-height: 1.4; }
+
+    #pair { display: flex; gap: 0.35rem; }
+    #pair input {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      padding: 0.34rem 0.5rem;
+      border-radius: 0.4rem;
+      border: 1px solid #35304a;
+      background: #0c0a14;
+      color: #cfc9e0;
+    }
+    #pair input:focus { outline: none; border-color: #8d80b8; }
+    #pair input.ok { border-color: #7fae62; }
+    #pair input.fail { border-color: #b05252; }
+
+    /* The arming gate. Browsers need one user gesture before an AudioContext
+       may run, and the microphone prompt wants one too. It covers the frame
+       so it cannot be missed, and removes itself for good once satisfied. */
+    #arm {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      gap: 0.8rem;
+      justify-items: center;
+      background: rgba(5, 6, 10, 0.94);
+      color: #cfc9e0;
+      font: 1rem/1.5 system-ui, sans-serif;
+      text-align: center;
+      cursor: pointer;
+      z-index: 20;
+    }
+    #arm[hidden] { display: none; }
+    #arm strong { font-weight: 600; letter-spacing: 0.06em; }
+    #arm span { opacity: 0.55; font-size: 0.85rem; max-width: 24rem; }
+  </style>
+</head>
+<body data-eye="sealed">
+  <canvas id="viz" aria-hidden="true"></canvas>
+  <canvas id="eye" aria-hidden="true"></canvas>
+
+  <div id="arm">
+    <strong>click to arm</strong>
+    <span>Grants microphone access and starts the audio clock. Do this before
+      you go live — the frame is not capturable until it is armed.</span>
+  </div>
+
+  <div id="hud">
+    <div class="rows">
+      <div class="row"><span class="k">eye</span><span class="v" id="hEye">sealed</span></div>
+      <div class="row"><span class="k">mood</span><span class="v" id="hTheme">default</span></div>
+      <div class="row"><span class="k">audio</span><span class="v" id="hAudio">not armed</span></div>
+      <div class="row"><span class="k">control</span><span class="v" id="hRelay">—</span></div>
+      <div class="row"><span class="k">render</span><span class="v" id="hViz">—</span></div>
+      <div class="row"><span class="k">frame</span><span class="v" id="hFrame">—</span></div>
+      <!-- Spectral centroid, the feature the shader calls `pitch`. Shown for
+           calibration: it gates the aurora and leans the ray fan, and whether
+           it reads sensibly depends on the room and the microphone, so it can
+           only be settled by looking. Live values only — never the synthetic
+           stand-in, or the sound-check would lie. -->
+      <div class="row"><span class="k">pitch</span><span class="v" id="hPitch">—</span></div>
+    </div>
+    <div id="meter"><div id="meterFill"></div></div>
+    <div class="btns">
+      <button id="bWake">wake</button>
+      <button id="bSeal">seal</button>
+      <!-- Drives the visuals from synthetic motion instead of the microphone,
+           so the moods can be judged in a silent room without editing the URL.
+           The mic keeps running underneath: the meter and the pitch row are
+           instruments and must not lie, whatever the picture is doing. -->
+      <button id="bMock">mock</button>
+      <select id="devices" hidden></select>
+    </div>
+
+    <!-- The instrument. Two sliders and a strike, so a motif that only wakes
+         under particular playing can be aimed at deliberately instead of
+         waited for. `register` is the same 0–1 the pitch row reports, and its
+         frequency is shown beside it, so dialling to a number and reading a
+         number are the same act. -->
+    <div id="mockPanel" hidden>
+      <div class="slider"><span>level</span>
+        <input id="mLevel" type="range" min="0" max="100" value="45"
+               aria-label="mock level"></div>
+      <div class="slider"><span>register</span>
+        <input id="mReg" type="range" min="0" max="100" value="45"
+               aria-label="mock register"></div>
+      <div class="read" id="mRead">—</div>
+      <div class="btns">
+        <button id="bStrike">strike</button>
+        <button id="bAuto">auto</button>
+      </div>
+    </div>
+    <!-- Filled from assets/themes/index.json, like the control page's panel:
+         adding a theme folder updates both, with no edit here. -->
+    <div id="moods"></div>
+    <!-- §5.8 pairing. A form so Enter submits, and so the phone's keyboard
+         offers a "go" key rather than a newline. -->
+    <form id="pair">
+      <input id="code" type="text" placeholder="pairing code" autocomplete="off"
+             autocapitalize="none" autocorrect="off" spellcheck="false">
+      <button type="submit">pair</button>
+    </form>
+    <div class="hint">
+      Type the same code here and on your phone. 1–9 pick a mood (always the
+      base one), shift+1–9 walk its sub-moods · m mocks the audio, s strikes ·
+      h hides this · it fades on its own · ?hud=0 never shows it
+    </div>
+  </div>
+
+  <script type="module" src="js/broadcast.js"></script>
+</body>
+</html>

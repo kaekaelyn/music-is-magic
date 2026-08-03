@@ -1,0 +1,60 @@
+{
+  "name": "fire",
+  "palette": [
+    "#08060a",
+    "#1e1114",
+    "#4a2418",
+    "#a34e1c",
+    "#ffd9a0"
+  ],
+  "params": {
+    "scale": 1.6,
+    "speed": 0.3,
+    "warp": 0.7,
+    "sparkle": 0.5,
+    "gloss": 0.15,
+    "glint": 0,
+    "canopy": 0,
+    "slant": 0,
+    "base": 0.16,
+    "drift": 0.3,
+    "travel": 0.18,
+    "travelX": 0,
+    "travelY": 0,
+    "angular": 1
+  },
+  "mappings": {
+    "warpBass": 0.25,
+    "sparkleTreble": 1.0,
+    "pulseFlux": 1.25,
+    "shiftCentroid": 0.12
+  },
+  "motifs": {
+    "rays": 0,
+    "columns": 0,
+    "dapple": 0,
+    "drips": 0,
+    "facets": 0,
+    "caustics": 0,
+    "crags": 0,
+    "snow": 0,
+    "tunnel": 0,
+    "ridge": 0,
+    "cone": 0,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0.18,
+    "aurora": 0,
+    "clouds": 0,
+    "crystals": 0,
+    "storm": 0,
+    "rainbow": 0,
+    "flame": 1.0,
+    "embers": 0.6,
+    "smoke": 0.45,
+    "lava": 0,
+    "ripples": 0,
+    "petals": 0
+  },
+  "textures": []
+}

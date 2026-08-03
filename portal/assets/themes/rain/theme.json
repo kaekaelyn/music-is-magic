@@ -1,25 +1,31 @@
 {
   "name": "rain",
   "palette": [
-    "#0a0e12",
-    "#1d2a33",
-    "#3a5464",
-    "#6f909f",
-    "#d3e3ea"
+    "#0b0d10",
+    "#22272c",
+    "#485056",
+    "#87939b",
+    "#e0e6ea"
   ],
   "params": {
     "scale": 2.4,
     "speed": 0.55,
     "warp": 1,
-    "sparkle": 0.6,
+    "sparkle": 0.5,
     "gloss": 0.25,
-    "slant": 0.34
+    "glint": 0,
+    "canopy": 0,
+    "slant": 0.34,
+    "base": 0.7,
+    "drift": 0.8,
+    "travel": 0,
+    "travelX": 0,
+    "travelY": 0
   },
   "mappings": {
-    "warpBass": 0.9,
-    "brightRms": 0.6,
+    "warpBass": 0.4,
     "sparkleTreble": 1,
-    "pulseFlux": 1,
+    "pulseFlux": 1.1,
     "shiftCentroid": 0.2
   },
   "motifs": {
@@ -30,7 +36,17 @@
     "facets": 0,
     "caustics": 0,
     "crags": 0,
-    "snow": 0
+    "snow": 0,
+    "tunnel": 0,
+    "ridge": 0,
+    "cone": 0,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0,
+    "aurora": 0,
+    "clouds": 0,
+    "crystals": 0,
+    "storm": 0.85
   },
   "textures": []
 }

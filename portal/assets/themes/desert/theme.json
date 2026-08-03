@@ -1,0 +1,60 @@
+{
+  "name": "desert",
+  "palette": [
+    "#2a1a10",
+    "#6b4526",
+    "#b98a4e",
+    "#e5c489",
+    "#fff4dc"
+  ],
+  "params": {
+    "scale": 1.5,
+    "speed": 0.1,
+    "warp": 0.55,
+    "sparkle": 0.4,
+    "gloss": 0.12,
+    "glint": 0,
+    "canopy": 0,
+    "slant": 0,
+    "base": 0.55,
+    "drift": 0.1,
+    "travel": 0.3,
+    "travelX": 0.12,
+    "travelY": 0,
+    "angular": 0.1
+  },
+  "mappings": {
+    "warpBass": 0.2,
+    "sparkleTreble": 0.8,
+    "pulseFlux": 0.8,
+    "shiftCentroid": 0.25
+  },
+  "motifs": {
+    "rays": 0,
+    "columns": 0,
+    "dapple": 0,
+    "drips": 0,
+    "facets": 0,
+    "caustics": 0,
+    "crags": 0,
+    "snow": 0.35,
+    "tunnel": 0,
+    "ridge": 0.9,
+    "cone": 0,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0,
+    "aurora": 0,
+    "clouds": 0.12,
+    "crystals": 0,
+    "storm": 0,
+    "rainbow": 0,
+    "flame": 0,
+    "embers": 0,
+    "smoke": 0,
+    "lava": 0,
+    "ripples": 0.75,
+    "petals": 0
+  },
+  "textures": []
+}

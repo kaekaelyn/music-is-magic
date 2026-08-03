@@ -12,6 +12,8 @@ cd tools && npm install
 npm test                              # validator + headless smoke test
 npm run shots                         # photograph every state and theme
 npm run shots -- --themes ice,ocean --width 430 --height 932
+npm run perf                          # what each mood costs to draw, ms/frame
+npm run perf -- --mode hud            # ...end to end, read off the broadcast HUD
 ```
 
 `mock-portal.mjs` serves `portal/` with a status endpoint the calling process
@@ -38,6 +40,31 @@ checks live here instead. Run it after any M5 asset drop.
 
 Exit code 1 on errors; warnings (an unlisted theme folder, a manifest with no
 layers yet) never fail the run.
+
+## `perf.mjs`
+
+What each mood costs to draw. The engine had no instrumentation at all until
+this, so every performance claim in PLAN.md was arithmetic over the shader
+source — which is how a mood shipped that "slowed down the whole computer".
+
+Default mode times the **field alone**: a `createViz` instance at the broadcast
+frame's field size, N frames back to back, with a pixel read at the end so the
+driver cannot report work it has not done. `--mode hud` instead reads the
+broadcast HUD's own frame-time row while the whole page runs, which is the
+honest end-to-end number and the one the owner is looking at.
+
+Read the **ratios**, not the milliseconds. There is no GPU in a sandbox, so
+WebGL runs on SwiftShader and every fragment is shaded on the CPU: absolute
+times are far worse than any real machine's, and proportional to the fragment
+work a mood does — which is the useful property. Two traps already paid for:
+
+- In `hud` mode on a software renderer everything **saturates** — night and
+  cave both pin at the same rate and the moods stop being distinguishable.
+  That mode wants a real GPU.
+- Disabling vsync to escape the 16.7 ms quantization makes it worse, not
+  better: `requestAnimationFrame` outruns the compositor, the callbacks queue,
+  and the measured gap climbs through the run until whatever was tested last
+  reads four times whatever was tested first.
 
 ## `smoke.mjs`
 

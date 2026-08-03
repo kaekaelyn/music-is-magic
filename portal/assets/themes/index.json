@@ -1,10 +1,19 @@
 [
-  "default",
+  "night",
   "forest",
   "cave",
   "ice",
   "mountain",
   "ocean",
   "rain",
-  "sunshine"
+  "sunshine",
+  "sunshower",
+  "fire",
+  "volcano",
+  "desert",
+  "desert-night",
+  "forest-blooming",
+  "forest-autumn",
+  "forest-barren",
+  "murmuration"
 ]

@@ -11,7 +11,19 @@
 // The portal itself stays dependency-free; Playwright is dev-only tooling and
 // nothing under portal/ knows this file exists.
 
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startPortal, launch } from './mock-portal.mjs';
+
+// The count of moods is data, not a constant. Reading it here means adding a
+// theme folder — which is all a sub-mood is — cannot fail a test that claims
+// to be checking "a button per theme in index.json" while comparing against a
+// number somebody typed.
+const THEME_NAMES = JSON.parse(readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../portal/assets/themes/index.json'),
+  'utf8'
+));
 
 let chromium;
 try {
@@ -95,7 +107,7 @@ try {
   // === 1. the full ceremony ============================================
   {
     state.live = false;
-    state.theme = 'default';
+    state.theme = 'night';
     const page = await browser.newPage();
     const assertClean = watch(page, 'ceremony');
     await page.goto(`${BASE}/?fast=1`);
@@ -104,8 +116,8 @@ try {
     const kind = await page.evaluate(() => document.body.dataset.viz);
     check(['webgl', 'canvas2d'].includes(kind), `viz renderer selected (${kind})`, kind);
     check(
-      await page.evaluate(() => document.body.dataset.theme) === 'default',
-      'default theme applied at rest'
+      await page.evaluate(() => document.body.dataset.theme) === 'night',
+      'night (the fallback) applied at rest'
     );
     check(
       await page.evaluate(() => !document.getElementById('summon')),
@@ -149,7 +161,7 @@ try {
 
     // Unknown tokens fall back silently; a typo must never break a live stream.
     state.theme = 'definitely-not-a-theme';
-    await themeIs(page, 'default');
+    await themeIs(page, 'night');
     check(true, 'unknown token degrades to default, not an error');
 
     // D12 — drowse, then resume from drowse without going through sealed.
@@ -185,15 +197,32 @@ try {
   // === 2. the control page (§5.6) ======================================
   {
     state.live = false;
-    state.theme = 'default';
+    state.theme = 'night';
     const page = await browser.newPage();
     const assertClean = watch(page, 'control');
     await page.goto(`${BASE}/control.html?fast=1`);
 
     const buttons = page.locator('#buttons button');
     await buttons.first().waitFor({ timeout: 5000 });
-    const count = await buttons.count();
-    check(count === 8, 'a button per theme in index.json', `got ${count}`);
+    // Every theme reachable, and nothing offered that is not a theme.
+    //
+    // This used to compare the button COUNT against the length of index.json,
+    // which quietly assumed one button per mood — true only while the family
+    // tree is strictly a tree. A shared sub-mood (sunshower sits under both
+    // rain and sunshine) legitimately has two buttons, so the count is no
+    // longer the invariant. Reachability is, and it is the stronger check: a
+    // mood with no button is unusable, and a button for a mood that does not
+    // exist is a dead end. The old form caught neither directly.
+    const labels = await buttons.evaluateAll((els) =>
+      els.map((e) => e.title || e.textContent.trim())
+    );
+    const missing = THEME_NAMES.filter((n) => !labels.includes(n));
+    const unknown = labels.filter((l) => !THEME_NAMES.includes(l));
+    check(
+      missing.length === 0 && unknown.length === 0,
+      'every theme in index.json has a button, and every button a theme',
+      `missing [${missing}], unknown [${unknown}]`
+    );
 
     await page.waitForFunction(
       () => document.getElementById('statusText').textContent.startsWith('sealed'),
@@ -263,7 +292,7 @@ try {
   // stays black for the rest of the visit.
   {
     state.live = false;
-    state.theme = 'default';
+    state.theme = 'night';
     const page = await browser.newPage();
     const assertClean = watch(page, 'context-loss');
     await page.goto(`${BASE}/?fast=1`);

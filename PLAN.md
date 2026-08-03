@@ -122,6 +122,9 @@ nothing but move audio bytes and answer a status poll.
 | D15 | Visitor notification transport | A link to the ntfy topic page (§5.7), not Web Push | Web Push needs VAPID keys, a service worker and a permission prompt — a backend and an interruption, for something ntfy already does. |
 | D17 | The eye's form | Carved stone (golem/idol) with a lens aperture; the visualization lives **inside** the aperture, not behind the eye | A stylized human eye — sclera, iris, lashes — reads as cartoon at full-screen scale. And a field behind a floating eye is wallpaper; a field seen *through* carved stone is the thing the site is about. Reverses the first implementation. See §2.1. |
 | D16 | Dev tooling | `tools/` holds a zero-dep asset validator and a headless smoke test; `tools/package.json` keeps npm out of the repo root | The portal must stay buildless and dependency-free (§12); the contracts in §5 still need something that fails loudly, because the portal is built to fail silently. |
+| D18 | Broadcast build | A **second page in the same portal** (`broadcast.html`), not a fork and not a second repo. It reuses `eye.js`, `viz.js`, `themes.js`, `state.js`, `features.js` unchanged and swaps only its audio source and its liveness source | The shader and the motif library are the expensive assets. Duplicating them means every future mood, every tuning pass, and every bug fix happens twice by hand and then drifts. The engine was already source-agnostic in the two places that mattered — `FeatureExtractor` takes an `AnalyserNode`, and the state machine takes poll results — so the split is config, not code. |
+| D19 | Broadcast control transport | ntfy.sh, publish by POST and subscribe by `EventSource`, on a topic **distinct from** D13's summons topic and **never committed** | Icecast metadata is the website's bus (D9) and there is no Icecast in a YouTube broadcast. A Cloudflare Worker + KV was the first candidate and was rejected: KV is eventually consistent at up to 60s, and a mood button that might take a minute is a broken mood button. ntfy is already this project's push transport, is free, needs no account and no backend, pushes in real time, and its threat model is one §5.7 already accepts. |
+| D20 | Broadcast video path | OBS Studio: Browser Source preferred, Window Capture as the fallback, and YouTube's **stream key** rather than its webcam flow | A web page cannot register itself as an OS camera device on any browser — "feed the eye in as a webcam" necessarily means a virtual camera driver, and OBS's is the free one. Once OBS is installed anyway, RTMPS costs one *fewer* moving part than the virtual camera and gives 1080p instead of the webcam flow's 720p. The webcam flow still works and is documented; it is just not the default. |
 
 ---
 
@@ -195,13 +198,102 @@ library of procedural motifs and a theme declares which ones it is made of:
 | `drips` | falling streaks | cave, rain |
 | `facets` | crystal shards with a lit seam where they meet | ice |
 | `caustics` | undulating light web | ocean |
-| `crags` | angular rock planes, each catching the light its own way | mountain |
-| `snow` | accumulation on whichever crag faces tilt skyward, below a snowline | mountain |
+| `crags` | angular rock planes, each catching the light its own way | *(nobody — mountain used it and dropped it, §13)* |
+| `snow` | accumulation on whichever faces tilt skyward, below a snowline | mountain |
+| `tunnel` | a passage receding into the dark, crystal faces on its walls | cave |
+| `ridge` | layered ridgelines against the sky — a mountain's silhouette | mountain |
+| `wisps` | a few slow wandering lights, each on its own orbit | forest |
+| `foam` | swell travelling one direction, white water breaking on the crests | ocean |
+| `stars` | fixed points of light, a faint band, a meteor on a strong onset | night |
+| `aurora` | curtains of light, waking on high pitch, breathing with loudness | night |
+| `clouds` | billowing cumulus, sunward edges rimmed in the palette's gold | sunshine |
+| `crystals` | prisms growing in clusters off the rock, lit face and shadowed | cave |
+| `storm` | forked lightning, and the flash that follows it | rain |
 
 ```json
 "motifs": { "rays": 0.85, "dapple": 0.25 },
-"params": { "gloss": 0.2, "slant": 0, ... }
+"params": { "gloss": 0.2, "slant": 0, "base": 1, "drift": 1, ... }
 ```
+
+**Each mood answers the room in its own voice.** Loudness and onsets reach
+the motifs as `u_rms` (smoothed) and `u_pulse` (a decaying envelope), and each
+motif spends them on its own gesture — that specialization is what makes two
+moods feel different to PLAY, not just to look at:
+
+| Mood | Quiet is | The music is |
+|---|---|---|
+| sunshine | diffuse gold haze | the fan of rays kicked sideways and flared by each onset — it dances |
+| ice | still, dark shards | onsets flash-lighting whole shards (treble widens the handful) |
+| ocean | slow swell | harder crests, more white water torn off each one |
+| rain | thin rain | wider splash crowns; an onset lands a burst of them |
+| mountain | a still landscape | spindrift off the near crest, cloud-light shouldered sideways |
+| forest | trunks in mist | dapple shifting overhead, wisps swelling |
+| cave | a rare drip in the dark | onsets strike whole crystals alight; treble shimmers their faces |
+| night | fixed stars | the aurora waking on high pitch; a strong onset sends one meteor |
+
+**The three clocks.** Motifs read time from three uniforms, each earned
+differently:
+
+- `u_t` — theme time, scaled by `speed`. Ambient evolution.
+- `u_flow` — the **travel clock**: integrated on the CPU at a rate set by the
+  theme's `travel` param times loudness. It only ever advances — faster when
+  the room is loud — and `travelX`/`travelY` give it a direction that carries
+  the whole texture-space frame (the current). This is how a theme becomes a
+  place you move through: ocean's rolling sets, forest's walk among the
+  trunks, mountain's journey along the chain. It also drives everything the
+  moods do slowly and cumulatively: ice's frost thickening, cave's light
+  swinging round its quartz.
+
+  **Its scope is one visit to one mood.** It resets in `setTheme` and is
+  scaled by `intensity`, so it counts time in *this* mood while the eye is
+  actually open — not the session, and not that mood's lifetime history. It
+  began as a single clock for the whole page, which meant ocean's current
+  advanced cave's crystal selection while cave was off screen, and a mood
+  returned to an hour later resumed mid-cycle instead of beginning. The cost
+  of the reset is a cut in the outgoing mood's motion during the 2.2s
+  crossfade — one uniform cannot hold two positions — which is the cheaper
+  flaw, since the whole image is dissolving at that moment anyway.
+- `u_centroid` — smoothed pitch/timbre brightness. The aurora wakes on high
+  playing AND slides along its colour band; ice's strikes pick different shard
+  families by register; sunshine's fan leans with it; rain's sky bruises when
+  the playing is low and dark.
+
+**Two responses were deleted, not tuned.** The onset ripple ring and the
+whole-field loudness brightening (`brightRms`) are both gone, and the mapping
+key with them — the validator rejects it now, so no theme can carry a knob
+that does nothing. Both were the engine's generic answer to the music from
+before motifs existed, and a generic answer competes with every specific one.
+Ambient glints went the same way: they are opt-in per theme (`params.glint`)
+and off everywhere except ice, cave and a trace on mountain's snow, because
+scattered white specks in a forest or a sunbeam read as dust on the lens.
+
+The engine-side law, refined the hard way (three lawful couplings, one
+forbidden):
+
+1. **Onset gestures** displace by the decaying pulse — a kick that lands and
+   settles. Returning to rest is the design, so it reads as a gesture.
+2. **Level-driven motion reads `u_flow`.** Never offset a position by a level
+   directly: the offset retracts when the sound dies, and the owner watched
+   snow slide back and forth on exactly that mistake. Motion earned by
+   loudness must be kept — hence the integrator.
+3. **Level-driven light** (brightness, coverage, thresholds) reads `u_rms`
+   directly and freely.
+
+Forbidden always: multiplying `t` by a live feature inside the shader — the
+phase already elapsed gets rescaled and the pattern lurches (§13).
+
+**`base` and `drift` are how a theme escapes the shared field.** Every theme
+was built on the same domain-warped fbm at full strength and full speed, and
+the result was that every theme was the same weather in a different colour —
+"an identical fog effect suffusing everything", in the owner's words. `drift`
+scales how fast that field evolves (0 freezes it) and `base` scales how much
+it contributes at all (0 leaves a dark floor for the motifs to light). Both
+default to 1, so a theme that says nothing looks exactly as it always did.
+
+Note what freezing does *not* buy: a domain-warped fbm held still still looks
+like smoke, because domain warping is what makes smoke. A theme that wants
+rock has to say `crags`, lower `warp`, or both. `base`/`drift` get the fog out
+of the way; they do not conjure a different material.
 
 Weights are 0–1 and every theme carries every key (absent = 0), so morphing
 between two themes is a plain lerp and a motif the target lacks fades out
@@ -230,9 +322,22 @@ Two findings worth not rediscovering:
   warped, looked like VHS scanlines inside a glowing aperture. It was replaced
   by `crags`. Anything with a repeating axis will have the same problem.
 - **Clean voronoi reads as mosaic.** `crags` warps its lattice with noise
-  before cells are found, and blends snow coverage with noise rather than
-  taking it per-cell — otherwise the facets tile like cracked glass, which is
-  `facets`' job, not rock's.
+  before cells are found — otherwise the facets tile like cracked glass, which
+  is `facets`' job, not rock's. The deeper lesson came from `tunnel`: voronoi's
+  mosaic character is not tunable, but it is not intrinsic either — the same
+  lattice found in *log-polar* space reads as a receding passage, because what
+  a generator looks like is decided as much by the space it is evaluated in as
+  by the generator. Reach for a coordinate change before a new generator.
+- **A mask times noise, never a mask plus noise.** `snow` summed its coverage
+  with a breakup noise, so snow appeared wherever the noise was high on its
+  own — in the valleys, and in the sky. Multiplying says snow may only lie
+  where there is something to lie on, and the noise only tears up its edge.
+- **Silhouettes are a few big decisions.** A ridgeline profile drawn with
+  five-octave fbm is a wavy line, which is the banding failure wearing a hat.
+  `ridge` uses two octaves and squares its peaks.
+- **Everything is drawn in a wide, short lens.** `uv.y` spans roughly ±0.3 of
+  what is visible, so a feature placed for a square canvas (a horizon at 0.5, a
+  splash floor at -0.4) lands outside the aperture entirely. Both happened.
 - **Check the sign of anything that moves.** `uv.y` increases upward, so
   `uv.y * k + t` falls and `uv.y * k - t` rises. Drips shipped rising and rays
   shipped lighting the aperture from below; neither is visible in a
@@ -285,6 +390,104 @@ connects. The visitor side is the smallest thing that can work: a link.
   as read (§6). That is the accepted trade for having no backend; the worst case
   is a stranger sending a false "the eye opens" to subscribers.
 
+### 5.8 Control relay (M7, the broadcast bus)
+
+On the website the moods travel *inside the stream*: `control.html` writes a
+token into the Icecast mount's metadata and the portal reads it back out of
+`status-json.xsl` (D9). That bus does not exist in a YouTube broadcast, so the
+phone needs another way to reach the desktop. `portal/js/relay.js` is it,
+behind one interface with three transports (D19):
+
+| Mode | Transport | For |
+|---|---|---|
+| `local` | `BroadcastChannel` + a `localStorage` mirror | Same machine, two tabs. Zero setup, works offline. The test transport, and the way to try the design before committing to any infrastructure |
+| `ntfy` | POST to publish, `EventSource` on `/sse` to subscribe | The real thing: phone to desktop, over the open internet |
+| `none` | — | No channel; the broadcast page runs on its own defaults |
+
+Message shape — a **partial** state, so a mood tap says nothing about whether
+the eye should be open:
+
+```json
+{ "eye": "live" | "sealed", "theme": "<token>" }
+```
+
+Rules that are not negotiable:
+
+- **Everything inbound is sanitized.** The topic is public to anyone holding
+  it, and the theme token is concatenated into an asset path. `sanitize()`
+  admits only `live`/`sealed` and `^[a-z0-9_-]{1,32}$`, drops the rest, and
+  keeps the valid half of a half-valid message. Junk never half-applies.
+- **A dead relay changes nothing**, exactly as a failed status poll changes
+  nothing (§5.1). The eye holds its last state.
+- **Catch-up is asymmetric.** On connect, the last cached message is replayed.
+  Its *mood* is always adopted; its *eye state* only if the message is newer
+  than `catchUpMaxAgeMs` (120s). A page reloaded mid-set comes back open; a
+  page opened the next morning does not get woken by yesterday.
+- **The code is typed into the page, not carried in the URL.** Both owner
+  pages have a pairing field that restarts the relay in place, no reload. A
+  query string turned out to be the least durable place to keep the one piece
+  of configuration that matters: `serve` discards it on its `.html` redirect,
+  and home-screen shortcuts and OBS browser sources lose it their own ways.
+  `?topic=` still works as a shortcut and still persists; it is no longer the
+  mechanism. `?topic=clear`, or an empty field, unpairs.
+- **The relay topic is not the summons topic**, and it is **never committed**.
+  `config.js` is served verbatim to every visitor, so a topic written there is
+  a published password. Typed into the field, it lives in that browser only.
+
+### 5.9 Broadcast page (M7)
+
+`portal/broadcast.html` — the page OBS captures. Same eye, same shader, same
+themes; three things differ, and one deliberately does not.
+
+| | Website | Broadcast |
+|---|---|---|
+| Audio | Icecast stream via `<audio crossorigin>` | Local microphone via `getUserMedia` (`mic.js`) |
+| Liveness | §5.1 status poll | The operator, over §5.8 |
+| Audience gesture | The visitor clicks the eye to unlock audio | Nobody is watching; the page arms once and communes for itself |
+| **State machine** | **`state.js`, unchanged** | **`state.js`, unchanged** |
+
+That last row is the design. The eye's hygiene rules — two positive signals to
+open, always drowse before sealing, a failed signal changes nothing — are the
+brand, so the broadcast page reuses them verbatim by running a local ticker
+that feeds `machine.onPoll()` from the relay's desired state. Nothing reaches
+into the machine, and the ceremony is the same ceremony.
+
+**The HUD carries a full mood panel**, filled from `assets/themes/index.json`
+exactly as the control page's is — add a theme folder and both update. It is
+not a duplicate of the phone: choosing a mood here also *publishes* over the
+relay, so a paired phone or an open control page follows, and the two panels
+stay two views of one state rather than two sources of truth. Moods are also
+bound to keys **1–9**, which is the path that matters while you are watching
+the field: no pointer to aim, and it keeps working after the HUD has faded,
+which is how a broadcast machine actually sits. Everything about the panel
+obeys the furniture rule below — it fades, `h` hides it, `?hud=0` removes it.
+
+Specifics worth not rediscovering:
+
+- **Never connect the mic to `ctx.destination`.** On the website that line is
+  what makes sound audible; here it feeds the microphone back into the
+  speakers. The analyser is a tap, not a monitor path — which is also why the
+  page emits no audio at all and OBS must capture the mic itself.
+- **Voice constraints ruin music.** `echoCancellation`, `noiseSuppression` and
+  `autoGainControl` are all forced off: AGC pumps the dynamics flat, noise
+  suppression eats sustained piano tails, and echo cancellation notches
+  whatever it decides is feedback.
+- **`deviceId` is matched with `exact`.** Silently landing on the laptop mic
+  when the interface is unplugged is a failure you discover in the archive.
+- **The mic keeps running through a seal**, unlike the website's audio element.
+  There is no bandwidth to save, and a live level meter while the eye is shut
+  is how you sound-check before waking it.
+- **A refused microphone is not fatal.** It falls back to synthetic features so
+  the eye still breathes. This is the most likely live failure — an OBS browser
+  source without media permission — and a broadcast that looks alive beats a
+  frozen frame.
+- **The eye is scaled up** (`radius` 0.42 vs the website's 0.3). A 16:9 frame
+  is sized off its height, so the website's composition strands the eye in a
+  field of black.
+- **The operator HUD must be able to vanish.** In Window Capture mode the page
+  *is* the broadcast frame. It fades after 6s idle (taking the cursor with it),
+  toggles on `h`, and `?hud=0` removes it from the DOM.
+
 ---
 
 ## 6. Server spec
@@ -324,6 +527,12 @@ Each is sized for one focused build session. **Done when** is the acceptance tes
 | M4 | **The Moods** | Theme system: `index.json`, `theme.json` loader, morph transition between themes, `/control.html` (§5.6). Seven themes defined with procedural looks (empty texture folders). | Tapping "cave" on the phone mid-stream morphs every viewer's visualization within one poll cycle. |
 | M5 | **The Gallery** | Owner generates AI texture banks + eye art separately and drops them in per §5.3/§5.4. Build session only assists: validates manifests (`tools/validate-assets.mjs`), tunes motif weights and mappings against `tools/shots.mjs`, optimizes images. | At least one theme runs on real textures with zero code edits — proving the plug. |
 | M6 | **The Summons** | ntfy on-connect hooks (§6); portal gets a subtle opt-in for notifications (§5.7). ESP32 lamp: someday, `hardware/`, subscribes to the same topic. | Phone buzzes "the eye opens" within seconds of the source connecting. |
+| M7 | **The Broadcast** | The YouTube build (D18/D19/D20): `broadcast.html` + `mic.js` + `relay.js`, wake/seal on `control.html`, §5.8 and §5.9 implemented, broadcast smoke suite, and the two operator docs. | Tapping *wake* on the phone opens the eye on a live YouTube stream, and tapping a mood changes it, with the piano driving the field. |
+
+M7 is independent of M2: the broadcast build needs no VPS, no Icecast and no
+domain, so it can run at $0/mo before the website's server ever exists. Where
+both exist they share one control page — a mood tap drives Icecast and the
+relay from the same button.
 
 ---
 
@@ -364,10 +573,17 @@ well past a hobby audience (bandwidth: ~86 MB/listener-hour at 192 kbps).
 ```
 PLAN.md            ← this file (single source of truth)
 README.md          ← one paragraph + pointer here
+TESTING.md         ← how to verify each piece, stage by stage (owner-facing)
+RUNNING.md         ← how to run the broadcast for real (owner-facing)
 portal/            ← static site → Cloudflare Pages
-  index.html
-  control.html
+  index.html       ← the website: visitors
+  broadcast.html   ← the YouTube build: what OBS captures (§5.9)
+  control.html     ← the phone: moods, and wake/seal for the broadcast
   js/  css/
+    main.js        ← wiring for index.html
+    broadcast.js   ← wiring for broadcast.html
+    relay.js       ← §5.8 control channel (local | ntfy | none)
+    mic.js         ← §5.9 local capture; audio.js's broadcast counterpart
   _headers         ← Pages response headers (Pages consumes, never serves)
   robots.txt
   assets/eye/      ← §5.3 plug
@@ -393,6 +609,11 @@ hardware/          ← empty until the ESP32 day
 | Confirm/adjust initial theme list (currently the 7 in §5.2) | Owner | M4 |
 | Generate the ntfy topic string, put it in `server/ntfy-on-connect.sh` **and** `NTFY_TOPIC` in `portal/js/config.js` (§5.7) | Owner | M6 |
 | USB audio interface vs phone mic for piano | Owner | Whenever sound quality itches |
+| **Moods still short of their name** — these need new motifs (§5.4), which is an engine change and deliberately rare, so they are batched rather than taken one at a time: forest wants trunks and will-o-wisps (it currently reads as green fog); rain wants splashes where drops land; cave wants a circular/tunnel structure instead of `crags`' stained-glass read; mountain wants an actual ridgeline silhouette, and drifting rather than static snow; ocean wants foam and wave crests | Next build session | M5 |
+| Generate a **second, distinct** ntfy topic for the §5.8 relay; keep it in two bookmarks, not in `config.js` | Owner | M7 |
+| Install OBS, enable YouTube live streaming (24h first-time delay) | Owner | M7 |
+| Verify OBS's Browser Source grants microphone access on this machine; fall back to Window Capture if not (RUNNING.md Part 3) | Owner | M7 |
+| Decide the archive posture: YouTube keeps a VOD, comments and a subscriber count, all of which §1 deliberately does not have | Owner | Before the first public stream |
 
 ---
 
@@ -400,7 +621,10 @@ hardware/          ← empty until the ESP32 day
 
 - Read this file before writing code. Implement to the contracts in §5.
 - Keep the portal dependency-free: plain HTML/CSS/JS + WebGL. No frameworks, no build step, no npm. It must deploy to Pages as-is and still make sense in five years. Dev tooling is exempt but stays inside `tools/` (D16).
-- Run `cd tools && npm test` before committing portal changes. It is fast, it drives the real ceremony, and a console error fails it.
+- Run `cd tools && npm test` before committing portal changes. It is fast, it drives the real ceremony, and a console error fails it. It runs three suites: the validator, the website's 34 checks, and the broadcast's 49. **The website count dropping is a regression, full stop** — `broadcast.html` shares its engine and must never cost it anything.
+- **Working on the look? Read §14 first.** It is the standing art-direction backlog and the accumulated list of what has already been tried and why it failed.
+- **The owner is not a developer, and the docs assume that.** They report what the render *looks like*, not what is wrong with the code, and those reports have been reliable — "a grid" was a value-noise lattice, "a seam" was an `atan` wrap, "letterboxing" was the aperture opening past 1.0. Take the description literally and hunt for the mechanism. On the tooling side, assume nothing is installed and nothing about git is known: `TESTING.md` starts at cloning the repository because the first attempt at these instructions started at `cd music-is-magic` and stranded them on an empty folder.
+- **`TESTING.md` and `RUNNING.md` are deliverables, not notes.** They are written for the owner at the machine, not for a build session, and they assume nothing is installed. If a change alters what the owner types, sees, installs, or clicks, update them **in the same commit as the code** — the same rule §4/§11 already have. A stale runbook is worse than no runbook, because it gets followed.
 - The portal is written to degrade silently — a bad asset, a missing file, a dead fetch all render *something*. That is correct for visitors and terrible for review, which is why the validator exists. Never "fix" a silent fallback by making it throw.
 - Placeholder art is real deliverable, not filler: every asset slot renders procedurally until the owner plugs files in (D11).
 - When a decision changes or an open item resolves, edit §4/§11 in the same commit as the code.
@@ -409,6 +633,463 @@ hardware/          ← empty until the ESP32 day
 ---
 
 ## 13. Build log
+
+### 2026-08-01 — mountain: the crags went, and the peaks are about relief
+
+§14.8's P1. The corrected advection was implemented exactly as that section
+derived it — convert through screen space, so a ridge layer's shift of
+`R / (1.5 - L*0.34)` on screen becomes `R / (1.5 - L*0.34) * (u_scale * grain)`
+in crag units, 3x and 6x the old rates. Then two more defects turned up that
+the rate could not fix:
+
+- **One cell size for all three ranges** is a flat statement that they are the
+  same distance away, which contradicts the parallax the rate had just been
+  fixed to obey. Scale is the strongest depth cue there is.
+- **The joint between two planes is a dark line**, and at that grain over a
+  whole frame it is a net of thin dark lines at one contrast — a crazed pane
+  of glass. "A stationary craggy window" describes the *look* as much as the
+  motion, and the look survived the motion fix.
+
+All three were addressed, and the owner's verdict on seeing it against the
+alternative was "no crags looks better". So mountain carries `ridge`, `snow`
+and `dapple` and no rock texture at all. The motif stays in the engine —
+nothing else changed, and it is one word in a theme.json to bring back.
+
+**The peaks.** "Squished" turned out not to be about height: dropping the
+amplitude, which is what §14.8 derived, made it worse, because a range whose
+valley floor sits high is a solid wide mass with a wiggle along the top — a
+wave. The fix is relief: drop the floor (`-0.02 - fi*0.18`, was
+`0.06 - fi*0.14`), raise the amplitude (`0.42 + fi*0.12`), and take the
+needles out of the *fine* octave's additive term rather than out of the
+profile. Sharpness is now per range as well: distance rounds a ridgeline off,
+and one sharpness for all three made three ranges read as three copies of one
+drawing at different sizes.
+
+Two things worth not rediscovering:
+
+- **Spindrift was rendering as rectangles.** Both gust noises were sampled
+  along a fixed row, so they were vertical stripes, and a horizontal band
+  times a vertical stripe is a rectangle — hard-edged blocks wherever the near
+  crest ran flat. It had been there all along under the crag texture; deleting
+  crags is what exposed it. Any motif built as *band x stripe* has this bug
+  waiting in it.
+- **Asymmetric ridges cannot come from reshaping the fold.** Falling at
+  different rates either side of the crease needs a clamp where the gentle
+  side goes negative, and that clamp is a flat valley floor: the ranges came
+  out as mesas. Real ridgelines do climb one way and drop the other, and the
+  place to get that is a warp of the profile's x *before* the fold.
+
+### 2026-08-01 — cave: a lattice was the wrong structure for a few big objects
+
+§14.8's P0, all three faults. Measured before and after, field alone at the
+broadcast frame's size: **401.6 ms → 220.7 ms per frame**, from 2.25x the
+cheapest mood to 1.22x, and cave is now mid-pack rather than worst by a
+distance.
+
+**The architecture was the bug, exactly as diagnosed.** `mCrystals` searched a
+3x3 neighbourhood with up to four spears per cell — 36 spear evaluations and 81
+sin-based hashes per fragment — to draw at most three lit clusters. A lattice
+makes every fragment pay for every cluster that *could* be near it. The
+clusters are enumerated now: four of them, at hashed positions in the rock's
+frame, three spears each, with a bounding test that rejects a whole cluster
+before its spear loop. That test is the part that pays: a cluster covers a
+contiguous patch of screen, so neighbouring fragments agree about it and the
+whole warp skips together.
+
+Also in that pass, and worth separating from the architecture:
+
+- **A cheap hash, confined to cave.** `ch1`/`ch2` are the usual fract-and-dot
+  bit mixing, no transcendental. §14.8 was right that a sin-free hash pays off
+  everywhere, and wrong that it is contained: every voronoi lattice in the
+  engine is seeded from `hash2`, so swapping it globally re-rolls the crag map,
+  the ice shards, the wisps and the rain lanes at once — and two moods are
+  finished. It is used by `mTunnel` and `mCrystals`, which are cave's alone.
+- **`pow(lam, 9.0)` is written out as five multiplies** — and softened to a
+  fifth power, see below.
+
+**Nothing was visible because two gates had to fire at once**, and neither was
+certain: a cluster had to be nominated by a hash AND a face had to fall inside
+that very tight lobe. The nomination is now a staggered envelope — each slot
+holds a cluster for a turn of the selection clock and hands over, and the hold
+is wider than the gap between slots, so *some* cluster is always fully
+nominated. On top of that the prism's rim survives any light angle, and the
+mass carries a small ambient of its own. What the playing changes is which
+seam is lit, never whether one is.
+
+**Cave had no `travel`, so the clock the whole design hangs off never
+advanced.** `u_flow` was pinned at 0: the light never swung past whatever the
+centroid gave it, and `floor(selClock)` never left its first epoch, so the same
+clusters were nominated forever. Cave now carries `travel: 0.5` and no current,
+so it moves nothing except the light and the selection. Worth checking for on
+any mood whose look depends on the flow clock — a clock that does not advance
+is not a clock, and nothing about a still frame says so.
+
+**The horizon arc was the floor, and a tunnel must not have one.** The passage
+already has a floor — its own lower wall, in its own perspective — and a
+silhouette drawn at a fixed height over that is a second space claiming the
+same pixels, which is why it appeared to bisect the crystals. The floor is
+asked for by `drips` now (things that fall need somewhere to arrive), and only
+where there is no passage. Crystals never wanted one: they grow out of a wall.
+
+Two notes for whoever looks at cave next. The crystals were also simply too
+big — a spear a full lattice cell long spans most of the aperture's radius at
+this scale, which is why "jagged shapes" was the owner's description rather
+than "crystals"; they are less than half that now. And the rock still reads
+more like petals than stone in a still, which is not in §14.8's list and was
+left alone deliberately, but it is the next thing to look at if cave still
+does not feel like a cave.
+
+### 2026-08-01 — a number instead of an argument
+
+§14.8 asked for a frame-time readout before anything else in P0, and it was
+right to: every performance claim in this document was arithmetic over the
+shader source, including the one that said cave was unusable. The broadcast HUD
+now carries a `frame` row (median ms and fps, amber past 21 ms, red past 33),
+and `tools/perf.mjs` reports ms/frame per mood.
+
+Measured, field alone at the broadcast frame's size (907x472), software
+renderer, so read the ratios and not the milliseconds:
+
+| mood | ms/frame | vs cheapest |
+|---|---|---|
+| cave | 401.6 | 2.25x |
+| forest | 239.9 | 1.35x |
+| mountain | 218.4 | 1.23x |
+| ice | 196.3 | 1.10x |
+| rain / sunshine | 188.0 | 1.05x |
+| night | 184.1 | 1.03x |
+| ocean | 178.2 | 1.00x |
+
+So cave costs 1.7x the next dearest mood and 2.25x the cheapest, on a field
+where the shared base field alone is most of what everything else pays. P0's
+diagnosis holds, and now it holds with evidence.
+
+Three things about measuring this, all learned by getting a wrong answer first:
+
+- **A frame-count window is a time window that lies.** The HUD's median started
+  as the last 120 frames — two seconds on a healthy machine, and thirty on a
+  struggling one. So the readout went stale exactly where it was needed, and
+  the first perf run reported a smooth ramp that tracked the ORDER the moods
+  were tested in rather than what was on screen. The window is two seconds now,
+  with a floor of twelve samples.
+- **Disabling vsync to escape the 16.7 ms quantization makes it worse.**
+  `requestAnimationFrame` then outruns the compositor, callbacks queue, and the
+  measured gap climbs through the run: whatever is tested last reads four times
+  whatever was tested first, whichever moods those are.
+- **End-to-end frame time saturates on a machine with no GPU.** With the eye's
+  compositing in the loop, every mood pinned at the same rate and the moods
+  became indistinguishable. `perf.mjs` therefore times the field on its own by
+  default (`--mode hud` is the end-to-end view, for a machine with a GPU).
+
+### 2026-08-01 — a mood panel on the rig itself
+
+The broadcast HUD could wake and seal but not choose a mood, so judging eight
+looks meant reaching for the phone eight times — which is how you stop trying
+them. It now has the same index.json-driven panel the control page has, plus
+1–9 keys. Choosing publishes as well as applies, so a paired phone stays in
+step; the panel is a second view of the relay's state, not a second source.
+
+Two things the smoke checks pin down, both learned by getting them wrong:
+the HUD fades to `pointer-events: none`, so a click test has to stir it with
+a real mouse move — forcing the click would have tested a panel no hand can
+hit — and the keyboard path deliberately survives that fade, which is the
+state the rig sits in for most of a set.
+
+### 2026-08-01 — fifth review: objects, not patterns
+
+The cave lesson is the general one, and it took three rounds to see: **a
+pattern in a surface cannot read as an object in front of it.** Every attempt
+to make crystals out of the wall's own voronoi produced stained glass, because
+a lit field seen through faceted shapes IS a window. Crystals became geometry —
+tapered prisms with two faces, clustered, growing off the rock — and the mood
+arrived immediately. Watch for the same shape of problem anywhere a motif is
+asked to be a THING rather than a texture.
+
+Deletions worth noting as a pattern of their own: the ambient loudness
+brightening followed the onset ring out, along with its mapping key. Both were
+the engine's pre-motif answer to the music, and a generic response competes
+with every specific one — the moods got louder, not quieter, for losing them.
+Ambient glints are now opt-in and off nearly everywhere for the same reason.
+
+Also fixed, found while chasing a shader that would not compile: `createViz`
+fell back to Canvas2D on a canvas that had already been given a WebGL context,
+where `getContext('2d')` returns null — so the fallback threw on every frame
+and took the eye down with it. It degrades to a dark aperture now.
+
+### 2026-08-01 — fourth review: named for what it is
+
+'default' is 'night' now, and the fallback name is a single export
+(FALLBACK_THEME) that the loader, the validator and this document all obey —
+old tokens alias through the unknown-token path. The visual work is §14.6's
+list; the lessons worth keeping:
+
+- **Light on a dark ground must be ADDED, not mixed.** The aurora was
+  invisible at any gain while it was a mix toward palette blues that
+  nearly matched the sky behind it. Same family as "light of a colour is
+  a material": light on night is addition.
+- **A cyclical effect must start at the right phase.** Frost driven by
+  sin(flow) began mid-cycle and the eye opened onto half-frosted glass;
+  a −π/2 offset makes silence clear and playing the thing that frosts it.
+- **Composed motifs need composition rules.** Sky-crags, snow-through-crag
+  "holes", static texture under a moving silhouette, full-size drips in
+  front of a receding tunnel — every one was two correct motifs composed
+  without a shared convention. skyMask, per-layer advection and the
+  near-field drip mask are those conventions now.
+- **Response budgets are zero-sum.** Cave only got a voice when the rock's
+  brightRms was CUT — the crystals were answering all along, but the whole
+  field glowing over them drowned it.
+
+### 2026-08-01 — the travel clock: motion that never gives back
+
+Third live review. The owner named the oscillation artifact precisely (snow
+"moves back and forth with the sound instead of always in one direction"),
+which exposed a doctrine error in the previous entry: displacement by a
+LEVEL is not safe — it retracts when the level falls. Displacement is only
+safe from a decaying envelope, where returning to rest is the point.
+
+The fix is the engine's third clock: `u_flow`, integrated on the CPU
+(`flowAcc += dt * travel * f(rms)`), monotonic by construction, with a
+per-theme direction that advects the whole texture-space frame. Ocean was
+the same bug in a second costume — crest phase sliding through
+aperture-anchored bend noise wriggled in place — fixed by building all of
+the surf's noises in one frame advected by the same clock. §5.4 now states
+the three lawful couplings; the table there maps every theme's use of them.
+
+Also: `u_centroid` (smoothed pitch) as groundwork — aurora wakes on high
+playing, ice strikes choose shard families by register, meteors vary their
+paths. And two regressions the owner caught: cave's glitter (site mask too
+strict, no ambient floor under sites — both corrected) and rain's ground
+(now a hard surface at the lens bottom with a wet sheen).
+
+### 2026-08-01 — the onset ring is gone
+
+Removed the expanding circle that an onset drew over the whole field. It was
+the engine's entire answer to an onset back when a theme was a palette and a
+fog, and once every mood had its own gesture it was a generic ripple fighting
+eight specific ones. `u_pulse` itself is untouched and busier than ever — the
+ray kick, the ice strikes, the meteor and the splash bursts all ride it.
+
+**One consequence to watch.** `u_pulse` is forced to 0 under
+`prefers-reduced-motion`, which was right when it only drew a ripple. Now it
+also carries pure-brightness gestures (ice's shard strikes), so a
+reduced-motion visitor gets a noticeably quieter ice. Left as is — the
+accessibility promise is the stronger claim, and ice still answers loudness
+through its seams — but if that theme reads as dead to such a visitor, the fix
+is to pass a damped pulse rather than zero, not to restore the ring.
+
+### 2026-08-01 — second review: each mood learns its own answer to the music
+
+All seven notes from the owner's live review, plus the standing direction:
+specialize how the mic reaches each mood. The mechanism inventory is the
+signature table in §5.4. Things learned:
+
+- **Audio may displace a pattern or scale its brightness — never scale its
+  time.** Every "dance"/"kick"/"shoulder" effect is a decaying-envelope
+  displacement (`u_pulse`) or a smoothed offset (`u_rms`). Time-scaling by a
+  live feature lurches the pattern; this is §13's warp lesson generalized.
+- **The onset envelope is a free animation clock.** The meteor and the ray
+  kick both ride (1 - pulse): the pulse decays over ~a second, so a streak
+  that moves by its value travels smoothly with zero added state.
+- **Ice was fixed by inversion, not addition.** The complaint was stagnation;
+  the answer was to make quiet MORE still (no ambient glitter) so that the
+  strike — whole shards flashed by an onset — has silence to land against.
+- **The aperture-brightness smoke check bit again, correctly:** the midnight
+  palette dipped default below 3x sealed. Low steps lifted; check unchanged.
+
+### 2026-08-01 — the art-direction batch: five motifs, and glints with a home
+
+§14 taken as one pass. The engine gained `tunnel`, `ridge`, `wisps`, `foam` and
+`stars`; drips gained a floor to land on; glints stopped being a global overlay.
+§14.1–14.3 are closed, §14.4 lists what is left.
+
+Four things worth not rediscovering, beyond §5.4's findings list:
+
+- **Motif weights are packed into a `vec4` array now.** Thirteen motifs is more
+  scalar uniforms than GLES2 guarantees exist. The `#define W_<name>` block is
+  generated from `MOTIFS` in themes.js, so a motif is still named in exactly
+  one place and a rename still fails validation rather than silently doing
+  nothing.
+- **The smoke check caught a real design mistake, not a false positive.** Making
+  `default` a night sky dropped the aperture below the "field shows through"
+  threshold, which is precisely the failure the check exists for: the fallback
+  theme has to look open. The palette was lifted; the check was not.
+- **Every mood was tuned from stills, at silence.** That is the weakest part of
+  this pass. Motifs answer `u_rms` now, so what a screenshot shows is the quiet
+  end of each one.
+- **A shader comment cannot contain a backtick.** The whole fragment source is
+  a JS template literal. This is written at the top of the motif block and was
+  still worth an error.
+
+### 2026-08-01 — handoff
+
+Session ends with M7 working end to end: the owner has the eye running on
+their own machine, microphone driving the field, phone driving the moods over
+a paired ntfy channel. OBS and YouTube (§14 aside) are the only untouched
+parts of RUNNING.md, and they need the owner's hardware and account rather
+than any more code.
+
+What the next session should know, beyond §12 and §14:
+
+- **The ntfy path cannot be tested from a build sandbox** — outbound access to
+  ntfy.sh is blocked, so all 49 broadcast checks run against the `local`
+  relay. Both bugs that reached the owner were in the untested half: an
+  `EventSource` subscription that could never confirm itself, and custom
+  headers that turned every publish into a preflighted request. Reason about
+  that path with extra care, because nothing will catch you.
+- **The query string is not a place to keep configuration.** `serve` discards
+  it on its `.html` redirect, home-screen shortcuts drop it, OBS browser
+  sources drop it. The pairing code is typed into the page and stored per
+  device for exactly that reason; `?topic=` survives only as a shortcut.
+- **A confident wrong status costs more than no status.** Two indicators were
+  seeded optimistic and only ever downgraded, so both ends reported health on
+  the strength of nothing having failed yet — and sent the owner hunting in
+  the wrong place for an evening. Everything now starts at "connecting".
+
+### 2026-08-01 — two rendering bugs, and motifs that answer the room
+
+Full mood review from the owner. Most of it is taste and is listed in §11 as
+still open, but two items were defects and one was structural.
+
+**The seam in forest and sunshine was `atan`.** `mRays` took `atan(d.x, d.y)`
+and fed it to `fbm`, and atan wraps from +pi to -pi directly below the light
+source — so the noise jumped along a vertical line there. Sunshine's own
+shafts mostly disguised it, which is why it was reported as "weird" in forest
+and merely "similar" in sunshine. Fixed by sampling the noise around a circle
+(`vec2(cos a, sin a)`), which is continuous across the wrap.
+
+**The letterboxing on loud notes was the aperture opening past full.**
+`eye.js` multiplied the open fraction by `0.94 + bass * 0.1`, which reaches
+1.04 — and §D17 draws the field at the *fixed* full aperture box on purpose,
+so anything past 1.0 exposes the edge of the plane behind it. Clamped to 1,
+and moved onto a smoothed bass for the same reason the warp was.
+
+**No motif answered the audio.** Every one of them took only `t`; the whole
+audio response lived in the base field, the palette, and the aperture. That is
+why rain's only visible reaction was the eye bulging. There is now a smoothed
+`u_rms` available inside the motifs: rays sharpen and reach further with
+loudness, drips thicken, and ice's seams — which is where ice catches light —
+take their specular from it. Frozen geometry, moving highlights.
+
+Also, per the owner's diagnosis of the glints, which was exactly right: they
+should not get *denser* as the room gets louder, they should change *position*.
+Density is now fixed per theme and each cell re-rolls its position and its
+coin-flip on its own clock, so what the music drives is brightness. They are
+also multiplied by the lit-ness of the surface under them — a glint on the dark
+side of a crag was the tell that they were unrelated to the shapes.
+
+And drips fell far too slowly: the first pass had dense drips *slower* than
+sparse ones, on the theory that sheets drag. Rain does not drag. Both ends are
+fast now, which is the difference between rain and a meteor shower.
+
+### 2026-08-01 — a cave that reads as a cave
+
+Owner review of the moods, and the useful part was not any single note but the
+summary: "the identical fog effect suffusing everything reduces everything to a
+sort of sameyness." True, and structural — every theme was the same
+domain-warped fbm at full strength and full speed, wearing a different palette.
+
+Two data-only knobs, both defaulting to no change (§5.4): `drift` scales the
+base field's evolution, `base` scales its contribution. Cave now runs nearly
+frozen and half-strength, so the motifs carry the look instead of decorating a
+cloud.
+
+Found along the way, and worth keeping:
+
+- **The sparkle was a grid, and it was a bug.** It thresholded value noise near
+  its ceiling — and value noise peaks at its integer lattice, so every glint
+  landed on a regular grid. It read as a rendering artifact because it was one.
+  Replaced with `mGlint`: one candidate per cell at a hashed position inside
+  that cell, each twinkling on its own phase.
+- **Freezing fog does not make rock.** A domain-warped fbm held still still
+  looks like frozen smoke, because the warp is what makes it smoke. Cave only
+  read as stone once it used `crags` and dropped `warp` to 0.55.
+- **Finer crags read as more mosaic, not less.** §5.4 already warned that clean
+  voronoi tiles; the fix is fewer, larger planes, not smaller ones. Scale 2.0
+  reads as rock faces where 3.4 reads as cracked tile.
+- **Sparse drips were thin rain, not rare drips.** Weight controlled how *many*
+  there were but not what they *were*, so a cave got slow constant streams. Now
+  shape follows weight: sparse means short, fast, genuinely occasional
+  droplets (~0.27 on screen at cave's setting), dense means long slow streaks.
+  The gain that was supposed to keep sparse drips as bright as dense ones was
+  doing the opposite; it is flat now.
+
+### 2026-08-01 — the field twitched, because geometry was on a 40 ms filter
+
+First owner review of a working broadcast: the fog "twitches back and forth
+instead of flowing fluidly". It was not a glitch — it was the mapping doing
+exactly what it said.
+
+`u_warp` is the domain warp, so it displaces the coordinate every sample in
+the field is read from. It was driven by `bass`, which §5.5 extracts with a
+**40 ms attack** so that hits land crisply. With the default mapping that put
+a 0.77→1.76 swing on the warp at very nearly frame rate: measured against a
+simulated piano bass, single-frame jumps of up to 0.87 on a span of 0.9. The
+field could not flow, because its coordinate space was being yanked.
+
+The rule this yields, now written into `viz.js`: **smooth what moves geometry,
+leave what only moves light alone.** Brightness, sparkle and the onset pulse
+are still instant — that is the audio being visible. Warp and palette shift now
+run through their own one-pole filters (0.35 s and 1.0 s). Same for the
+Canvas2D fallback's blob displacement and radius.
+
+Worth not rediscovering: past a ~0.15 s time constant the resulting warp
+*range* stops changing at all, so heavier filtering buys smoothness with
+latency and nothing else. The table of measurements is in the code next to the
+constant. There is no automated guard here — like the motif-direction problem
+in §5.4, nothing measurable in a still frame distinguishes flowing from
+twitching. Reason about it, then watch it move.
+
+### 2026-08-01 — M7, the YouTube broadcast build
+
+Owner wants to stream on YouTube from a desktop with a microphone and no
+webcam, feeding the eye in as the picture, still driving the moods from a
+phone. It works, and most of it was config rather than code — but one
+constraint shaped everything and is worth stating plainly:
+
+**A web page cannot register itself as an OS camera device.** There is no API
+for it on any browser. YouTube's webcam flow enumerates system devices, so
+"feed the eye in as a webcam" necessarily means a virtual camera *driver*, and
+OBS's is the free one. Once OBS is installed anyway, its stream key path is
+strictly better than the virtual camera (D20), so that became the default and
+the webcam flow is documented as the alternative the owner actually asked
+about.
+
+Built as a second page in the same portal (D18), not a fork. The engine turned
+out to be source-agnostic in exactly the two places that mattered:
+`FeatureExtractor` takes an `AnalyserNode` rather than an audio element, and
+the state machine takes poll results rather than reaching for the network. So
+`state.js` is reused **byte for byte** — the broadcast page runs a local ticker
+that feeds `machine.onPoll()` from the relay, and the 2-poll open rule, the
+drowse path and the auto-commune all fall out of code that already had tests.
+
+Findings worth not rediscovering:
+
+- **KV would have been the wrong bus.** The first sketch was a Cloudflare
+  Worker + KV for phone→desktop. KV is eventually consistent, advertised at up
+  to 60 seconds. ntfy (D19) pushes in real time, needs no account and no
+  deploy, and was already in the stack.
+- **The relay topic is a password, and `config.js` is public.** Baking it in
+  the way `NTFY_TOPIC` is baked in would publish the control surface to every
+  visitor. It travels as `?topic=` in two bookmarks instead, and the constant
+  stays empty with a warning on it.
+- **Voice audio constraints ruin music.** AGC, noise suppression and echo
+  cancellation are all off (§5.9). Left on, sustained piano gets eaten.
+- **A 16:9 frame strands the website's eye.** `R` is sized off `min(W, H)`, so
+  0.3 of a 1080-tall frame leaves the eye small in a lot of black. The radius
+  is now an option, default unchanged, and the smoke test asserts the website's
+  aperture is still exactly `2 × 0.3 × shortEdge` so the composition cannot
+  drift.
+- **Measure the aperture, not lit pixels.** The first attempt at that check
+  counted bright pixels and mostly measured stone, which covers the frame at
+  any scale. `#viz` is sized to the aperture box and is the honest signal.
+- **The HUD has to be able to vanish completely.** In Window Capture mode the
+  page is the broadcast frame.
+
+Left deliberately undone: nothing in `server/`. M7 needs no VPS, no Icecast and
+no domain — it runs at $0/mo, independent of M2.
+
+Also added `TESTING.md` and `RUNNING.md` (see §12), and a second smoke suite.
+The website's 34 checks still pass unchanged; the broadcast adds 33.
 
 ### 2026-07-25 — portal + server templates built
 
@@ -551,4 +1232,488 @@ Portal implementation notes for future sessions:
   mock mode, so no URL can retune a real deployment.
 - In mock/no-analyser situations the viz runs on gentle synthetic features
   instead of freezing — also the graceful path if audio ever fails.
-- `prefers-reduced-motion` is honored (slower field, no blinks/ripples).
+- `prefers-reduced-motion` is honored (slower field, no blinks, onset
+  envelope suppressed — see the note in §13, 2026-08-01).
+
+---
+
+## 14. Art direction backlog (M5) — read this before touching the shader
+
+The engine works and the contracts hold. What is unfinished is that several
+moods do not yet read as their name. This section is the standing list, in the
+owner's own terms, plus what has already been learned about why each is hard.
+
+**How this list came about matters.** The owner reviews by watching it against
+live playing and reports what it looks like, not what is wrong with the code.
+Those reports have been reliable: "the pattern is very regular, like a grid"
+was a value-noise lattice; "a visible seam" was an `atan` wrap; "letterboxing"
+was the aperture opening past 1.0. Take the description literally and go
+looking for the mechanism — three for three so far.
+
+### 14.1 Needs a new motif — DONE (2026-08-01)
+
+Taken as one batch, as §5.4 asks. Five generators went in; every mood on the
+list now has a generator for its material.
+
+| Mood | Was | Now |
+|---|---|---|
+| `forest` | "green fog, or worse, a toxic cloud" | hard-edged trunks in front of a thinner mist, dapple, and `wisps` |
+| `rain` | drips with nowhere to land | drops end at a per-lane floor and throw a crown |
+| `cave` | stained glass | `tunnel` — voronoi in log-polar space, so it recedes |
+| `mountain` | "not shaped like mountains" | `ridge` supplies the silhouette; crags demoted to surface texture; snow drifts |
+| `ocean` | acceptable | `foam` on the swell crests |
+
+What actually fixed each one is in §5.4's findings list, and two of them are
+general: a mask must MULTIPLY its breakup noise, never sum with it, and a
+generator's character comes as much from the space it is evaluated in as from
+the generator itself — `crags` and `tunnel` are the same voronoi.
+
+### 14.2 Glints belong to the geometry — DONE (2026-08-01)
+
+Motifs with structure worth catching light now nominate the sites — seams for
+ice, crystal faces for cave, foam crests for ocean, snow for mountain — and a
+per-theme `own` weight says how far to trust that over the old
+lightness-under-the-glint approximation. Density is raised where a theme has
+sites, because a site is a small part of the aperture and the same number of
+glints spread over it comes to nothing. A theme with no structural motif is
+bit-for-bit unchanged.
+
+### 14.3 `default` is a mood — DONE (2026-08-01)
+
+A night sky: fixed stars on a hashed lattice, a faint band, a dark still base.
+Note the constraint that shaped it — `default` is what a visitor sees if a
+`theme.json` fetch fails, so it cannot be as dark as a real night sky. The
+smoke check that says the field must show through the aperture at 3x sealed
+brightness caught exactly that, and the palette and base were lifted until it
+passed rather than the check being relaxed.
+
+### 14.4 Second review (2026-08-01) — all seven notes taken
+
+The owner reviewed against live playing and the general direction was set:
+per-mood audio specialization ("the way the mic input affects each mood").
+Every note mapped to a mechanism; the signature table in §5.4 is the result.
+
+1. Ocean: swell now travels one way and breaks; base fog turned well down.
+2. Sunshine: gold in the top palette steps; rays kicked and flared by onsets.
+3. Ice: inverted — quiet is still and dark, onsets flash whole shards.
+4. Mountain: landscape still; spindrift, cloud dapple and snowline answer.
+5. Default: midnight blue, aurora, meteors on strong onsets.
+6. Rain: floor lower and curved with the lens; splashes answer; grey palette.
+7. Forest: light became the subject — more dapple/rays, visible wisps,
+   saturated canopy steps, brighter base.
+
+### 14.8 Sixth review — the standing work list (READ THIS FIRST)
+
+The owner reviewed against live playing again. Sunshine and forest are done
+("the gold standard", "hitting all the right notes") — **do not touch them**.
+Ocean and ice are liked. What follows is everything else, in priority order,
+with the diagnosis already done. Where a number is given it was measured or
+derived from the code, not guessed; verify before trusting, but do not
+re-derive from scratch.
+
+#### P0 — Cave is unusable, and it is a performance bug — DONE (2026-08-01)
+
+> Fixed: 401.6 → 220.7 ms/frame (2.25x the cheapest mood → 1.22x), crystals
+> always visible with the playing choosing which, and the floor gone from any
+> theme with a tunnel. The instrumentation this section asked for exists:
+> `frame` in the broadcast HUD, and `npm run perf`. Details in §13. Dynamic
+> resolution is still untaken and is now the only open item here — see the
+> note at the end of P1.
+
+
+> "Very, very laggy. Slowed down my whole computer. And I can't see any
+> crystals. Just a horizon type arc that weirdly bisects some jagged shapes."
+
+Three separate faults, in the order they should be fixed.
+
+**1. The shader is doing absurd work per fragment.** Rough count for cave:
+the base field is 5 `fbm` calls (~100 `hash`), `mTunnel` adds 2 `fbm` for its
+warp plus a 9-cell voronoi (~40 `hash` + 10 `hash2`), and `mCrystals` runs
+**9 cells x up to 4 spears = 36 iterations**, each with two `hash2` calls —
+about 144 `sin` on its own. At the aperture's capped 1024px that is roughly
+440k fragments x 60fps of this. On integrated graphics it will fall off a
+cliff, and "slowed down my whole computer" is consistent with the driver
+thrashing or dropping to software.
+
+The architecture is the bug, not the constants. **Only one to three clusters
+are ever lit, but every fragment evaluates nine cells' worth of them.** A
+lattice is the wrong structure for "a few big objects" — enumerate a fixed
+small set (3 or 4 clusters at hashed positions, 3 spears each = ~12 SDF
+evaluations, no neighbourhood search) and the cost drops by 3-4x with no
+visual loss. Do that before tuning anything else about cave.
+
+Also worth doing while in there, in rough order of value:
+- Early-out on the cluster selection *before* the spear loop, not inside it.
+- `hash2` costs two `sin`; a cheaper integer-style hash would pay off
+  everywhere, and it is a contained change with a visual diff to check.
+- **Add a frame-time readout to the broadcast HUD.** There is no
+  instrumentation at all right now, so every performance claim in this
+  document is arithmetic rather than measurement. A ms/frame number per mood
+  would make the next round of this argument evidence-based.
+- **Consider dynamic resolution:** `MAX_EDGE` is a fixed 1024. Measuring
+  frame time and scaling the field's backing store down when it climbs would
+  protect every mood on weak hardware, not just this one.
+
+**2. Nothing is visible.** The reveal depends on `chosen` (a selection clock)
+AND the light angle happening to catch a face, with `pow(lam, 9.0)` — a very
+tight lobe. Two independent gates that both have to fire is why the owner saw
+nothing. Give it a floor: guarantee at least one cluster lit at all times
+(e.g. take the best of two light directions, or add a rim term that survives
+any angle), so the mood always has something in it and the playing changes
+*which* rather than *whether*.
+
+**3. The "horizon arc" is the floor.** `floorAmt = max(W_drips, W_crystals)`
+draws a hill silhouette at `groundY = -0.24 - uv.x*uv.x*0.18`, and the
+crystals are drawn over and through it, so it reads as an arc bisecting them.
+Either occlude crystals below the floor line and let them sit ON it, or drop
+the floor for cave and cluster the crystals low instead. Right now it is
+neither.
+
+#### P1 — Mountain: the crags still do not move with the mountains — DONE (2026-08-01)
+
+> Resolved by deletion, on the owner's verdict after seeing both: "no crags
+> looks better". The screen-space conversion below was implemented first and
+> is correct — and two further defects turned up that it could not fix, so
+> the escape hatch was the right one. `crags` is now used by no theme; it
+> stays in the engine. Details in §13.
+>
+> The peaks went another round after that ("they still look squished") and
+> are still not finished — see the still-open list.
+
+
+> "It is like we are viewing the moving mountains through a stationary craggy
+> window. If we can't make the crags look (and move as) one with the
+> mountains, we shouldn't have them at all."
+
+**This one is arithmetic, and the numbers are damning.** Ridge layer L shifts
+its profile by `flow * (0.05 + L*0.11)` in its own x-units, and its x-units
+are `uv.x * (1.5 - L*0.34)`, so its *screen* displacement is:
+
+| layer | ridge screen shift | crag screen shift | ratio |
+|---|---|---|---|
+| 0 (far) | 0.033 x flow | 0.0105 x flow | 32% |
+| 1 | 0.138 x flow | 0.0335 x flow | 24% |
+| 2 (near) | 0.329 x flow | 0.0566 x flow | 17% |
+
+The crag offset (`lrate = u_flow * (0.05 + L*0.11) * 2.2`) was written in the
+ridge's x-units and then applied in crag space, which is `uv * scale * grain`
+= `uv * 10.5`. The two spaces differ by that factor, so the rock crawls at a
+fifth of its mountain's speed. **The fix is to convert through screen space
+explicitly:** shift by `flow * (0.05 + L*0.11) / (1.5 - L*0.34) * (scale *
+grain)`. That is 0.35 x flow for the far layer and 3.45 x flow for the near
+one — 3x and 6x the current values.
+
+Take the owner at their word on the escape hatch: if it still does not read
+as one surface after that, **delete crags from mountain** rather than leaving
+a texture that betrays the illusion.
+
+Also mountain: **the peaks overcorrected.** "I didn't mean make the peaks
+look squished and cartoonish... adjust the lower end, don't exaggerate the
+upper." The `ridged *= ridged` squaring plus the `fine` octave plus the
+raised amplitude (`0.38 + fi*0.1`) compounded. Soften the squaring (try
+`pow(ridged, 1.3)`), bring the amplitude back toward the middle, and leave
+the *valleys* alone — the complaint was never that the low ground was wrong.
+
+#### P2 — Lightning is nearly right
+
+> "I'm in love with the lightning!" — with four faults:
+
+- **One bolt per strike.** `seed = floor(t * 0.37)` changes about every 4
+  real seconds at rain's speed, so every onset inside that window redraws the
+  *same* bolt. It needs an event counter, not a clock: **increment a
+  `u_strikeId` uniform in JS when the onset envelope re-triggers** and seed
+  from that. Cheap and exact.
+- **Far too curved.** `wander` amplitude is 0.55 in uv.x across a visible
+  uv.y span of ~0.6. Drop it to ~0.1-0.15 and raise the frequency: a bolt is
+  straight segments with sharp kinks, not a sine.
+- **The gaps.** Distance is measured horizontally (`abs(uv.x - px)`), so
+  wherever the path is steep the band thins to nothing and the channel
+  appears to break. Divide by the slope: `dist = abs(uv.x - px) /
+  sqrt(1.0 + slope*slope)`, with slope from a finite difference of the path
+  noise. This is the standard fix and it will close the gaps completely.
+- **The stormy sky colour is unreachable.** It is gated on
+  `1 - smoothstep(0.3, 0.62, u_centroid)`, i.e. it needs a *low* spectral
+  centroid, and piano — even in the bass — carries enough harmonics that the
+  centroid likely never gets there. The owner could not find anything to play
+  that triggered it, and they were probably right that nothing does. **Drive
+  it from bass energy instead.** `features.js` already extracts `bass`, and
+  nothing but the domain warp consumes it; adding a `u_bass` uniform gives
+  every mood a low-end axis it currently lacks.
+
+#### P3 — Night: the aurora is still too cautious
+
+> "Even at the very top end of the piano, the effect is pretty subtle."
+
+Suspect the *signal*, not the gain. Pitch reaches the shader through two
+smoothers in series: `features.js` smooths centroid with a 0.4s attack, then
+`SHIFT_TAU = 1.0` smooths it again — well over a second of lag, so a quick
+high run barely moves it. Consider giving pitch-driven *light* a faster path
+(a second, lightly-smoothed centroid) while leaving the slow one for anything
+that moves geometry — this is the same "smooth what moves, not what glows"
+split that §13 already established for loudness.
+
+Then, on top of that: more colour variance. The band currently runs green ->
+cyan -> violet on altitude plus pitch. Add variation *across* the curtain as
+well, so different columns burn different colours at once, and let the whole
+thing get genuinely bright when the playing is high and loud. The owner has
+twice said it is too subtle; they are not going to say it a third time.
+
+#### P4 — Nice to have
+
+- **Ocean seascapes.** The owner's idea: drift between stormier / greener /
+  brighter / darker seas. The right shape for this is a **slow state layer** —
+  a feature smoothed over ~30s (long-term loudness and brightness) driving
+  palette mix, foam threshold and travel rate — kept clearly separate from
+  per-frame response. That primitive would serve other moods later.
+- **Ice frost does not start clear**, because at `flow = 0` the per-patch
+  phase term means some patches are already grown. Owner explicitly does not
+  mind ("not a key design philosophy for me"), so this is optional; if you do
+  it, multiply the growth by a ramp like `1 - exp(-flow * k)` so every patch
+  starts at zero regardless of phase.
+- **Ice frost could be more feathery** while staying jagged — more branching
+  generations off the primary needles.
+
+#### P1.5 — Forest: the shafts are too free for a canopy (2026-08-02)
+
+New, from the owner, mid-session — and it revises "forest is finished", so
+take this over §14.8's do-not-touch line:
+
+> "The sunbeams spread out thickly and freely, as if they're shining straight
+> down from the sky. I would suggest that they should filter down more
+> sparsely, flickering and shifting and dappling the darkened ground with
+> light, as if the sunbeams were streaming down from gaps in the canopy."
+
+Three separate claims in that, and they are not the same knob:
+
+1. **Sparser.** Fewer distinct shafts, not a fan. `mRays` builds a continuous
+   fan and `canopy` (0.95 here) multiplies it down; multiplying a fan by a
+   mask leaves a dimmed fan. Sparse means the mask should *select* a few
+   beams, not attenuate all of them.
+2. **Flickering and shifting.** The canopy already rides the travel clock, so
+   the gaps move as you walk; the owner is asking for more of it, and for the
+   leaf-scale flicker that a canopy in a breeze gives.
+3. **Dappling the darkened GROUND.** This is the one with no mechanism at all
+   right now. Forest has no ground: the shafts fade out in mid-air, and
+   `dapple` is an overhead patch of light, not a pool of light on a surface.
+   Where a beam lands is the whole reason the reference images read as forest.
+
+Reference images came with it (dense canopy, hard-edged shafts through gaps,
+bright pools on leaf litter). See the note on references below.
+
+#### Reference images per mood — yes, and here is where to put them
+
+The owner asked, mid-session, whether providing examples of the *feel* for
+each mood would help. It would, and more than anything else on this list: two
+of the three claims above were legible at a glance from the images and would
+have taken several rounds to arrive at in words. Every art note in §14 so far
+has been prose reconstructed into a mechanism, and the reconstruction is where
+the sessions go wrong (three rounds of "stained glass" for cave).
+
+How to keep them, when it happens:
+
+- `reference/<mood>/` at the repo root, a handful of images each, with a
+  one-line note per image saying **what** in it matters ("the shafts are
+  discrete and land on the ground", not "nice forest"). The note is the part
+  that survives; an image without one gets read as a target to copy.
+- They are **references for feel, not textures and not targets.** The engine
+  is procedural and the aperture is a wide short lens; a photograph is a
+  composition this thing cannot and should not reproduce. What transfers is
+  the relationship between elements — what is bright against what, what is
+  sparse, what moves.
+- They cost nothing at runtime: nothing under `portal/` reads them, and the
+  Pages deploy does not ship them.
+
+#### Do not re-litigate
+
+Sunshine and forest are finished. The onset ring, the whole-field loudness
+brightening and ambient glints are gone deliberately (§5.4) — do not
+reintroduce a generic response. The three lawful audio couplings and the
+travel clock's scope (one visit to one mood) are settled; §5.4 has both.
+
+### 14.7 Fifth review (2026-08-01) — objects, not patterns
+
+Two engine-wide deletions (the ambient brightening and the ambient glints —
+see §5.4) and one lesson that finally cracked cave:
+
+- **Cave, the model.** Quartz is not "crystals whose brightness is
+  modulated" — it is **invisible rock that a moving light finds**. Big thick
+  spears with parallel sides and a pyramidal cap, most of them dark at any
+  moment; a light whose ANGLE is pitch (and which swings further the longer
+  you play) picks out whichever faces happen to be turned toward it; and a
+  selection clock running off the travel clock nominates one to three
+  clusters at a time. Ambient contribution is 0.035 — just enough to feel a
+  mass in the dark. Every earlier version failed because it drew the
+  crystals and then tried to make them interesting; this one draws almost
+  nothing and lets the playing do the revealing. Quartz colour is the
+  mineral's own (amethyst, clear, smoky, citrine, a rare aqua), fixed per
+  cluster while the light sweeps across it.
+- **Cave.** The crystals are grown in the ROCK's frame — `mTunnel` hands out
+  its warped log-polar point, and the crystal lattice IS the rock lattice, so
+  one cell of stone hosts one cluster rooted at its near edge and every
+  crystal comes out of a seam between two masses of rock. Placed on their own
+  screen-space grid and merely masked by the geometry (the first attempt),
+  they read as shapes stuck on the wall, because that is what they were.
+  Growth runs along +depth — perpendicular to the wall, into the passage —
+  which also buys perspective for nothing: deep crystals are small and
+  crowded, ones at the mouth are large. Bias that direction too hard and every
+  crystal points at the vanishing point, which turns the wall into a
+  starburst; a third to two thirds surface-normal and the rest the seam's own
+  hash is the balance.
+- **Cave.** Every dimension of a crystal is hashed per spike — count per
+  cluster (1–3), length and stoutness independently, angle over a wide fan,
+  taper from needle to blunt, an asymmetric silhouette, a curve toward the
+  tip, face contrast, and colour. A shape repeated at three scales still
+  reads as one shape: the eye finds the repetition long before it finds the
+  form. Also note `half` is a reserved word in GLSL ES — the compiler
+  rejects it outright, and the Canvas2D guard below is what turned that
+  into a dark aperture instead of a dead page.
+- **Cave.** Three reviews of "stained glass" had one cause: a lit field seen
+  THROUGH faceted shapes is the definition of a window. The rock now replaces
+  the field rather than tinting it (base 0.3), the walls are shaded round by
+  their own distance field instead of flat per cell, and the crystals are
+  `crystals` — actual tapered prisms in clusters, with a lit face and a
+  shadowed one, growing off the rock away from the passage and thickest near
+  the floor. A pattern in a surface can never read as an object in front of
+  it; it had to be modelled as geometry. Cave also has a floor now, for the
+  same reason rain does: things that fall need somewhere to arrive.
+- **Ice.** Frost grows as needles along three fixed axes 60° apart (hexagonal
+  habit, no trig), in patches on their own phases, cracking further out on
+  every onset. Note the threshold: a max of three ridged noises sits near 1
+  almost everywhere, so the front has to ride at 0.75–1.03 — anywhere lower
+  and the whole field crazes over, which is the white-sheet-with-ink-blots
+  the first cut produced.
+- **Mountain.** Each range now samples its OWN patch of the crag map at its
+  own parallax rate (`layer` out of `mRidge`), the grain is much finer under
+  a ridge (cell-scale rock reads as cobbles at that distance), and peaks are
+  taller with a third ridged octave for spurs — rolling hills otherwise.
+- **Ocean.** The current is applied in aperture space and scaled afterwards,
+  so a theme's `scale` can no longer change how fast it appears to run: the
+  fog was drifting at 1/scale of the speed its own surf travelled. Same
+  direction, different pace — which is precisely "not the same physics".
+- **Night.** Aurora colour is the motif's own (green low, cyan, red-violet
+  high — that gradient is altitude), with pitch sliding the whole curtain
+  along the band. A palette-tinted aurora over a blue sky is a slightly
+  bluer blue, which is why it was invisible at any gain.
+- **Forest.** Wisps are phosphorescent bodies in living colours (cold green,
+  blue-cyan, a rare gold) with no hard core; the beams are broken by a canopy
+  sampled in the travel frame, so the shafts open and close as you walk.
+  **`canopy` is a param, and it is 0 everywhere but forest** — the first cut
+  applied foliage break-up inside `mRays` for every theme, which hung a
+  forest above sunshine's open sky. What occludes an open sky is its own
+  weather: sunshine's shafts are cut by its own `clouds` and blaze at the
+  edges where they slip past, which is the actual reason sunbeams are
+  visible at all.
+- **Rain.** `storm`: a bolt is a noise-wandered path down the frame with a
+  fork, plus the flash — which is most of what a storm looks like from inside
+  one — and low dark playing keeps a blue-violet bruise in the air.
+
+### 14.6 Fourth review (2026-08-01) — physics, frost, clouds, and 'night'
+
+All nine notes taken. The rename: `default` is now **`night`** — the engine's
+fallback name lives in `FALLBACK_THEME` (themes.js), the validator enforces
+whatever that says, and old 'default' tokens resolve to night through the
+ordinary unknown-token path, so cached phones keep working.
+
+- **Night**: the aurora was invisible because it was MIXED at low opacity
+  into near-identical midnight blues; it is now added light from the
+  palette's bright end, wakes at a lower pitch gate, and pales as pitch
+  climbs.
+- **Cave**: the rock no longer glows with loudness (brightRms 0.25) — that
+  read as a light bulb behind stone. The response lives in crystal strikes
+  on the tunnel faces (onsets flash clusters, treble widens and shimmers)
+  and in the drips, which now fade toward the tunnel's far end instead of
+  falling full-size across geometry forty feet away.
+- **Ice**: frost. Feathery ridged-noise filaments seed from the seams and
+  creep over the shards on the flow clock's cycle — playing frosts the
+  glass, silence clears it. The cycle starts CLEAR (phase offset −π/2): the
+  first cut started mid-cycle and the eye opened onto half-frosted glass.
+- **Mountain**: three layering bugs fixed — crags masked out of the sky
+  (skyMask from ridge), crag texture advected at the near range's rate so
+  it rides its mountain, and crag faces no longer seed snow when a ridge is
+  running (sky-snow read as holes with drifts behind them).
+- **Ocean**: crests are the peaks of a travelling noise field now, not a
+  bent sine — a sine reads as horizontal bars no matter what. Surf appears
+  where a peak crosses the breaking line, and loudness lowers the line.
+- **Rain**: ground is a gentle hill cresting at centre (the bowl read as a
+  lens artifact); rainfall duty swings much wider with loudness; a strong
+  onset flashes storm light, gated by slant so cave's seep never flashes.
+- **Forest**: wisps carry per-wisp colours (bright pair of steps, the odd
+  cool one), drift slower than the trunks, and flare with TREBLE while bass
+  owns the mist; two distinct greens in the palette's mid steps so the
+  centroid sweep wanders hue. Brown stays confined to the trunk step.
+- **Sunshine**: `clouds` motif — billows that build with loudness, drift on
+  the travel clock, every sunward edge rimmed in gold (same-field sampled
+  one step toward the light).
+- **Engine**: the flow clock's idle floor dropped to 0.12 — a mountain
+  holds nearly still until the music moves it, and the sea rests slow.
+
+### 14.5 Third review (2026-08-01) — the travel clock, and pitch
+
+The owner caught a doctrine error live: level-driven position offsets
+oscillate ("the snow drifts move back and forth with the sound"), and ocean's
+surf slid through aperture-anchored noise ("cut off... wrong direction").
+Both are one mistake — motion driven by a level instead of by an integral.
+The fix is engine infrastructure, on the owner's explicit instruction to go
+deep ("let's just go full on crafting our own visualization engine"):
+
+- **`u_flow` travel clock** + `travel`/`travelX`/`travelY` params (§5.4).
+  Ocean rolls as one advected body (fog, caustics, surf together — the
+  watery fog the owner missed is back at base 0.62); forest walks among
+  two parallax stands of trunks with wisps at mid-distance; mountain
+  journeys along its chain; snow and spindrift stream one way, always.
+- **`u_centroid` pitch uniform.** Aurora wakes on bright playing and its
+  veil colour rises with pitch; ice strikes pick shard families by register;
+  sunshine's fan leans. Meteors now vary position, steepness and side.
+- **Cave's crystalline glitter restored** — the site mask was so strict it
+  passed almost nothing, and the site system had no ambient floor, so cave
+  lost every sparkle (owner: "did we give up on that?"). Mask widened,
+  a lightness floor kept under all site masks, and tunnel faces now carry
+  treble shimmer and onset twinkle directly.
+- **Rain's ground is a surface**: lowered to the lens bottom, mist cut hard
+  to dark below the landing line, wet sheen at it.
+
+### Still open
+
+- **Mountain's peaks are not finished.** Two passes ("squished" both times).
+  The current profile has good relief and distinct ranges, but the lower two
+  still read as scallops — every summit the same isoceles shape and every
+  valley the same rounded arc, because the fold is symmetric. The next thing
+  to try is warping the profile's x before the fold (§13 says why not after).
+- **Cave's rock reads as petals rather than stone** in a still — soft lobed
+  cells converging on the vanishing point. Not on any owner's list yet, and
+  not touched; it is the next thing to look at if cave still does not feel
+  like a cave now that the crystals are visible.
+- **Dynamic resolution is still untaken** (§14.8's last P0 bullet). `MAX_EDGE`
+  is a fixed 1024. Now that frame time is measured, scaling the field's
+  backing store down when it climbs would protect every mood on weak hardware.
+  Deliberately not done in the same pass as cave: it would have made the
+  before/after measurement meaningless, and a page that quietly halves its own
+  resolution while the owner judges a look is a bad thing to introduce
+  silently.
+- **Everything audio-driven wants eyes on it against live playing** — now
+  including travel rates: quiet walking pace vs loud is reasoned, not seen.
+- **Cave drips: velocity was raised twice and still needs a verdict.**
+- Ice is owner-approved for now; only the pitch-family selection was added.
+
+### 14.5 What will bite you
+
+- **Nothing here has an automated guard.** §5.4 says it about motif direction
+  and it is true of all of it: the composited output is dominated by the base
+  field and the socket shading, so no measurement isolates one motif. Two
+  attempts at a smoke check were too flaky to keep. `npm run shots` and
+  `tools/` render loops are the instrument; watching it move is the test.
+- **A still frame proves almost nothing now.** Since motifs answer `u_rms`,
+  most of what changed recently is invisible in a screenshot. Verify against
+  real audio or synthetic features in motion.
+- **`portal/js/themes.js` carries a built-in copy of every theme** so a failed
+  `theme.json` fetch can never blank the site. Edit one and you must edit the
+  other; `node tools/validate-assets.mjs` fails loudly when they drift, and it
+  has caught it twice.
+- **Smooth what moves geometry, leave what moves light alone** (§13,
+  2026-08-01). Features arrive with a 40 ms attack. On a colour ramp that is
+  correct; on a coordinate it is a twitch.
+- **The aperture must never open past 1.0.** The field is drawn at the fixed
+  full aperture box on purpose (D17), so anything beyond it shows the plane's
+  edge as a black band.
+- **Any angular coordinate needs sampling around a circle**, not fed to `fbm`
+  raw. `atan` wraps, and the wrap is a visible line.

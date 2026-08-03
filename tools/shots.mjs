@@ -60,8 +60,47 @@ page.on('pageerror', (e) => console.error('  page error:', e.message));
 
 const shots = [];
 let n = 0;
+// The eye blinks now, and a blink is ~190ms of shut aperture that will
+// happily land in the middle of a capture — the first contact sheet taken
+// after blinking shipped had a mood photographed as a closed lid. Wait for the
+// aperture to be near its widest before the shutter, measured the same way the
+// smoke test measures it: bright pixels down the plate's centre column ARE the
+// aperture's height. Only where an eye is meant to be open, so the sealed and
+// drowsing frames still photograph as themselves.
+async function settleAperture(timeout = 4000) {
+  const openable = await page.evaluate(
+    () => ['open', 'communing', 'stirring'].includes(document.body.dataset.eye)
+  );
+  if (!openable) return;
+  try {
+    await page.waitForFunction(() => {
+      const c = document.getElementById('eye');
+      if (!c) return true;
+      const g = c.getContext('2d');
+      const d = g.getImageData(Math.round(c.width / 2), 0, 1, c.height).data;
+      let peak = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        peak = Math.max(peak, d[i] + d[i + 1] + d[i + 2]);
+      }
+      if (peak < 30) return false;
+      let rows = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] + d[i + 1] + d[i + 2] > peak * 0.5) rows++;
+      }
+      // Remember the widest it has been and only shoot near that, so this
+      // cannot settle for a half-open lid on the way back up.
+      window.__apexRows = Math.max(window.__apexRows || 0, rows);
+      return rows > window.__apexRows * 0.9;
+    }, null, { timeout, polling: 40 });
+  } catch (_) {
+    // A stubborn frame is still worth photographing; a missing shot is worse
+    // than a blinking one.
+  }
+}
+
 async function shot(label) {
   const file = join(OUT, `${String(++n).padStart(2, '0')}-${label.replace(/\W+/g, '-')}.png`);
+  await settleAperture();
   await page.screenshot({ path: file });
   shots.push({ file, label });
   console.log(' ', label);

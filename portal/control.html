@@ -40,10 +40,90 @@
     }
     #dot.live { background: #7fae62; box-shadow: 0 0 10px #7fae62; }
     #dot.offline { background: #7a4040; }
+    /* One row per family. Was a two-column grid, which at sixteen themes put
+       a sub-mood diagonally opposite the mood it belongs to. */
     #buttons {
+      display: grid;
+      gap: 0.55rem;
+    }
+    #buttons .fam {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: stretch;
+    }
+    #buttons .fam > button:first-child { flex: 1 1 8rem; }
+    #buttons button.sub {
+      flex: 0 1 auto;
+      font-size: 0.85rem;
+      opacity: 0.72;
+      padding-left: 0.7rem;
+      padding-right: 0.7rem;
+    }
+    /* §5.8 — only meaningful when a relay is configured, so the whole block
+       is removed rather than shown dead when it is not. */
+    #ceremony {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0.8rem;
+    }
+    #ceremony button {
+      font-size: 1.05rem;
+      padding: 0.9rem 0.5rem;
+      border-radius: 0.7rem;
+      border: 1px solid #35304a;
+      background: #14121f;
+      color: #cfc9e0;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+    }
+    #ceremony button.on { background: #241f38; border-color: #8d80b8; }
+    #ceremony button.ok { border-color: #7fae62; }
+    #ceremony button.fail { border-color: #b05252; }
+    .label {
+      font-size: 0.72rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      opacity: 0.4;
+      margin-bottom: -0.6rem;
+    }
+    #noRelay {
+      margin: 0;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      opacity: 0.5;
+    }
+    #noRelay code {
+      background: #14121f;
+      border: 1px solid #35304a;
+      border-radius: 0.25rem;
+      padding: 0.05rem 0.3rem;
+      font-size: 0.95em;
+    }
+    #noRelay[hidden] { display: none; }
+    #pair { display: flex; gap: 0.5rem; }
+    #pair input {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      font-size: 1rem;
+      padding: 0.7rem 0.6rem;
+      border-radius: 0.5rem;
+      border: 1px solid #35304a;
+      background: #0c0a14;
+      color: #cfc9e0;
+    }
+    #pair input:focus { outline: none; border-color: #8d80b8; }
+    #pair input.ok { border-color: #7fae62; }
+    #pair input.fail { border-color: #b05252; }
+    #pair button {
+      font: inherit;
+      padding: 0.7rem 1.1rem;
+      border-radius: 0.5rem;
+      border: 1px solid #35304a;
+      background: #14121f;
+      color: #cfc9e0;
+      cursor: pointer;
     }
     #buttons button {
       font-size: 1.15rem;
@@ -74,12 +154,42 @@
 </head>
 <body>
   <header><span id="dot"></span><span id="statusText">waking…</span></header>
+  <div id="ceremonyWrap" hidden>
+    <p class="label">the eye</p>
+    <div id="ceremony">
+      <button id="bWake">wake</button>
+      <button id="bSeal">seal</button>
+    </div>
+  </div>
+  <!-- Shown in place of the ceremony block when nothing is paired. This page
+       is owner-only and unlisted, so it can afford to explain itself; a
+       silently missing control reads as a broken page. -->
+  <p id="noRelay" hidden>
+    Not paired, so <em>wake</em> and <em>seal</em> are hidden — on the website
+    the eye follows the stream and there is nothing to command. Enter the same
+    pairing code here and on the broadcast page to drive a broadcast.
+  </p>
+  <p class="label">pairing code</p>
+  <form id="pair">
+    <input id="code" type="text" placeholder="pairing code" autocomplete="off"
+           autocapitalize="none" autocorrect="off" spellcheck="false">
+    <button type="submit">pair</button>
+  </form>
+  <p class="label">mood</p>
   <main id="buttons"></main>
   <footer><button id="forget">forget password</button></footer>
 
   <script type="module">
-    import { CONFIG } from './js/config.js';
+    import { CONFIG, readRelayTopic, writeRelayTopic, isValidTopic } from './js/config.js';
     import { createPoller } from './js/status.js';
+    import { createRelay, EYE_LIVE, EYE_SEALED } from './js/relay.js';
+
+    // §5.8 — the broadcast control channel. Independent of the Icecast path
+    // below: with both configured this page drives the website and the
+    // YouTube broadcast from the same taps, and with neither it is still a
+    // working mock. Nothing here can break the Icecast buttons.
+    // Reassigned when a new code is paired, so this cannot be const.
+    let relay = createRelay({ mode: CONFIG.relayMode, topic: CONFIG.relayTopic });
 
     const AUTH_KEY = 'mim.adminAuth';
     let auth = null;
@@ -109,7 +219,7 @@
 
     // Buttons come from the same index.json the portal uses — adding a theme
     // folder updates this page too, no edits here.
-    const FALLBACK = ['default', 'forest', 'cave', 'ice', 'mountain', 'ocean', 'rain', 'sunshine'];
+    const FALLBACK = ['night', 'forest', 'cave', 'ice', 'mountain', 'ocean', 'rain', 'sunshine'];
     let names = FALLBACK;
     try {
       const res = await fetch('assets/themes/index.json', { cache: 'no-cache' });
@@ -119,14 +229,42 @@
       }
     } catch (_) {}
 
+    // Grouped by family, same as the broadcast HUD. This is the surface
+    // reached for one-handed from a phone mid-set, so sixteen equal buttons in
+    // a wrap is the worst possible arrangement of them: a sub-mood belongs
+    // beside the mood it came from, and its label only needs to say what makes
+    // it different.
+    const { familiesOf } = await import('./js/themes.js');
     const buttonsEl = document.getElementById('buttons');
+    // name -> [buttons]. A shared sub-mood has one under each of its parents.
     const buttons = new Map();
-    for (const name of names) {
+    function addButton(name, b) {
+      const list = buttons.get(name);
+      if (list) list.push(b); else buttons.set(name, [b]);
+    }
+    for (const fam of familiesOf(names)) {
+      const row = document.createElement('div');
+      row.className = 'fam';
       const b = document.createElement('button');
-      b.textContent = name;
-      b.addEventListener('click', () => setTheme(name, b));
-      buttonsEl.appendChild(b);
-      buttons.set(name, b);
+      b.textContent = fam.parent;
+      b.addEventListener('click', () => setTheme(fam.parent, b));
+      row.appendChild(b);
+      addButton(fam.parent, b);
+      for (const child of fam.children) {
+        const c = document.createElement('button');
+        c.className = 'sub';
+        // Strip the parent's prefix only when the name actually carries it. A
+        // shared sub-mood (sunshower, under both rain and sunshine) does not,
+        // and slicing it blind leaves "ower".
+        c.textContent = child.startsWith(fam.parent + '-')
+          ? child.slice(fam.parent.length + 1)
+          : child;
+        c.title = child;
+        c.addEventListener('click', () => setTheme(child, c));
+        row.appendChild(c);
+        addButton(child, c);
+      }
+      buttonsEl.appendChild(row);
     }
 
     function flashButton(b, cls) {
@@ -135,8 +273,19 @@
     }
 
     // §5.2 — the whole theme mechanism is one metadata GET.
+    // §5.8 adds a second, independent destination: the relay reaches the
+    // broadcast page, Icecast reaches the website, and one tap drives
+    // whichever of the two is configured.
     async function setTheme(token, b) {
-      if (!CONFIG.metadataUrl) { flashButton(b, 'ok'); markCurrent(token); return; } // mock
+      const relayed = relay.active ? relay.publish({ theme: token }) : null;
+
+      if (!CONFIG.metadataUrl) {
+        // Mock, or a broadcast-only setup with no Icecast at all.
+        const ok = relayed ? await relayed : true;
+        flashButton(b, ok ? 'ok' : 'fail');
+        if (ok) markCurrent(token);
+        return;
+      }
       const a = ensureAuth();
       if (!a) return;
       const url = `${CONFIG.metadataUrl}?mount=/live&mode=updinfo&song=${encodeURIComponent(token)}`;
@@ -157,8 +306,101 @@
     }
 
     function markCurrent(token) {
-      for (const [name, btn] of buttons) btn.classList.toggle('current', name === token);
+      for (const [name, list] of buttons) {
+        for (const btn of list) btn.classList.toggle('current', name === token);
+      }
     }
+
+    // §5.8 — wake/seal. These exist only for the broadcast build: on the
+    // website the eye follows the actual stream, so there is nothing to
+    // command. With no relay configured the block is removed, not disabled.
+    const ceremonyWrap = document.getElementById('ceremonyWrap');
+    const bWake = document.getElementById('bWake');
+    const bSeal = document.getElementById('bSeal');
+    // Tri-state, not a boolean seeded to true. Assuming the channel works
+    // until told otherwise made this page report "control ok" on the strength
+    // of nothing at all — which is worse than saying nothing, because it sends
+    // you looking for the fault somewhere else.
+    let relayHealth = 'connecting';
+
+    function markEye(eye) {
+      bWake.classList.toggle('on', eye === EYE_LIVE);
+      bSeal.classList.toggle('on', eye === EYE_SEALED);
+    }
+
+    const send = async (eye, b) => {
+      if (!relay.active) return;
+      markEye(eye);
+      const ok = await relay.publish({ eye });
+      flashButton(b, ok ? 'ok' : 'fail');
+      if (!ok) flashStatus('control unreachable');
+    };
+    bWake.addEventListener('click', () => send(EYE_LIVE, bWake));
+    bSeal.addEventListener('click', () => send(EYE_SEALED, bSeal));
+
+    // Subscribing as well as publishing keeps a second device in sync and
+    // proves the channel round-trips.
+    const relayHandlers = {
+      onState: (s) => {
+        if (s.eye) markEye(s.eye);
+        if (s.theme) markCurrent(s.theme);
+      },
+      onCatchUp: (s) => {
+        if (!s) return;
+        if (s.eye) markEye(s.eye);
+        if (s.theme) markCurrent(s.theme);
+      },
+      onStatus: ({ ok }) => { relayHealth = ok ? 'ok' : 'down'; },
+    };
+
+    const noRelayEl = document.getElementById('noRelay');
+    // Toggled, never removed: pairing has to be able to bring it back without
+    // a reload, which is the whole point of typing the code on the page.
+    function applyRelayUI() {
+      ceremonyWrap.hidden = !relay.active;
+      noRelayEl.hidden = relay.active;
+    }
+
+    applyRelayUI();
+    if (relay.active) relay.start(relayHandlers);
+
+    // §5.8 pairing — the same field, on both pages. Typing the code here
+    // rather than carrying it in the URL is what makes it reliable: a query
+    // string gets eaten by dev-server redirects, home-screen shortcuts and
+    // OBS browser sources alike. No reload, so a wrong code costs seconds.
+    const pairForm = document.getElementById('pair');
+    const codeInput = document.getElementById('code');
+    codeInput.value = readRelayTopic();
+
+    pairForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const code = codeInput.value.trim();
+      const flash = (cls) => {
+        codeInput.classList.add(cls);
+        setTimeout(() => codeInput.classList.remove(cls), 1400);
+      };
+      if (code && !isValidTopic(code)) {
+        flash('fail');
+        flashStatus('letters, numbers, - and _ only');
+        return;
+      }
+      writeRelayTopic(code);
+      relay.stop();
+      relay = createRelay({ mode: code ? 'ntfy' : 'none', topic: code });
+      relayHealth = 'connecting';
+      applyRelayUI();
+      if (relay.active) relay.start(relayHandlers);
+      flash('ok');
+      codeInput.blur(); // dismiss the phone keyboard
+      flashStatus(code ? 'paired' : 'unpaired');
+    });
+
+    // A relay with no real stream behind it (STREAM_BASE unset) is the
+    // broadcast-only rig: the §5.1 poll is then reporting an Icecast server
+    // that does not exist, and would sit at "sealed (mock)" forever next to a
+    // perfectly working broadcast. That reads as a failure. Where the stream
+    // is not real, the control channel is the only status worth showing.
+    const broadcastOnly = relay.active && CONFIG.mock;
 
     // Same §5.1 poll as the portal; three straight failures = offline.
     let fails = 0;
@@ -177,6 +419,16 @@
           dot.className = 'offline';
           lastStatusLine = 'unreachable';
         }
+      }
+      if (broadcastOnly) {
+        // Drop the Icecast half entirely rather than print a lie beside it.
+        dot.className = relayHealth === 'ok' ? 'live' : relayHealth === 'down' ? 'offline' : '';
+        lastStatusLine = relayHealth === 'ok'
+          ? 'control ok'
+          : relayHealth === 'down' ? 'control unreachable' : 'control connecting…';
+      } else if (relay.active) {
+        lastStatusLine += relayHealth === 'ok' ? ' · control ok'
+          : relayHealth === 'down' ? ' · control down' : ' · control connecting…';
       }
       statusText.textContent = lastStatusLine;
     }, { pollMs: CONFIG.pollMs, jitterMs: CONFIG.pollJitterMs }).start();

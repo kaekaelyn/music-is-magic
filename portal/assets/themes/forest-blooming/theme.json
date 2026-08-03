@@ -1,0 +1,60 @@
+{
+  "name": "forest-blooming",
+  "palette": [
+    "#0b1a0d",
+    "#2f3a22",
+    "#3f8a52",
+    "#e78fb8",
+    "#fff2f6"
+  ],
+  "params": {
+    "scale": 1.8,
+    "speed": 0.24,
+    "warp": 1.2,
+    "sparkle": 0.6,
+    "gloss": 0.12,
+    "glint": 0.14,
+    "canopy": 0.9,
+    "slant": 0,
+    "base": 0.5,
+    "drift": 0.35,
+    "travel": 0.5,
+    "travelX": 0.26,
+    "travelY": 0,
+    "angular": 1
+  },
+  "mappings": {
+    "warpBass": 0.4,
+    "sparkleTreble": 1.2,
+    "pulseFlux": 1.1,
+    "shiftCentroid": 0.35
+  },
+  "motifs": {
+    "rays": 0.8,
+    "columns": 0.75,
+    "dapple": 0.75,
+    "drips": 0,
+    "facets": 0,
+    "caustics": 0,
+    "crags": 0,
+    "snow": 0,
+    "tunnel": 0,
+    "ridge": 0,
+    "cone": 0,
+    "wisps": 0.25,
+    "foam": 0,
+    "stars": 0,
+    "aurora": 0,
+    "clouds": 0,
+    "crystals": 0,
+    "storm": 0,
+    "rainbow": 0,
+    "flame": 0,
+    "embers": 0,
+    "smoke": 0,
+    "lava": 0,
+    "ripples": 0,
+    "petals": 0.8
+  },
+  "textures": []
+}

@@ -1,36 +1,52 @@
 {
   "name": "sunshine",
   "palette": [
-    "#170e04",
-    "#553811",
-    "#a06e1d",
-    "#dfb84a",
-    "#fff3c2"
+    "#0d2340",
+    "#2f5f8c",
+    "#8fb6cf",
+    "#f2a93b",
+    "#ffd873"
   ],
   "params": {
     "scale": 1.3,
     "speed": 0.26,
-    "warp": 1.2,
-    "sparkle": 0.6,
+    "warp": 0.9,
+    "sparkle": 0.5,
     "gloss": 0.2,
-    "slant": 0
+    "glint": 0,
+    "canopy": 0,
+    "slant": 0,
+    "base": 0.3,
+    "drift": 0.3,
+    "travel": 0.42,
+    "travelX": 0.2,
+    "travelY": 0
   },
   "mappings": {
-    "warpBass": 0.9,
-    "brightRms": 0.6,
+    "warpBass": 0.15,
     "sparkleTreble": 1,
-    "pulseFlux": 1,
+    "pulseFlux": 1.15,
     "shiftCentroid": 0.2
   },
   "motifs": {
-    "rays": 0.85,
+    "rays": 0.95,
     "columns": 0,
-    "dapple": 0.25,
+    "dapple": 0.3,
     "drips": 0,
     "facets": 0,
     "caustics": 0,
     "crags": 0,
-    "snow": 0
+    "snow": 0,
+    "tunnel": 0,
+    "ridge": 0,
+    "cone": 0,
+    "wisps": 0,
+    "foam": 0,
+    "stars": 0,
+    "aurora": 0,
+    "clouds": 0.55,
+    "crystals": 0,
+    "storm": 0
   },
   "textures": []
 }

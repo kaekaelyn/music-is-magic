@@ -17,11 +17,13 @@ const THEMES = join(ROOT, 'portal/assets/themes');
 const EYE = join(ROOT, 'portal/assets/eye');
 
 // scale/speed/warp must be positive; gloss and sparkle may legitimately be 0.
-const KNOWN_PARAMS = ['scale', 'speed', 'warp', 'sparkle', 'gloss', 'slant'];
+// travelX/travelY are a direction: negative is a legitimate way to point.
+const SIGNED_PARAMS = ['travelX', 'travelY'];
 const POSITIVE_PARAMS = ['scale', 'speed', 'warp'];
-const KNOWN_MAPPINGS = [
-  'warpBass', 'brightRms', 'sparkleTreble', 'pulseFlux', 'shiftCentroid',
-];
+// brightRms is deliberately absent: the whole-field loudness brightening was
+// removed (see §14), and leaving the key valid would let a theme carry a knob
+// that silently does nothing.
+const KNOWN_MAPPINGS = ['warpBass', 'sparkleTreble', 'pulseFlux', 'shiftCentroid'];
 const EYE_LAYERS = ['plate', 'socket', 'lid-lower', 'lid-upper', 'glow', 'frame'];
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -30,6 +32,10 @@ const HEX = /^#[0-9a-f]{6}$/i;
 const themesModule = await import(pathToFileURL(join(ROOT, 'portal/js/themes.js')));
 const MOTIF_NAMES = Object.keys(themesModule.MOTIFS);
 const PARAM_DEFAULTS = themesModule.DEFAULT_PARAMS;
+// Derived from the engine's own defaults rather than restated. This list used
+// to be typed out here, which meant adding a param to the engine failed
+// validation on every theme that used it — a check about drift, drifting.
+const KNOWN_PARAMS = Object.keys(PARAM_DEFAULTS);
 
 const errors = [];
 const warnings = [];
@@ -62,9 +68,13 @@ if (index !== null) {
     fail('themes/index.json: every entry must be a string');
   } else {
     names = index;
-    // 'default' is the landing spot for every unknown token (§5.2) — if it
-    // isn't listed, themes.js normalizes to a name it will then reject.
-    if (!names.includes('default')) fail("themes/index.json: must include 'default'");
+    // The fallback is the landing spot for every unknown token (§5.2) — if it
+    // isn't listed, themes.js normalizes to a name it will then reject. The
+    // engine owns the name, so a rename there is enforced here automatically.
+    const fallback = themesModule.FALLBACK_THEME || 'default';
+    if (!names.includes(fallback)) {
+      fail(`themes/index.json: must include '${fallback}' (the fallback theme)`);
+    }
     const dupes = names.filter((n, i) => names.indexOf(n) !== i);
     if (dupes.length) fail(`themes/index.json: duplicate entries: ${dupes.join(', ')}`);
     for (const n of names) {
@@ -106,7 +116,7 @@ for (const name of names) {
   for (const [key, val] of Object.entries(t.params || {})) {
     if (!KNOWN_PARAMS.includes(key)) {
       fail(`${label}/theme.json: unknown param '${key}' (engine ignores it)`);
-    } else if (!Number.isFinite(val) || val < 0) {
+    } else if (!Number.isFinite(val) || (val < 0 && !SIGNED_PARAMS.includes(key))) {
       fail(`${label}/theme.json: params.${key} must be a non-negative number`);
     } else if (POSITIVE_PARAMS.includes(key) && val <= 0) {
       fail(`${label}/theme.json: params.${key} must be greater than zero`);
@@ -183,6 +193,41 @@ for (const name of names) {
     const tv = (t.motifs || {})[key] || 0;
     if (bv !== tv) {
       fail(`themes/${name}: motifs.${key} drift — js/themes.js ${bv} vs theme.json ${tv}`);
+    }
+  }
+}
+
+// --- the shader source is a JS template literal ---------------------------
+//
+// VERT and FRAG are backtick strings, so a backtick anywhere inside them ends
+// the string and takes the whole module with it. The failure is total and the
+// message is useless — the browser reports a JavaScript syntax error pointing
+// at whatever GLSL identifier happened to follow, and the page renders
+// nothing at all. It has happened twice, both times from quoting a variable
+// name in a comment the way one would in prose. Cheaper to forbid it here
+// than to rediscover it from a black frame.
+{
+  const src = readFileSync(join(ROOT, 'portal/js/viz.js'), 'utf8');
+  for (const name of ['VERT', 'FRAG']) {
+    const open = src.indexOf(`const ${name} = \``);
+    if (open === -1) {
+      warn(`js/viz.js: no ${name} template literal found — has the shader moved?`);
+      continue;
+    }
+    const body = src.slice(open + `const ${name} = \``.length);
+    const end = body.indexOf('\n`;');
+    if (end === -1) {
+      fail(`js/viz.js: ${name} template literal is never closed`);
+      continue;
+    }
+    const glsl = body.slice(0, end);
+    const line = glsl.slice(0, glsl.indexOf('`')).split('\n').length;
+    if (glsl.includes('`')) {
+      fail(
+        `js/viz.js: a backtick inside the ${name} shader source (around line ` +
+        `${line} of it) closes the template literal early — the whole file ` +
+        `becomes a syntax error. Quote GLSL identifiers without backticks.`
+      );
     }
   }
 }
