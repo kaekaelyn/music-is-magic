@@ -596,21 +596,42 @@ float mFrost(vec2 q, float t, float grow, float strike) {
   v = max(v, frond(q, a1, b1, 4.0));
   v = max(v, frond(q, a2, b2, 9.0));
 
-  // Where it is growing right now. Patches run on their own phase, so the
-  // field crazes over here while it clears there, and an onset shoves every
-  // front outward at once — the crackle.
+  // GROWTH, and it has to be growth rather than a cycle.
   //
-  // The front also travels ALONG the spines rather than only rising in place:
-  // adding a term that varies with position means the threshold clears at the
-  // root of a frond before its tip, so a frond extends outward instead of
-  // fading in whole. That is the "they don't move or extend like I would
-  // expect" note — the old front was a single number applied everywhere at
-  // once, which can only fade.
+  // This was reach = 0.5 + 0.5 * sin(grow * 0.55 + patch * 7.0). A sine: the
+  // coverage rose and fell forever, so the pane crazed over and then UNcrazed,
+  // which is "it's just blotchy, and the blotches sort of thicken and shrink"
+  // described precisely. The thaw was deliberate once — the theme note called
+  // it "playing frosts the glass; silence lets it clear" — and it is the thing
+  // the owner has now ruled out. A crystal that ungrows is not a crystal, and
+  // no amount of tuning the amplitude of a sine makes one.
+  //
+  // It also meant the mood never began plain: at grow = 0 the sine sits at
+  // whatever phase the patch hash hands it, so the eye opened onto frost that
+  // was already half grown and, half the time, receding.
+  //
+  // Ice accretes. The front only ever advances, and it advances on u_flow,
+  // which is monotonic by construction and already restarts on each visit to a
+  // mood (setTheme). "Start plain every time" therefore costs nothing once the
+  // sine is gone, and "spread very slowly" is one rate.
+  //
+  // Saturating rather than linear, so a long session settles into a fully
+  // crazed pane instead of running past it into flat white.
+  float reach = 1.0 - exp(-grow * 0.08);
   float patch = fbm(q * 0.9 + 5.0);
-  float reach = 0.5 + 0.5 * sin(grow * 0.55 + patch * 7.0);
   float along = fbm(q * 0.5 + 17.0);
-  float front = 0.92 - 0.34 * reach - 0.12 * (reach - along)
-              - strike * 0.09;
+  // The threshold falls from ABOVE the frond field's ceiling — so at reach 0
+  // there is genuinely nothing, not a faint everywhere — down toward its
+  // floor. Falling across a static frond field, the level set expands out of
+  // the spines and runs ALONG them as it goes, which is a dendrite extending.
+  // A front that is one number applied everywhere can only fade in.
+  float front = mix(1.35, 0.34, reach * (0.55 + 0.45 * patch));
+  // Tips reach ahead of the bulk. The references are a dense granular rime
+  // with individual ferns standing out into clear glass in front of it, and
+  // that is a looser threshold where the spine field leads the patch field.
+  front -= 0.10 * (patch - along);
+  // An onset shoves every front outward at once — the crackle.
+  front -= strike * 0.07;
   // A tight threshold, deliberately: frost has hard edges, and a soft one
   // is what made this read as foam.
   return smoothstep(front, front + 0.045, v);
@@ -899,35 +920,111 @@ float mStorm(vec2 uv, float t, float strike, out float flash) {
 // field stretched vertically and scrolled downward gives long streams, and a
 // finer generation of the same splits them into rivulets. The crust between
 // them is dark, so what you see is the glow coming UP through the cracks.
-float mLava(vec2 uv, float t, float flow, float drive, float kick, out float hot) {
-  vec2 q = vec2(uv.x * 3.0, uv.y * 1.05 - flow * 0.55 - t * 0.1);
+// Drawn in the CONE's frame — down, the depth below the skyline — and that
+// is the whole difference between this and what it was.
+//
+// Two faults lived in the old screen-space version. It sampled
+// uv.y * 1.05 - flow * 0.55 - t * 0.1, and a feature sitting at a fixed
+// sample coordinate has uv.y = (const + flow*0.55 + t*0.1)/1.05, which grows
+// with the clock: every stream crawled UP the frame. And being in screen space
+// at all, the flows were horizontal bands lying across the bottom of the
+// picture with no relationship to the mountain above them.
+//
+// In the cone's frame down increases downhill by construction, so adding the
+// clock to it can only send the streams down the mountain — the direction is
+// not a sign to get right any more, it is a property of the coordinate. And
+// since down is measured from the roughened profile, the channels bend
+// around the same crags the silhouette has.
+float mLava(vec2 uv, float t, float flow, float drive, float kick,
+            float descent, float crag, out float hot) {
+  float run = max(descent, 0.0);
+  // Flows FAN as they descend: they leave one vent and spread over the cone,
+  // so the across-slope coordinate is divided by how far they have run. At a
+  // constant scale the streams are parallel stripes, which reads as a curtain
+  // hung on the mountain rather than as something poured from a point.
+  float across = uv.x / (0.22 + run * 0.9);
+  // The profile's ROUGHNESS alone, folded into the flow coordinate: that is
+  // what bends the channels over the crags without the crags being drawn.
+  //
+  // It has to be the roughness and nothing else. Derived instead as
+  // depth-below-local-skyline minus descent, it carried the cone's whole gross
+  // shape — nearly a full unit of offset on the lower flanks — and along the
+  // silhouette it cancelled the descent term almost exactly, leaving the flow
+  // coordinate barely varying down the edge. A ridged field that varies slowly
+  // holds near its peak for a long stretch, which drew a continuous bright
+  // line around the mountain: the outline lit up instead of the face.
+  // ANISOTROPY, and it decides whether these are streams at all. A ridged
+  // field's crests run in the direction it varies LEAST — the rule frond()
+  // already works by — so a channel that runs downhill needs a high frequency
+  // ACROSS the slope and a low one along it. This was the other way round
+  // (1.5 across, 2.6 down), which elongated every crest horizontally and, at a
+  // threshold high enough to narrow them, closed them into rings: a glowing
+  // loop lying on the mountain instead of lava running off it.
+  // SLOW. At flow*0.5 the whole pattern crossed the cone in about two and a
+  // half seconds, which is a grass fire, not molten rock. Lava is the slowest
+  // thing this engine draws.
+  vec2 q = vec2(across * 2.4, (run + crag * 1.6) * 0.85 - flow * 0.12 - t * 0.03);
   float chan = 1.0 - abs(2.0 * fbm(q) - 1.0);
   chan *= chan;                                   // narrow the channels
   float fine = 1.0 - abs(2.0 * fbm(q * 3.1 + 11.0) - 1.0);
   float v = chan * (0.55 + 0.45 * fine);
-  // Lava runs down a slope; it does not hang in the sky. Fading it out toward
-  // the top is what keeps this a mountainside and not a lava lamp.
-  v *= smoothstep(0.34, -0.18, uv.y);
+  // THE SOURCE. A vent that is erupting is always spilling something, but the
+  // channel field scrolls past the rim, so without a bias at the top the crater
+  // periodically had no flow leaving it at all and the mountain went dark from
+  // the summit down. Lifting the field near the rim keeps the flows anchored to
+  // the place they come from; they still thin and wander below it.
+  v += smoothstep(0.13, 0.0, run) * 0.22;
+  // It cools as it runs — and cooling NARROWS a flow, it does not dim one.
+  // Crust closes in from both banks until the stream is a thread and then
+  // pinches out; what is still molten in the middle stays just as bright.
+  // Multiplying the field down by descent (what this was) fades the whole
+  // channel evenly instead, so the flows dimmed uniformly and then stopped
+  // dead partway down the cone, with a hard line across the mountain where
+  // they crossed the threshold together.
+  //
+  // Raising the THRESHOLD with descent is the same cooling expressed as
+  // geometry: the level set shrinks toward the channel's spine, the peaks keep
+  // their value, and the streams taper away to threads at their own rates
+  // instead of all ending at one altitude.
   // A GUSH on an onset: the threshold drops, so more of the field is molten
   // at once and a struck chord opens the ground.
-  float thr = 0.60 - drive * 0.15 - kick * 0.24;
-  hot = smoothstep(thr + 0.05, thr + 0.22, v);    // the incandescent core
+  float thr = 0.63 + run * 0.60 - drive * 0.13 - kick * 0.20;
+  hot = smoothstep(thr + 0.10, thr + 0.30, v);    // the incandescent core
   return smoothstep(thr, thr + 0.09, v);
 }
 
 // Wind-combed sand. Long parallel ridges bent by the ground they lie on, and
 // travelling slowly across it — the bend is what stops this reading as printed
 // stripes, because real ripples follow the dune rather than the frame.
-float mRipples(vec2 uv, float t, float flow, float drive) {
-  float bend = fbm(uv * 1.5 + vec2(flow * 0.09, 0.0)) * 1.5;
+// PER DUNE, not per screen. This was a pure function of uv, so one comb
+// pattern at one pitch and one phase was painted across all three parallax
+// layers at once — "the ripples are the same across all dune layers. One big
+// overlay across all layers makes it look distractingly fake".
+//
+// It is the identical fault the crag map had on the mountain, and it has the
+// identical cure: each layer gets its own patch of the field, at its own pitch,
+// travelling at its own rate. Get any one of the three wrong and the layers
+// read as a backdrop seen through a fixed ribbed window. Ripples belong to the
+// sand they lie on, and which sand that is is what layer says.
+float mRipples(vec2 uv, float t, float flow, float drive, float layer) {
+  vec2 o = vec2(layer * 37.0, layer * 13.0);
+  // Nearer sand is combed COARSER on screen and travels faster. That
+  // difference between the layers is the whole of what makes them read as
+  // three dunes at three distances rather than as one sheet of corduroy.
+  float pitch = 30.0 - layer * 7.0;
+  float rate = 0.35 + layer * 0.45;
+  float bend = fbm(uv * (1.5 + layer * 0.7) + o + vec2(flow * 0.09 * rate, 0.0)) * 1.5;
   float a = uv.x * 0.55 + uv.y * 2.5 + bend;
-  float r = 0.5 + 0.5 * sin(a * 24.0 + flow * 0.7);
+  float r = 0.5 + 0.5 * sin(a * pitch + flow * rate + o.x);
   // Sharpened: a ripple has a crest and a trough. Left as a sine it is a
   // corduroy wash with no light in it.
   r *= r;
   r *= r;
-  // Combing smooths out with distance, so only the near sand is ribbed.
-  return r * smoothstep(0.36, -0.24, uv.y) * (0.55 + drive * 0.5);
+  // Combing smooths out with distance — on the far LAYERS as well as up the
+  // frame. Distance takes the ribbing out before it takes the dune out.
+  return r * smoothstep(0.36, -0.24, uv.y)
+           * mix(0.45, 1.0, clamp(layer * 0.5, 0.0, 1.0))
+           * (0.55 + drive * 0.5);
 }
 
 // Blossom and leaf-fall. The tumble is the entire difference between a petal
@@ -938,28 +1035,75 @@ float mRipples(vec2 uv, float t, float flow, float drive) {
 // The tint output hands out a per-petal hash so the compositor can give each
 // one its own colour from the theme's palette — which is what lets one motif be
 // blossom in one mood and dead leaves in another.
-float mPetals(vec2 uv, float t, float w, float drive, float kick, out float tint) {
+// Three separate faults lived here, and they are worth keeping written down
+// because each one is a class of mistake this engine has made before.
+//
+// 1. THEY COULD FALL UPWARDS. The fall was t * (0.13 + fi*0.06) * (0.7 +
+//    drive*0.7) — a clock MULTIPLIED by loudness. The offset therefore shrinks
+//    when the room quietens, and every mote on screen slides back up. This is
+//    the identical fault the snow had, and the engine already carries its cure:
+//    u_flow, integrated CPU-side and monotonic by construction. Loudness buys
+//    fall RATE now; what has fallen stays fallen.
+//
+// 2. THEY WERE CUT OFF AT THE CELL EDGES. Each mote was drawn from fract() of
+//    its own cell, so whatever reached past a boundary was drawn from the
+//    NEIGHBOURING cell's hash instead — a different mote, or none at all.
+//    Edge-on, the blob was about two thirds of a cell wide, so this happened
+//    constantly: "a lot of seams visible here, like the elements are escaping
+//    their boxes and getting cut off". The columns either side are checked now,
+//    so a mote near a boundary is drawn whole by whichever cell owns it, and
+//    its seat is held clear of the row edges so it is never cut across the fall.
+//
+// 3. THEY DID NOT FLUTTER. There WAS a sway — sin(y * 1.5 + fi * 2.2) — but it
+//    is a function of height and layer alone, so every mote at a given height
+//    swung the same way at the same instant. A layer moving in unison is a
+//    curtain sliding sideways, not blossom in the air. Each one now carries its
+//    own phase and its own rate, and the width of the swing answers the room:
+//    petals flutter lightly, leaves toss about and swirl when the music does.
+//
+// The tint output hands out a per-mote hash so the compositor can give each one
+// its own colour from the theme's palette — which is what lets one motif be
+// blossom in one mood and dead leaves in another.
+float mPetals(vec2 uv, float t, float w, float drive, float kick, float fall,
+              out float tint) {
   tint = 0.5;
   float v = 0.0;
   for (int i = 0; i < 3; i++) {
     float fi = float(i);
     float rows = 2.0 + fi * 0.7;
     float cols = 5.0 + fi * 2.4;
-    float y = uv.y * rows + t * (0.13 + fi * 0.06) * (0.7 + drive * 0.7);
-    float lane = uv.x * cols + sin(y * 1.5 + fi * 2.2) * 0.55;
-    vec2 c = vec2(floor(lane), floor(y));
-    // An onset shakes more of them loose.
-    float on = step(0.84 - w * 0.30 - kick * 0.12, hash(c + fi * 17.0));
-    vec2 fp = vec2(fract(lane), fract(y)) - hash2(c + fi * 3.0);
-    // Tumbling: the petal turns, so it is broad one moment and edge-on the
-    // next. Half its area disappears each turn, which is what flutters.
-    float spin = sin(t * (1.3 + hash(c) * 2.2) + hash(c) * 6.2831853);
-    // Aspect corrected in full. At half correction the cells were still taller
-    // than wide on screen and every petal came out a vertical streak — the same
-    // fault the embers had, and it reads as rain whatever colour it is.
-    float d = length(fp * vec2(0.5 + abs(spin) * 2.0, cols / rows * 0.85));
-    float hit = on * smoothstep(0.34, 0.0, d);
-    if (hit > v) { v = hit; tint = hash(c * 1.7 + fi); }
+    // Monotonic. Nearer layers fall faster, which is the parallax.
+    float y = uv.y * rows + fall * (0.75 + fi * 0.42);
+    float lane = uv.x * cols;
+    float row = floor(y);
+    for (int k = -1; k <= 1; k++) {
+      vec2 c = vec2(floor(lane) + float(k), row);
+      // An onset shakes more of them loose.
+      float on = step(0.84 - w * 0.30 - kick * 0.12, hash(c + fi * 17.0));
+      vec2 seed = hash2(c + fi * 3.0);
+      float ph = seed.x * 6.2831853;
+      // Its own rate as well as its own phase: a shared rate with staggered
+      // phases still reads as one mechanism driving all of them.
+      float rate = 1.0 + hash(c + 9.0) * 2.0;
+      // The swing widens with the room. Held under half a cell so a mote stays
+      // inside the three columns being checked.
+      float swing = (0.16 + 0.26 * drive + 0.22 * kick) * (0.6 + seed.y * 0.8);
+      // Seated clear of the row boundaries — the fall direction is the one the
+      // neighbour loop does not cover.
+      vec2 centre = c + vec2(0.5 + sin(t * rate + ph) * swing,
+                             mix(0.22, 0.78, seed.y));
+      vec2 delta = vec2(lane, y) - centre;
+      // Distance in SCREEN units, so a mote is round whatever the cell's
+      // aspect is. The old form corrected by cols/rows inside the cell, which
+      // is the same thing done in a way that had to be retuned per layer.
+      vec2 ds = vec2(delta.x / cols, delta.y / rows);
+      // Tumbling: it turns, so it is broad one moment and edge-on the next.
+      // That pulse in width is what the eye reads as flutter.
+      float spin = sin(t * (1.3 + hash(c) * 2.2) + ph);
+      ds.x /= 0.28 + abs(spin) * 0.72;
+      float hit = on * smoothstep(0.020, 0.0, length(ds));
+      if (hit > v) { v = hit; tint = hash(c * 1.7 + fi); }
+    }
   }
   return clamp(v, 0.0, 1.0) * w;
 }
@@ -1057,11 +1201,7 @@ float mSmoke(vec2 uv, float t, float w, float drive) {
 // minerals take, and here it is not a licence but a necessity: a rainbow is
 // the entire spectrum by definition, and no five-step palette can hold one.
 //
-// Geometry is a large circle centred well below the frame, so what falls
-// inside the aperture is the crown of a big arc rather than a small hoop
-// sitting in the sky. Red outside, violet inside, and a faint reversed
-// secondary further out, because the second bow is most of what makes people
-// believe the first one.
+// The spectrum itself, used by the refracted patches below.
 vec3 bowSpectrum(float x) {
   vec3 c = mix(vec3(0.95, 0.28, 0.22), vec3(0.98, 0.70, 0.20), smoothstep(0.00, 0.26, x));
   c = mix(c, vec3(0.93, 0.94, 0.34), smoothstep(0.20, 0.44, x));
@@ -1071,50 +1211,74 @@ vec3 bowSpectrum(float x) {
   return c;
 }
 
-// Deliberately NOT meteorological. An earlier cut gated this on a storm having
-// happened and now passing, which is what a real rainbow needs and made for a
-// rare, solemn event. The owner's call, and the better one: let it play. This
-// is refracted light loose in a sunshower, free to wander, brighten, break up
-// and reform with the music — a lovely small feature of the mood rather than a
-// reward for a particular passage. Realism is not the brief here.
+// Refracted light in a sunshower. NOT an arc, and the arc is gone on purpose.
+//
+// A bow is one large piece of fixed geometry: a circle at a fixed centre with
+// a fixed radius. However much its segments are faded in and out along their
+// length, it is the same shape in the same place every time you look at it, so
+// the only thing it can actually do is get brighter and dimmer. That is what
+// "the rainbow is pretty much always visible and there's no dancing" is
+// describing — the complaint is about the geometry, not the opacity, and no
+// amount of gating an arc will make an arc playful. It also had a second bow
+// outside the first, which is twice as much of the same fixed thing.
+//
+// So: "just refracted rainbowy reflections and shapes... its own logic and
+// physics to it... light and playful and shimmery."
+//
+// The physics this invents is the light's, not the atmosphere's. Sun coming
+// through moving rain is thrown around as PATCHES of separated spectrum. Each
+// patch here is a small sheared lens with its colours running across it, on its
+// own drift, its own tumble, its own break-up and its own life — they swim,
+// cross, flare and go out independently. Nothing is anchored, nothing is
+// symmetrical, and the mood never shows the same arrangement twice.
+//
+// The one thing kept from the bow is dispersion: the spectrum runs ACROSS each
+// patch rather than tinting it. That separation is the whole of why this reads
+// as refracted light and not as coloured fog.
 vec3 mRainbow(vec2 uv, float t, float drive, float kick, float pitch, out float amt) {
-  vec2 c = vec2(0.04, -1.24);
-  vec2 dv = uv - c;
-  float r = length(dv);
-  float ang = atan(dv.x, dv.y);   // 0 straight up the crown
-
-  // It BREATHES and it FLINCHES. The radius drifts on a slow clock and an
-  // onset shoves it outward, so a struck chord makes the whole arc spring
-  // rather than merely brighten.
-  float R = 1.42 + sin(t * 0.19) * 0.055 + kick * 0.075;
-  float width = 0.085 * (1.0 + drive * 0.55);
-
-  float d = (r - R) / width;
-  float primary = smoothstep(1.0, 0.0, abs(d));
-  // Only the crown: an arc, not a hoop.
-  float crown = smoothstep(-0.30, 0.06, uv.y);
-
-  // ALIVE ALONG ITS LENGTH. Segments swell and fade on their own slow clock,
-  // so the bow is never quite the same shape twice — sometimes a full arc,
-  // sometimes two or three suggestions of one. This is the dancing.
-  float seg = fbm(vec2(ang * 2.7 + t * 0.09, 5.0));
-  float alive = smoothstep(0.30, 0.68, seg + drive * 0.3);
-
-  // Where the spectrum sits across the band slides with pitch, so bright
-  // playing walks the colours outward through the arc.
-  float k = clamp(d * 0.5 + 0.5 + (pitch - 0.45) * 0.45, 0.0, 1.0);
-  vec3 col = bowSpectrum(k) * primary * alive;
-
-  // A second, fainter suggestion on its own wandering radius — a nod to the
-  // real secondary bow, colours reversed, but untethered from the physics and
-  // free to drift against the first.
-  float R2 = R * (1.16 + sin(t * 0.13 + 1.7) * 0.045);
-  float d2 = (r - R2) / (width * 1.8);
-  float ghost = smoothstep(1.0, 0.0, abs(d2)) * 0.32
-              * smoothstep(0.36, 0.82, fbm(vec2(ang * 1.9 - t * 0.06, 12.0)));
-  col += bowSpectrum(clamp(0.5 - d2 * 0.5, 0.0, 1.0)) * ghost;
-
-  amt = (primary * alive + ghost) * crown * (0.5 + drive * 0.7 + kick * 0.45);
+  vec3 col = vec3(0.0);
+  float total = 0.0;
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    // Its own path. Two incommensurate rates per axis, so the orbit does not
+    // close and no two patches ever fall into step with each other.
+    float sp = 0.11 + fi * 0.037;
+    vec2 c = vec2(sin(t * sp + fi * 2.1) * 0.55 + cos(t * sp * 0.63 + fi) * 0.20,
+                  0.02 + sin(t * sp * 0.81 + fi * 4.3) * 0.19);
+    vec2 dv = uv - c;
+    // And its own tumble: the long axis sweeps round as the patch drifts, so
+    // the colours are not always separated the same way up.
+    float a = t * (0.13 + fi * 0.05) + fi * 1.9;
+    vec2 q = vec2(dv.x * cos(a) - dv.y * sin(a), dv.x * sin(a) + dv.y * cos(a));
+    float rad = 0.26 + 0.09 * sin(t * 0.23 + fi * 3.0) + kick * 0.05;
+    q.y *= 3.0 + fi * 0.9;                       // a sheared lens, not a disc
+    float body = smoothstep(rad, 0.0, length(q));
+    // Broken up along its length, and the break-up MOVES — that is the
+    // shimmer. Without it a patch is a painted smear rather than light.
+    body *= smoothstep(0.28, 0.74,
+              fbm(vec2(q.x * 6.0 - t * 0.55, q.y * 5.0 + t * 0.40 + fi * 8.0)));
+    // Each one comes and goes on its own clock, so sometimes there are three
+    // and sometimes none — which is the difference between a feature that
+    // plays and one that is simply on.
+    body *= smoothstep(0.34, 0.66, fbm(vec2(fi * 13.0, t * 0.15)));
+    // Dispersion across the patch; bright playing walks the colours along it.
+    float k = clamp(q.x / (rad * 2.0) + 0.5 + (pitch - 0.45) * 0.35, 0.0, 1.0);
+    col += bowSpectrum(k) * body;
+    total += body;
+  }
+  // A fine spectral sparkle in the air between them: individual drops catching
+  // the light. Cheap, and it is most of what carries "shimmery" — the patches
+  // give the mood its shapes, this gives it its glitter.
+  vec2 gp = uv * 34.0 + vec2(t * 0.5, -t * 0.9);
+  vec2 gi = floor(gp);
+  float gl = step(0.90, hash(gi * 1.37))
+           * smoothstep(0.34, 0.0, length(fract(gp) - hash2(gi)))
+           * (0.5 + 0.5 * sin(t * 5.0 + hash(gi) * 24.0));
+  col += bowSpectrum(fract(hash(gi) * 3.3)) * gl * 0.85;
+  total += gl * 0.6;
+  // A low floor rather than 0.5: it should be a thing that happens, not a
+  // thing that is there.
+  amt = total * (0.18 + drive * 1.10 + kick * 0.70);
   return col;
 }
 
@@ -1270,6 +1434,77 @@ float mRidge(vec2 uv, float t, float flow, float drive,
                  noise(vec2(uv.x * 11.0 - t * 0.5 - flow * 1.6, uv.y * 15.0 + 2.3)));
   plume = band * gust * drive;
   return v;
+}
+
+// ONE volcano, at night.
+//
+// Deliberately NOT the ridge motif with different numbers, which is what
+// volcano was. Every property that makes a ridgeline good is wrong here: a
+// chain of summits, parallax between the layers, aerial perspective washing
+// the back of the range out. This mood is a single object, and a second cone
+// behind the first destroys it. Built from ridge, volcano read as precisely
+// what it was — a mountain range with fire along the bottom.
+//
+// The profile is a truncated cone: two straight flanks rising to a flat summit
+// that dips into a crater. Straight because a volcano is a pile of its own
+// spoil standing at the angle of repose, which is a LINE — folding noise for
+// this silhouette is how you get a mountain instead. Truncated because a
+// crater is where the lava comes from, and a pointed peak has no vent.
+//
+// The output that matters is down: how far below the skyline this pixel sits
+// in its own column. That is the frame the flows are drawn in, and because it
+// is measured from the ROUGHENED profile, whatever is drawn in it is attached
+// to the mountain — a channel bends around exactly the crags the silhouette
+// has, so lava and rock agree about where the surface is even though the crags
+// are never drawn as such. That is "crags don't have to be visible, but they
+// need to behave consistently as far as lava's interaction with them".
+#define CONE_RIM 0.30
+float mCone(vec2 uv, out float sky, out float down, out float descent,
+            out float vent, out float crater, out float onCone, out float crag) {
+  float ax = abs(uv.x);
+  float flank = clamp((ax - 0.28) / (1.02 - 0.28), 0.0, 1.0);
+  float coneH = mix(CONE_RIM, -0.62, flank);
+  // Craggy, not drafted — lnoise for the reason every angular material in this
+  // engine uses it: straight runs meeting at corners, where smooth noise can
+  // only make lumps. Scaled by flank so the crater rim stays clean and the
+  // roughness grows down the sides, and STATIC in t, because the landscape
+  // holding still is the point and it is the eruption that answers the music.
+  // Not scaled by flank alone: at a pure multiple the upper flanks came out
+  // as two perfectly drafted straight lines, because that is where flank is
+  // near zero. A floor lets the roughness start at the rim and grow downward.
+  float rough = 0.3 + 0.7 * flank;
+  crag = (lnoise(vec2(ax * 7.0, 3.1)) - 0.5) * 0.11 * rough
+       + (lnoise(vec2(ax * 19.0, 8.4)) - 0.5) * 0.045 * rough
+       + (lnoise(vec2(ax * 43.0, 2.2)) - 0.5) * 0.016 * rough;
+  coneH += crag;
+  // The summit is a crater, not a plateau: it dips between two rim shoulders.
+  // Without the dip a flat top reads as a mesa, and lava sitting on it looks
+  // painted onto a table rather than welling out of a hole.
+  crater = 1.0 - smoothstep(0.14, 0.28, ax);
+  coneH -= crater * 0.06;
+  // The cone stands on a plain. Without one its flanks run off the bottom
+  // corners of the frame, and at any aperture wider than the one this was
+  // tuned at you see SKY underneath the mountain — the aperture's aspect
+  // varies, so the silhouette needs a horizon to be a silhouette against.
+  float ground = -0.26 + (lnoise(vec2(uv.x * 2.4, 21.0)) - 0.5) * 0.03;
+  float h = max(coneH, ground);
+  // Where the cone rises clear of that plain, so the flows can be kept on the
+  // mountain instead of running out across the flat.
+  onCone = smoothstep(-0.01, 0.05, coneH - ground);
+  down = h - uv.y;
+  // How far the lava has RUN, measured from the crater rim down the picture.
+  // Distinct from down on purpose, and the distinction is the whole of why
+  // the first attempt drew the flows as a bright outline around the mountain:
+  // keyed on depth-below-the-local-skyline, the hottest lava is wherever the
+  // surface is nearest the sky, and on a steep flank that is the silhouette
+  // EDGE. Descent from the vent is the same everywhere on the visible face, so
+  // cooling with it puts the glow where the flow actually is.
+  descent = CONE_RIM - uv.y;
+  sky = smoothstep(-0.004, 0.004, -down);
+  // The pool: a band just under the crater floor, not everything below it.
+  vent = crater * smoothstep(-0.005, 0.03, down)
+       * (1.0 - smoothstep(0.05, 0.17, down));
+  return 1.0 - sky;
 }
 
 // Will-o-wisps: a few slow lights wandering between the trunks.
@@ -1450,15 +1685,31 @@ float mAurora(vec2 uv, float t, float drive, float kick, float pitch, out float 
   // the sky with nowhere to climb — a large part of why there was so little
   // of it to see. A curtain hangs from high and its hem falls near the
   // horizon; that is the shape that fills a sky.
-  float hem = -0.22 + fbm(vec2(x * 1.1 + t * 0.05, 3.7)) * 0.26 + kick * 0.05;
-  float fold = fbm(vec2(x * 4.0 + t * 0.08, uv.y * 0.6));
+  // MOTION. "The aurora should move more", and the reason it did not was not
+  // that the rates were low — it is that all three of its parts moved the same
+  // way. The hem, the folds and the rays all scrolled along x at 0.05, 0.08 and
+  // 0.07, and the hem and the rays sampled fbm with a CONSTANT second argument,
+  // which makes each of them a fixed one-dimensional shape sliding past. A
+  // curtain whose every feature translates together at one speed is a painted
+  // backdrop on rails; nothing in it evolves, so there is nothing to watch.
+  //
+  // Two changes, and the second matters more than the first. The rates now
+  // differ and the folds run AGAINST the hem, so the curtain shears along its
+  // own length instead of sliding rigidly. And every field gains a slow drift
+  // in its second axis, so the structure is continuously reformed rather than
+  // merely carried: folds deepen and let go, rays kindle and die where they
+  // stand. That is the difference between a curtain moving and a curtain
+  // being moved.
+  float hem = -0.22 + fbm(vec2(x * 1.1 + t * 0.075, 3.7 + t * 0.045)) * 0.26
+            + kick * 0.05;
+  float fold = fbm(vec2(x * 4.0 - t * 0.06, uv.y * 0.6 + t * 0.11));
   // RAYS. A curtain is not a wash — it is a palisade of near-parallel shafts
   // standing along the field lines, and that structure is most of why the eye
   // reads "aurora" instead of "green fog". Their absence is the largest part
   // of why this motif was too subtle to notice. They drift sideways on their
   // own slow clock, so the curtain shimmers along its length rather than
   // pulsing as one block.
-  float rays = smoothstep(0.30, 0.80, fbm(vec2(x * 9.5 + t * 0.07, 11.0)));
+  float rays = smoothstep(0.30, 0.80, fbm(vec2(x * 9.5 + t * 0.15, 11.0 + t * 0.085)));
   // Taller. It used to fade out by uv.y 0.52, which left it hugging the
   // horizon in the bottom third of the sky; a curtain that does not climb
   // has nowhere to put the red-violet crown.
@@ -1542,6 +1793,11 @@ void main() {
   float haveRock = 0.0;
   float skyMask = 0.0;  // where ridge says sky is; motifs must not paint weather there
   float ridgeLayer = 0.0; // which range is frontmost here, so its rock rides IT
+  float coneDown = 0.0;   // depth below the volcano's skyline
+  float coneCrag = 0.0;   // the profile's roughness alone — bends the flows over it
+  float coneDescent = 0.0; // how far below the crater rim — how far the lava has run
+  float coneOn = 0.0;     // on the cone proper, as opposed to the plain it stands on
+  float coneVent = 0.0;   // the crater pool
 
   // Where this theme's glints are allowed to be (§14.2). A glint used to be a
   // global overlay multiplied by surface lightness, and the owner's three
@@ -1674,6 +1930,23 @@ void main() {
     // above it, snow strictly below it, spindrift the only crossing.
     cloud *= skyMask;
     cloudRim *= skyMask;
+  }
+  if (W_cone > 0.0) {
+    float csky, cdown, cdesc, cvent, ccrater, con, ccrag;
+    float rock = mCone(uv, csky, cdown, cdesc, cvent, ccrater, con, ccrag);
+    coneCrag = ccrag;
+    coneDown = cdown;
+    coneDescent = cdesc;
+    coneOn = con;
+    coneVent = cvent;
+    // Opaque, and the darkest thing in the frame. Same reasoning as the
+    // ridgeline's full replacement: past the skyline you are looking at a
+    // mountain, and a mountain is not translucent.
+    g = mix(g, 0.04, rock * W_cone);
+    skyMask = max(skyMask, csky);
+    // Weather stays above the skyline, the same fence the ridgeline uses.
+    cloud *= csky;
+    cloudRim *= csky;
   }
   if (W_crags > 0.0) {
     float upface, joint;
@@ -1857,6 +2130,16 @@ void main() {
   if (W_wisps > 0.0) wisp = mWisps(uv, u_t, W_wisps, u_flow, clamp(u_sparkle, 0.0, 1.0)) * W_wisps;
   if (W_stars > 0.0) {
     float s = mStars(uv, u_t, W_stars, u_pulse);
+    // Stars are in the SKY. This was unfenced, so wherever a mood had both
+    // stars and a silhouette they were scattered across the ground as well —
+    // "the stars should only be in the sky, not on the sand too". Every other
+    // sky-borne motif is already fenced by skyMask; this one was missed
+    // because night, the mood it was written for, has no silhouette to be
+    // wrong about. Moods with no silhouette leave skyMask at 0 and are
+    // unchanged.
+    float above = (W_ridge > 0.0 || W_cone > 0.0)
+                ? clamp(skyMask, 0.0, 1.0) : 1.0;
+    s *= above;
     lift += s * 0.42;
     spec += s * 1.2;
   }
@@ -1864,16 +2147,25 @@ void main() {
   float lavaHot = 0.0;
   if (W_lava > 0.0) {
     float h;
-    lava = mLava(uv, u_t, u_flow, u_rms, u_pulse, h) * W_lava;
+    lava = mLava(uv, u_t, u_flow, u_rms, u_pulse, coneDescent, coneCrag, h) * W_lava;
     lavaHot = h * W_lava;
-    // Molten rock runs down a mountainside, so where there is a silhouette it
-    // is confined to the rock. Left unmasked it pooled in a band across the
-    // bottom of the frame with the mountain floating above it, which is a lake
-    // of fire rather than an eruption.
-    if (W_ridge > 0.0) {
-      float onRock = 1.0 - clamp(skyMask, 0.0, 1.0);
-      lava *= onRock;
-      lavaHot *= onRock;
+    // Never above the skyline, and — where there is a cone — kept on the cone
+    // rather than spilling out across the plain it stands on. Unfenced, this
+    // pooled in a band across the bottom of the frame with the mountain
+    // floating above it, which is a lake of fire, not an eruption.
+    float onRock = 1.0 - clamp(skyMask, 0.0, 1.0);
+    onRock *= mix(1.0, 0.12 + 0.88 * coneOn, step(0.001, W_cone));
+    lava *= onRock;
+    lavaHot *= onRock;
+    // THE VENT. A flow is what you see; the crater is where it comes from, and
+    // without a source the streams read as fires that started halfway down.
+    // It bubbles rather than sits: a slow churn, plus a surge on an onset that
+    // pushes the pool up over its rim and feeds the flows below.
+    if (W_cone > 0.0) {
+      float churn = fbm(vec2(uv.x * 7.0, coneDescent * 6.0 - u_t * 0.5 - u_flow * 0.6));
+      float pool = coneVent * (0.5 + 0.5 * churn) * (0.5 + u_rms * 0.4 + u_pulse * 0.6);
+      lava = max(lava, pool * W_lava);
+      lavaHot = max(lavaHot, pool * W_lava * 0.75);
     }
     // Molten rock lights the slope it is running down.
     lift += lava * 0.22;
@@ -1882,14 +2174,14 @@ void main() {
     // Sand is a SURFACE, so its combing goes into the field rather than over
     // it: the ripples have to be lit by the same light as the dune they lie
     // on, or they read as a pattern printed on the sand.
-    float rip = mRipples(uv, u_t, u_flow, u_rms) * W_ripples;
+    float rip = mRipples(uv, u_t, u_flow, u_rms, ridgeLayer) * W_ripples;
     g = clamp(g + (rip - 0.5) * 0.22, 0.0, 1.0);
     spec += rip * 0.22 * (0.4 + u_sparkle * 0.6);
   }
   float petals = 0.0;
   float petalTint = 0.5;
   if (W_petals > 0.0) {
-    petals = mPetals(uv, u_t, W_petals, u_rms, u_pulse, petalTint);
+    petals = mPetals(uv, u_t, W_petals, u_rms, u_pulse, u_flow, petalTint);
   }
   float flame = 0.0;
   float flameCore = 0.0;
@@ -2005,6 +2297,31 @@ void main() {
     float hazeAmt = clamp(0.42 - ridgeLayer * 0.19, 0.0, 1.0)
                   * (1.0 - clamp(skyMask, 0.0, 1.0)) * W_ridge;
     col = mix(col, skyLow, hazeAmt);
+  }
+  if (W_cone > 0.0) {
+    // A NIGHT sky, and its own material for the same reason mountain's is:
+    // no arrangement of a basalt palette makes a sky, and left to the shared
+    // fog field the space above the cone is the "generic darkness" that got
+    // ruled out once already. Volcano inherited mountain's sky by inheriting
+    // its motif — a pale blue thin-air gradient, in a mood that is supposed to
+    // be at night, which is most of why it read as a mountain range.
+    //
+    // Deep and cold overhead, warming toward the summit rather than toward the
+    // horizon: the light in this sky comes from the vent, so the gradient is
+    // anchored to the mountain and not to the frame.
+    vec3 nightHigh = vec3(0.016, 0.020, 0.052);
+    vec3 nightLow = vec3(0.055, 0.045, 0.070);
+    float up = clamp(uv.y * 1.1 + 0.45, 0.0, 1.0);
+    vec3 nsky = mix(nightLow, nightHigh, up * up);
+    // The eruption lights the underside of the sky above the crater. Keyed on
+    // distance from the vent, so it is a glow ON something rather than an
+    // overall brightening, and it answers the playing through the same pulse
+    // the flows do.
+    vec2 toVent = (uv - vec2(0.0, 0.30)) * vec2(0.75, 1.5);
+    float ventGlow = exp(-dot(toVent, toVent) * 5.0)
+                   * (0.35 + u_rms * 0.5 + u_pulse * 0.8);
+    nsky += vec3(0.55, 0.20, 0.06) * ventGlow;
+    col = mix(col, nsky, clamp(skyMask, 0.0, 1.0) * W_cone);
   }
   col = mix(col, mix(u_c2, u_c4, 0.45), clamp(cloud, 0.0, 1.0) * 0.5);
   col += mix(u_c3, u_c4, 0.35) * clamp(cloudRim, 0.0, 1.0) * 0.85;
@@ -2157,7 +2474,21 @@ void main() {
 `;
 
 const DEFAULT_PARAMS = { ...THEME_DEFAULT_PARAMS };
-const MORPH_SECONDS = 2.2;
+// TWO crossfades, because there are two transitions and one constant was
+// serving both.
+//
+// Between kin (themes.js KIN) nothing closes: the rain goes on falling while
+// the palette and the motif weights lerp underneath it, and the slowness IS
+// the effect — a season turning, watched. That one stays long.
+//
+// Between unrelated moods the eye closes, and the crossfade is not something
+// to watch but something to hide: two moods that share no motifs pass through
+// configurations belonging to neither. At 2.2s against a 0.92s lid, 71% of
+// that dissolve happened with the eye fully open — "I'm still seeing a lot of
+// the fading between". Shortened here and covered by a longer hold in eye.js,
+// so the swap happens where it was always meant to: unseen.
+const KIN_MORPH_SECONDS = 2.2;
+const CUT_MORPH_SECONDS = 0.75;
 // Cap on the field's longest edge, so a large phone doesn't shade more pixels
 // than the aperture can show.
 const MAX_EDGE = 1024;
@@ -2288,6 +2619,7 @@ function createGL(canvas, reducedMotion) {
   let cur = themeStub();
   let tgt = cur;
   let morph = 1;
+  let morphSecs = KIN_MORPH_SECONDS;
   let tAcc = Math.random() * 100;
   let flowAcc = 0;
   let pulse = 0;
@@ -2397,6 +2729,9 @@ function createGL(canvas, reducedMotion) {
     cur = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
     tgt = theme;
     morph = 0;
+    // A kin change is watched; a cut is hidden behind the lid. See the two
+    // constants for why that is one decision and not two.
+    morphSecs = seamless ? KIN_MORPH_SECONDS : CUT_MORPH_SECONDS;
     // A seamless change keeps the clock running. Between kin (see themes.js)
     // this is not a new visit to a new mood — the rain that was falling goes on
     // falling at the same phase while the palette and the motif weights lerp
@@ -2421,7 +2756,7 @@ function createGL(canvas, reducedMotion) {
   const smoothMotion = createMotionSmoother();
 
   function frame(t, dt, f, intensity) {
-    if (morph < 1) morph = Math.min(1, morph + dt / MORPH_SECONDS);
+    if (morph < 1) morph = Math.min(1, morph + dt / morphSecs);
     const th = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
     if (lost) return; // morph still advances; drawing waits for the restore
     const m = th.mappings;
@@ -2511,6 +2846,7 @@ function create2D(canvas, reducedMotion) {
   let cur = themeStub();
   let tgt = cur;
   let morph = 1;
+  let morphSecs = KIN_MORPH_SECONDS;
   let pulse = 0;
   const blobs = [];
   for (let i = 0; i < 26; i++) {
@@ -2535,10 +2871,11 @@ function create2D(canvas, reducedMotion) {
   }
   const resize = () => setSize(lastW, lastH);
 
-  function setTheme(theme) {
+  function setTheme(theme, seamless) {
     cur = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
     tgt = theme;
     morph = 0;
+    morphSecs = seamless ? KIN_MORPH_SECONDS : CUT_MORPH_SECONDS;
   }
 
   const css = (rgb, a) =>
@@ -2547,7 +2884,7 @@ function create2D(canvas, reducedMotion) {
   const smoothMotion = createMotionSmoother();
 
   function frame(t, dt, f, intensity) {
-    if (morph < 1) morph = Math.min(1, morph + dt / MORPH_SECONDS);
+    if (morph < 1) morph = Math.min(1, morph + dt / morphSecs);
     const th = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;
     const sm = smoothMotion(f, dt);
     const W = canvas.width;

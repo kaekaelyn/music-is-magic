@@ -204,11 +204,24 @@ try {
 
     const buttons = page.locator('#buttons button');
     await buttons.first().waitFor({ timeout: 5000 });
-    const count = await buttons.count();
+    // Every theme reachable, and nothing offered that is not a theme.
+    //
+    // This used to compare the button COUNT against the length of index.json,
+    // which quietly assumed one button per mood — true only while the family
+    // tree is strictly a tree. A shared sub-mood (sunshower sits under both
+    // rain and sunshine) legitimately has two buttons, so the count is no
+    // longer the invariant. Reachability is, and it is the stronger check: a
+    // mood with no button is unusable, and a button for a mood that does not
+    // exist is a dead end. The old form caught neither directly.
+    const labels = await buttons.evaluateAll((els) =>
+      els.map((e) => e.title || e.textContent.trim())
+    );
+    const missing = THEME_NAMES.filter((n) => !labels.includes(n));
+    const unknown = labels.filter((l) => !THEME_NAMES.includes(l));
     check(
-      count === THEME_NAMES.length,
-      'a button per theme in index.json',
-      `got ${count}, index.json lists ${THEME_NAMES.length}`
+      missing.length === 0 && unknown.length === 0,
+      'every theme in index.json has a button, and every button a theme',
+      `missing [${missing}], unknown [${unknown}]`
     );
 
     await page.waitForFunction(

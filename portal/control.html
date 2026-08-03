@@ -236,7 +236,12 @@
     // it different.
     const { familiesOf } = await import('./js/themes.js');
     const buttonsEl = document.getElementById('buttons');
+    // name -> [buttons]. A shared sub-mood has one under each of its parents.
     const buttons = new Map();
+    function addButton(name, b) {
+      const list = buttons.get(name);
+      if (list) list.push(b); else buttons.set(name, [b]);
+    }
     for (const fam of familiesOf(names)) {
       const row = document.createElement('div');
       row.className = 'fam';
@@ -244,15 +249,20 @@
       b.textContent = fam.parent;
       b.addEventListener('click', () => setTheme(fam.parent, b));
       row.appendChild(b);
-      buttons.set(fam.parent, b);
+      addButton(fam.parent, b);
       for (const child of fam.children) {
         const c = document.createElement('button');
         c.className = 'sub';
-        c.textContent = child.slice(fam.parent.length + 1);
+        // Strip the parent's prefix only when the name actually carries it. A
+        // shared sub-mood (sunshower, under both rain and sunshine) does not,
+        // and slicing it blind leaves "ower".
+        c.textContent = child.startsWith(fam.parent + '-')
+          ? child.slice(fam.parent.length + 1)
+          : child;
         c.title = child;
         c.addEventListener('click', () => setTheme(child, c));
         row.appendChild(c);
-        buttons.set(child, c);
+        addButton(child, c);
       }
       buttonsEl.appendChild(row);
     }
@@ -296,7 +306,9 @@
     }
 
     function markCurrent(token) {
-      for (const [name, btn] of buttons) btn.classList.toggle('current', name === token);
+      for (const [name, list] of buttons) {
+        for (const btn of list) btn.classList.toggle('current', name === token);
+      }
     }
 
     // §5.8 — wake/seal. These exist only for the broadcast build: on the

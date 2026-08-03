@@ -190,8 +190,18 @@ const moodButtons = new Map();
 let moodOrder = [];   // one entry per FAMILY, in panel order
 let moodFamilies = [];
 
+// One mood can own more than one button, so the map holds a list.
+function addMoodButton(name, b) {
+  const list = moodButtons.get(name);
+  if (list) list.push(b); else moodButtons.set(name, [b]);
+}
+
 function markMood(name) {
-  for (const [key, b] of moodButtons) b.classList.toggle('on', key === name);
+  // Every button for that mood, not one: a shared sub-mood (sunshower) has a
+  // button under each of its parents and both should light up.
+  for (const [key, list] of moodButtons) {
+    for (const b of list) b.classList.toggle('on', key === name);
+  }
 }
 
 function chooseTheme(name) {
@@ -233,18 +243,23 @@ function buildMoodPanel(names) {
       b.blur(); // or the HUD cannot fade back out on a broadcast machine
     });
     row.appendChild(b);
-    moodButtons.set(fam.parent, b);
+    addMoodButton(fam.parent, b);
 
     for (const child of fam.children) {
       const c = document.createElement('button');
       c.className = 'sub';
       // Labelled by what distinguishes it, not by its full name: under the
       // forest button, "blooming" says everything "forest-blooming" does.
-      c.textContent = child.slice(fam.parent.length + 1);
+      // Only when the name actually carries the parent's prefix, though — a
+      // shared child (sunshower, which sits under both rain and sunshine) does
+      // not, and slicing it blind turned it into "ower".
+      c.textContent = child.startsWith(fam.parent + '-')
+        ? child.slice(fam.parent.length + 1)
+        : child;
       c.title = child;
       c.addEventListener('click', () => { chooseTheme(child); c.blur(); });
       row.appendChild(c);
-      moodButtons.set(child, c);
+      addMoodButton(child, c);
     }
     el.moods.appendChild(row);
   });

@@ -100,9 +100,11 @@ export const BUILTIN = {
   // that matters here; pulseFlux is raised so more of the playing registers.
   ice: {
     palette: ['#04101c', '#0d2b45', '#2f6f96', '#8fc8e0', '#f2fbff'],
-    // travel feeds the FROST clock: frost creeps over the shards while the
-    // room is loud and thaws back on the same slow cycle. Playing frosts the
-    // glass; silence lets it clear.
+    // travel feeds the FROST clock, and that clock only ever runs forward:
+    // frost creeps out over the shards while the room is loud and HOLDS where
+    // it got to when the room goes quiet. Playing grows the ice; silence stops
+    // it growing. It used to thaw back on the same cycle, which read as
+    // blotches thickening and shrinking rather than as crystal.
     params: { scale: 2.0, speed: 0.16, warp: 0.5, sparkle: 1.0, gloss: 0.6, base: 0.55, drift: 0.02, travel: 0.25, glint: 0.35 },
     motifs: { facets: 0.9 },
     mappings: { warpBass: 0.06, sparkleTreble: 1.6, pulseFlux: 1.3, shiftCentroid: 0.1 },
@@ -236,7 +238,7 @@ export const BUILTIN = {
   volcano: {
     palette: ['#0a0708', '#1c1216', '#3a2028', '#8c3a1e', '#ffcf94'],
     params: { scale: 1.5, speed: 0.18, warp: 0.85, sparkle: 0.5, gloss: 0.3, base: 0.2, drift: 0.2, travel: 0.45 },
-    motifs: { ridge: 0.85, lava: 0.95, smoke: 0.6, embers: 0.45, stars: 0.35 },
+    motifs: { cone: 1.0, lava: 0.95, smoke: 0.6, embers: 0.45, stars: 0.35 },
     mappings: { warpBass: 0.4, sparkleTreble: 1.0, pulseFlux: 1.3, shiftCentroid: 0.15 },
   },
 
@@ -283,11 +285,17 @@ export const BUILTIN = {
   // No canopy — and that is the mood, not a detail of it. With nothing
   // overhead the shafts arrive unbroken and weak instead of dappled and
   // shifting, the trunks carry the frame alone, and the light stops being the
-  // subject. Grey-brown throughout; the only colour left is a few last leaves.
+  // subject. Grey-brown throughout, and nothing left in the air.
+  //
+  // petals was 0.12 — "a few last leaves", which sounded right and was not:
+  // the motif never reaches zero, so leaves went on falling through a mood
+  // whose whole subject is that they have finished falling. The owner's note
+  // was that they "don't want to disappear when I switch to barren", and they
+  // were correct that nothing was making them stop. Barren is bare.
   'forest-barren': {
     palette: ['#171a1f', '#3d3f44', '#71757c', '#a8adb5', '#e9edf2'],
     params: { scale: 1.7, speed: 0.16, warp: 1.0, sparkle: 0.4, gloss: 0.1, base: 0.82, drift: 0.3, travel: 0.6, travelX: 0.3 },
-    motifs: { columns: 0.95, rays: 0.5, petals: 0.12 },
+    motifs: { columns: 0.95, rays: 0.5, petals: 0 },
     mappings: { warpBass: 0.5, sparkleTreble: 0.9, pulseFlux: 1.0, shiftCentroid: 0.25 },
   },
 };
@@ -323,10 +331,28 @@ const KIN = Object.freeze({
   'desert-night': ['desert'],
 });
 
+// Sub-moods that belong to MORE THAN ONE parent.
+//
+// The naming convention encodes a tree — `x-y` is a child of `x` — and a tree
+// cannot say "belongs to both", which is exactly what a sunshower is. It is not
+// a kind of rain that happens to be sunny, nor a kind of sunshine that happens
+// to be wet; it is the one place the two overlap, and it was showing up as a
+// mood in its own right because there is nothing in the NAME for the
+// derivation to work from.
+//
+// Declared rather than derived for that reason, and kept beside KIN because it
+// is the same sort of fact: a relationship between themes rather than a
+// property of any one of them. This is not the duplicate parentage list the
+// derivation exists to avoid — it says only what the names cannot.
+const SHARED_CHILDREN = Object.freeze({
+  sunshower: ['rain', 'sunshine'],
+});
+
 // Families, derived from the names. A theme called `x-y` is a sub-mood of `x`
 // whenever `x` is itself in the list — which is why night-desert was renamed
 // desert-night: it is a child of the desert, and the old name said it belonged
-// to the night. Anything with no such parent stands on its own.
+// to the night. Anything with no such parent stands on its own, unless
+// SHARED_CHILDREN gives it parents the name cannot.
 //
 // Derived rather than declared so that adding a folder still costs one line in
 // index.json. A second list of who-belongs-to-whom is a second thing to forget
@@ -339,15 +365,27 @@ export function familiesOf(names) {
     const head = n.slice(0, cut);
     return set.has(head) ? head : null;
   };
+  // Only counts as shared if every declared parent is actually present, so a
+  // partial theme list degrades to the child standing on its own rather than
+  // vanishing from the picker entirely.
+  const sharedParents = (n) => {
+    const ps = (SHARED_CHILDREN[n] || []).filter((p) => set.has(p));
+    return ps.length ? ps : null;
+  };
   const families = [];
   const byParent = new Map();
   for (const n of names) {
-    if (parentOf(n)) continue;
+    if (parentOf(n) || sharedParents(n)) continue;
     const fam = { parent: n, children: [] };
     families.push(fam);
     byParent.set(n, fam);
   }
   for (const n of names) {
+    const shared = sharedParents(n);
+    if (shared) {
+      for (const p of shared) if (byParent.has(p)) byParent.get(p).children.push(n);
+      continue;
+    }
     const p = parentOf(n);
     if (p && byParent.has(p)) byParent.get(p).children.push(n);
   }
@@ -377,6 +415,7 @@ export const MOTIFS = Object.freeze({
   snow: 0,      // accumulation on the upward faces of those layers
   tunnel: 0,    // a passage receding into the dark, crystal on its walls
   ridge: 0,     // layered ridgelines against the sky — a mountain's silhouette
+  cone: 0,      // ONE volcano: straight flanks, a flat cratered summit, a vent
   wisps: 0,     // slow wandering lights — will-o-wisps between the trunks
   foam: 0,      // travelling swell with breaking white water on the crests
   stars: 0,     // fixed points of light, a faint band, meteors on onsets

@@ -40,6 +40,7 @@
     "snow": 0,
     "tunnel": 0,
     "ridge": 0,
+    "cone": 0,
     "wisps": 0,
     "foam": 0,
     "stars": 0,
@@ -53,7 +54,7 @@
     "smoke": 0,
     "lava": 0,
     "ripples": 0,
-    "petals": 0.12
+    "petals": 0
   },
   "textures": []
 }

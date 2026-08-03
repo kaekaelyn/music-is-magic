@@ -775,16 +775,31 @@ try {
     // what distinguishes them.
     const shape = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('#moods .fam')];
+      const labelsOf = (r) =>
+        [...r.querySelectorAll('button')].map((b) => b.textContent.replace(/^\d+/, ''));
       return {
         rows: rows.length,
         buttons: document.querySelectorAll('#moods button').length,
-        forestRow: rows
-          .map((r) => [...r.querySelectorAll('button')].map((b) => b.textContent.replace(/^\d+/, '')))
-          .find((labels) => labels[0] === 'forest'),
+        forestRow: rows.map(labelsOf).find((l) => l[0] === 'forest'),
+        rainRow: rows.map(labelsOf).find((l) => l[0] === 'rain'),
+        sunshineRow: rows.map(labelsOf).find((l) => l[0] === 'sunshine'),
+        topLevel: rows.map((r) => labelsOf(r)[0]),
       };
     });
-    check(shape.rows === 12, 'the panel groups sixteen moods into twelve families',
+    check(shape.rows === 11, 'the panel groups sixteen moods into eleven families',
       `got ${shape.rows} rows / ${shape.buttons} buttons`);
+    // sunshower belongs to BOTH its parents and to neither alone, so it is a
+    // sub-mood twice over and a family none of the time.
+    check(
+      !shape.topLevel.includes('sunshower'),
+      'sunshower is not a mood in its own right',
+      shape.topLevel.join(',')
+    );
+    check(
+      shape.rainRow?.includes('sunshower') && shape.sunshineRow?.includes('sunshower'),
+      'sunshower sits under both rain and sunshine',
+      `rain [${shape.rainRow}] sunshine [${shape.sunshineRow}]`
+    );
     check(
       JSON.stringify(shape.forestRow) === JSON.stringify(['forest', 'blooming', 'autumn', 'barren']),
       'the forest keeps its seasons beside it, named by what differs',

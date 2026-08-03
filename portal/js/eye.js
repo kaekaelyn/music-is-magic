@@ -104,7 +104,18 @@ export function createEye(canvas, { reducedMotion = false, field = null, radius 
   // that resetting the travel clock cuts the outgoing mood's motion mid
   // crossfade, accepted because "the whole image is dissolving at that moment
   // anyway" — behind a closed lid it is not merely dissolving, it is unseen.
-  const MOOD_LID = { dur: 0.92, closeF: 0.3, holdF: 0.24, depth: 0.94 };
+  //
+  // The hold has to be long enough to CONTAIN the crossfade, and it was not:
+  // at 0.24 of 0.92s the eye was shut for 0.22s of a 2.2s dissolve, so 71% of
+  // it played with the lid fully open and the swap was in plain sight. The
+  // cut-mood crossfade is now 0.75s (viz.js), and the hold is sized around it
+  // — closed before the swap, still closed for most of the dissolve, opening
+  // onto a mood that has essentially arrived.
+  //
+  // depth is 1, not 0.94. At 0.94 the "closed" eye still showed 6% of the
+  // field, which is exactly the sliver a dissolve is most visible through, and
+  // it made the hold cosmetic. The blink has always closed fully; so does this.
+  const MOOD_LID = { dur: 1.45, closeF: 0.22, holdF: 0.42, depth: 1 };
 
   let lid = null;
   let lidT = 0;

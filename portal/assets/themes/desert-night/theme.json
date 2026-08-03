@@ -40,6 +40,7 @@
     "snow": 0.22,
     "tunnel": 0,
     "ridge": 0.9,
+    "cone": 0,
     "wisps": 0,
     "foam": 0,
     "stars": 0.9,
