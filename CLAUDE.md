@@ -30,6 +30,30 @@ by the harness. That branch is scratch space. Before the session ends, land the
 work on the broadcast branch above so a plain `git pull` picks it up — don't
 leave commits stranded on a session branch.
 
+### Standing instruction: commit and push without being asked
+
+The owner's words, 2026-08-03: *"do it automatically from now on? I trust you
+over myself with git."* So don't ask. When a piece of work is finished and
+`npm test` passes, commit it and push it — session branch **and** the broadcast
+branch — as part of finishing, not as a separate thing to be granted permission
+for. Leaving work uncommitted in a container that gets reclaimed is the failure
+mode this exists to prevent.
+
+Finished means tested, not merely written. A red suite is a reason to keep
+working, not a reason to ask whether to push.
+
+Three things this does NOT authorise, because they are unrecoverable and the
+trust is about diligence rather than reach:
+
+- **Never push `claude/discussion-next-steps-cshpet`.** Frozen reference; it
+  has been destroyed by accident once. Nothing lands there, ever.
+- **Never force-push a shared branch.** Fast-forward only. If a push is
+  rejected as non-fast-forward, something else moved and that is worth
+  understanding, not overwriting.
+- **Never open a pull request, delete or rename a branch, or change the
+  default branch unasked.** Those are outward-facing or irreversible; the
+  standing permission covers commit and push.
+
 ## Layout
 
 - `portal/` — both builds; `index.html` is the website, `broadcast.html` is the
