@@ -1102,19 +1102,26 @@ float mCrystals(vec2 uv, vec2 vp, float t, float selClock, vec2 lightDir,
     // mound was wider than the spears were long, so it swallowed them whole and
     // the render came out as three enormous smooth bubbles. It is the ROOT
     // region and nothing more: enough to hide where the prisms meet.
+    // THE SILHOUETTE IS THE SHAPE. Perturbing the interior shading of a circular
+    // outline gives a shaded ball, which is what the second render still showed
+    // after the first one's bubbles were shrunk — the outline was never in
+    // question, and the outline is what the eye reads.
+    //
+    // So the radius is a function of DIRECTION rather than a constant, and it is
+    // sampled from linear noise around the unit circle: piecewise linear in
+    // angle is a POLYGON. Four or five facets around, which is what a crystal
+    // mass looks like from any one side.
     vec2 dm = d0 / persp;
     float mr = length(dm);
-    float mRad = 0.115 + 0.035 * lnoise(vec2(dm.x * 9.0 + fj, dm.y * 9.0 + e));
-    float mound = 1.0 - smoothstep(mRad * 0.88, mRad, mr);
+    vec2 nd = dm / max(mr, 1e-4);
+    vec2 fdir = vec2(nd.x * 2.2 + fj, nd.y * 2.2 + e);
+    float mRad = 0.115 * (0.72 + 0.55 * lnoise(fdir));
+    float mound = 1.0 - smoothstep(mRad * 0.90, mRad, mr);
     if (mound > 0.003) {
-      vec2 nd = dm / max(mr, 1e-4);
-      // The frequency has to put SEVERAL lattice cells across the mound or the
-      // perturbation is one constant offset and what draws is a tilted sphere.
-      // At 2.6 against a radius of 0.3 the whole mound sat inside a single cell,
-      // which is exactly the bubble the render showed.
-      vec2 mn = normalize(nd + vec2(
-        lnoise(vec2(dm.x * 26.0 + fj * 3.0, dm.y * 26.0 + e)) - 0.5,
-        lnoise(vec2(dm.y * 26.0 - fj, dm.x * 26.0 + 5.0)) - 0.5) * 1.5);
+      // ...and the normal is FLAT within each facet, because it is hashed from
+      // that facet's own lattice cell. A normal that varies continuously across
+      // a face is a curved surface, and quartz has no curved surfaces.
+      vec2 mn = normalize(nd + (ch2(floor(fdir)) - 0.5) * 2.1);
       float ml = max(dot(mn, lightDir), 0.0);
       float m2 = ml * ml;
       float mglint = m2 * m2;
@@ -2008,7 +2015,7 @@ vec3 filmSpectrum(float x, float sat) {
 // Brighter near the sun in both cases: iridescence is a forward-scattering
 // effect and it is strongest within a few degrees of the source. The engine
 // puts its light in the upper left, as mRays, mCrags and mColumns all assume.
-vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
+vec3 mIridescence(vec2 uv, float t, float flow, float dens, vec2 thr,
                   float drive, float kick, float pitch, out float amt) {
   const vec2 SUN = vec2(-0.46, 0.30);
   float nearSun = smoothstep(1.15, 0.16, length(uv - SUN));
@@ -2019,16 +2026,26 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
   // that edge currently is — which keeps the colour on the fringe even as the
   // weather clock moves the threshold), plus the raw density for finer
   // structure, plus a slow drift so the orders creep rather than sitting still.
-  // THREE ORDERS ACROSS THE FRINGE, not ten. The references show a handful of
-  // broad bands hugging an outline; ten thin ones is a topographic map, and that
-  // is what the first render drew. Thickness is the whole geometry of this
-  // motif, so its scale IS the picture — and three is where the bands are wide
-  // enough to read as colour rather than as contour lines, while still going
-  // round the spectrum more than once, which is what says interference.
-  float film = body * 2.4 + dens * 1.5
-             + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 1.1;
-  // The fringe: present where the cloud is arriving and gone where it is solid.
-  float fringe = smoothstep(0.03, 0.34, body) * smoothstep(0.95, 0.52, body);
+  // A COORDINATE THAT RUNS ACROSS THE CLOUD'S EDGE, measured in the units of the
+  // cloud's own threshold so it follows that edge wherever the weather has put
+  // it. 0 at the outer edge of the coverage ramp, 1 at the inner.
+  //
+  // This is the fix for a fringe that came out as a STROKE around the cloud
+  // rather than bands through it. Gating on the coverage itself confines the
+  // colour to the ramp's own width, and that ramp is deliberately narrow —
+  // it is what makes a cloud have an edge at all. The photographs put
+  // iridescence over a broad swathe reaching well inside the cloud and a little
+  // way outside it, so the band has to be several ramp-widths across, and the
+  // only way to get that is to work in a coordinate that can go past 0 and 1.
+  float span = max(thr.y - thr.x, 1e-3);
+  float across = (dens - thr.x) / span;
+  float fringe = smoothstep(-1.7, -0.25, across) * smoothstep(2.6, 0.95, across);
+  // Roughly three orders over the whole width of that band. Ten was a
+  // topographic map; three is where a band is wide enough to read as colour
+  // while still going round the spectrum more than once, which is what says
+  // interference rather than dispersion.
+  float film = across * 0.78
+             + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 1.0;
   float skyAmt = fringe * (0.18 + nearSun * 0.70);
 
   // --- the puddles ---------------------------------------------------------
@@ -2835,7 +2852,7 @@ vec3 mWisps(vec2 uv, float t, float w, float flow, float drive) {
 // Coverage swells with loudness (a working room builds weather), and the
 // drift rides the travel clock, one way, at the music's pace.
 float mClouds(vec2 uv, float t, float flow, float drive, out float rim,
-              out float dens) {
+              out float dens, out vec2 thr) {
   vec2 q = vec2(uv.x * 1.5 + flow * 0.35 + t * 0.01, uv.y * 2.6);
   float cl = fbm(q);
   // The raw density, handed out for the iridescence: interference colours are a
@@ -2850,7 +2867,11 @@ float mClouds(vec2 uv, float t, float flow, float drive, out float rim,
   // occlusion, and every mechanism for it was already wired (rays are cut
   // where cloud stands in front of them and blaze where they slip past an
   // edge); the only thing missing was a gap that ever opened or closed.
-  float body = smoothstep(0.74 - drive * 0.44, 0.92 - drive * 0.30, cl);
+  // The coverage threshold, handed out with the density. The iridescence needs
+  // BOTH: a fringe has to sit across the cloud's edge, and the edge moves with
+  // the weather clock, so a window fixed in density space would drift off it.
+  thr = vec2(0.74 - drive * 0.44, 0.92 - drive * 0.30);
+  float body = smoothstep(thr.x, thr.y, cl);
   float toSun = fbm(q + vec2(-0.055, 0.075)); // toward mRays' source
   rim = clamp((cl - toSun) * 9.0, 0.0, 1.0) * body;
   return body;
@@ -3147,6 +3168,7 @@ void main() {
   float cloudRim = 0.0;
   float cloudDens = 0.0;  // the raw field under the cloud, for the iridescence
   float cloudBody = 0.0;  // and its coverage BEFORE the motif weight scales it
+  vec2 cloudThr = vec2(0.0, 1.0); // and where its edge currently sits
   float bolt = 0.0;
   float boltFlash = 0.0;
   float crystal = 0.0;
@@ -3184,7 +3206,7 @@ void main() {
 
   if (W_clouds > 0.0) {
     float rimv;
-    cloudBody = mClouds(uv, u_t, u_flow, u_weather, rimv, cloudDens);
+    cloudBody = mClouds(uv, u_t, u_flow, u_weather, rimv, cloudDens, cloudThr);
     cloud = cloudBody * W_clouds;
     cloudRim = rimv * W_clouds;
   }
@@ -3923,11 +3945,10 @@ void main() {
   // it belongs to rain.
   if (W_rainbow > 0.0) {
     float bowAmt;
-    // The UNWEIGHTED coverage: the fringe is a band on the cloud's own edge
-    // ramp, and scaling that ramp by the motif weight moves the whole band off
-    // the edge — at clouds 0.55 the upper gate never closes and the colour
-    // floods the cloud's interior instead of hugging its outline.
-    vec3 bow = mIridescence(uv, u_t, u_flow, cloudDens, cloudBody,
+    // The raw density and the cloud's own moving threshold, not its coverage:
+    // the fringe is several ramp-widths across, which is a span the coverage
+    // cannot express (it saturates at both ends of exactly one ramp).
+    vec3 bow = mIridescence(uv, u_t, u_flow, cloudDens, cloudThr,
                             u_rms, u_pulse, u_centroid, bowAmt);
     col += bow * bowAmt * W_rainbow * 1.25;
   }
