@@ -1950,3 +1950,157 @@ on real hardware.
   would be a second motif.
 - Volcano's lava reads best on the lower slope; a summit vent would want its
   own term.
+
+## Eighth pass — 2026-08-03, extended testing on the owner's machine
+
+Fourteen notes. The through-line this time is **motion read as the wrong
+object**: in four separate moods the geometry was defensible and the way it
+moved named something else entirely. A hue ramp at constant luminance is a
+thermal camera. A body frame scaled by an onset is a zoom lens. A lattice warped
+by a shared field is a sheet of glass with leaves painted on it. A cone with a
+flat top is a mesa. None of those were tuning errors, and none of them would
+have been found by looking at a still with the sound off.
+
+### Forest
+
+- **Blossom appeared when crossfading autumn to barren, in both directions.**
+  Whole flowers were gated on `step(leaf, 0.35)`, and autumn sets `leaf = 1`
+  while barren leaves it at 0 — so the crossfade between two moods that have no
+  flowers in them swept the gate on the way past, while `petals` was still
+  fading out. **A gate fires on the PATH between two themes, not on their
+  endpoints.** Now on its own `flower` parameter, which is 0 at both ends of
+  every edge in the family.
+- **"They move more or less as a unit, like they're attached to a transparent
+  plane. (They probably are.)"** They were. The wind was a function of `uv`
+  warping the lattice, so every mote in a region got the same push at the same
+  instant, and warping the sheet can never move one leaf differently from its
+  neighbour. The shared field is halved and each mote gained its own orbit —
+  sine against cosine, in quadrature, so it traces a loop rather than shuttling
+  along a diagonal — with hashed phase and rates. The spin and the edge-on
+  squash now ride that orbit's phase, because attitude and path are one motion.
+- **The full flowers came out cartoonish.** The owner's call, and right: a
+  five-lobed rosette fifteen pixels across is a symbol of a flower however well
+  it moves, and a symbol among abstractions breaks the spell. `flower: 0`
+  everywhere; the shape stays in the engine behind the parameter.
+- **"The coppery light is kind of a lazy way to convey the colors of autumn."**
+  Also right, and the reason it is lazy is that it is false: an October wood is
+  lit by a thin grey-green daylight and all the copper is hanging on a branch.
+  The palette is now the light — cool, olive, low — and the leaves carry their
+  own oxblood-to-gold ramp off the palette entirely, the way fire and the aurora
+  already do.
+- **The wisps had gone missing.** Not faint — absent. Counting the gate:
+  `step(1.0 - 0.2 * w, hash)` lit TWO cells of the thirty-five on screen in
+  forest and ONE in blooming, and each also breathes down to a fifth of its
+  brightness and drifts out of frame. Density to 0.30, breath floor up.
+
+### Night
+
+- **"Those straight lines aren't so straight anymore. Something is warping
+  them."** The ray coordinate was displaced by two sinusoids OF HEIGHT,
+  amplitude 0.13 against a ray spacing of 1/9.5 — so every ray was pushed
+  sideways by more than a whole ray-width along its own length, a full cycle
+  inside the curtain. **A shear linear in height maps straight lines to straight
+  lines; a shear sinusoidal in height bends every one into an S.** The lean is
+  linear now and the HEM does the snaking.
+
+### Cave
+
+- **"They illuminate so fast that there's always a sense they appear and
+  disappear."** They did appear and disappear: outside its window a cluster was
+  not dim, it was `continue`d — the geometry blinked in with the light. A
+  crystal is a solid; it is there in the dark. `pres = 0.16 + 0.84 * env` keeps
+  a silhouette standing and `env` now scales the lighting only.
+- **"The bases look like another crystal spear pointed straight at the
+  camera."** A compact convex lump at the root of a spray of prisms reads as one
+  more prism. The massif gained a sparse spiky term on its radius and is
+  flattened against the wall — three times wider than deep, because a bed
+  spreads over the surface it nucleated on.
+- **"Register is not affecting crystal illumination in any obvious way."** This
+  one was arithmetic, not taste — see the centroid note below.
+- Sparkles: hashed segments along each prism, re-rolled twice a second, with the
+  threshold dropping as the register rises. "One face lights up dimly... and
+  then with the high register, lots of sparkles."
+
+### The centroid, at last
+
+The rescale that has been open for three passes, and it was blocking four gates
+at once. The scale was 60–8000 Hz — seven octaves — and a piano's spectral
+centroid lives in a small part of it, because the fundamental dominates and the
+fundamentals stop at 4186 Hz. Measured: low playing landed near 0.25, and the
+brightest playing anyone could manage reached about 0.72. **The top third of the
+scale was unreachable by construction**, so `pitch³` in the cave lamp delivered
+a third of its range at full effort. Now 120–4000 Hz.
+
+### Sunshower
+
+- **"It makes it look like we're very high up above the world... I'm thinking
+  fluffier, less stratospheric."** The perspective divide was `1/(above + 0.16)`
+  — better than six to one over the height of the sky, which is the view from an
+  aeroplane, and it stretched everything flat and stacked it toward the horizon.
+  0.40 gives about three to one. Plus a domain warp for cauliflower edges and a
+  coverage band half as wide, because a fluffy cloud has an EDGE.
+- **"A sort of 'thermal vision' look... I want pretty, striking rainbow light,
+  not spy goggles."** The tell was never the boldness — they asked for bold
+  twice. It is that **a cosine hue wheel at constant saturation and constant
+  luminance is the definition of a false-colour palette**: the picture carries
+  its information purely as hue, which is how a thermal camera draws and how
+  nothing in the sky looks. Saturation now varies along the sweep (pale-vivid-
+  pale, so the cloud shows through), the ramp is lifted toward white and scaled
+  by its own peak channel so bands differ in brightness, and the orders came
+  down from about three sweeps to one. The cloud under it was also barely lit,
+  which is the other half: **a shape made entirely of hue is a thermal blob by
+  construction**, so the deck got its own light to be bands ON.
+- The iridescent puddles were drawn against `gY = -0.24` while main and the
+  drips had moved to `-0.38` — a second copy of a constant that did not get
+  updated. That put a band of iridescent patches hanging in the AIR between the
+  skyline and the ground, which is most of what the owner saw as clouds sitting
+  on the ground. They were not clouds.
+
+### Fire
+
+- **"There is a definite seam on the flame."** Nothing was drawing a line. The
+  silhouette was `smoothstep(wid, .., abs(p.x - lean))` — exactly symmetric
+  about the axis — and the erosion field over it was near-symmetric too, so
+  everything on the left happened on the right at the same height. **The seam is
+  where the two mirrored halves meet.** Two independent tear functions now.
+- **"The darkness 'bites chunks' out of the flame rather than the flame dancing
+  in the darkness."** Precisely what multiplying a body by a thresholded noise
+  field does: it punches holes THROUGH the interior. Fire tears at its edges and
+  stays lit in the middle, so the noise moves the boundary and the inside is
+  left alone (it varies in brightness now, not in existence).
+
+### Volcano
+
+- **"It shouldn't just look like a chunk is off the top."** Third time this has
+  been raised, and the previous two fixes both went after the crater when the
+  fault was the SILHOUETTE: the profile held its summit height flat across the
+  whole of `|x| < 0.28`, a plateau more than a quarter of the frame wide. That
+  is a mesa, and a mesa with a dark middle reads as a bite whatever is painted
+  in it. It comes to a point now, per the owner's own steer — "Arenal here has a
+  bit more of a peak" — and the flanks were pulled in from 1.02 to 0.86 so the
+  mountain has sky either side of it ("too much receding").
+- **"It's as if the crags are oozing down along with the lava."** The cone was
+  filled with a flat 0.04 and had no texture at all, so the only structure
+  anywhere on it was the lava, which scrolls — and the dark shapes BETWEEN the
+  streams were not rock, they were the gaps between moving things. **With no
+  fixed feature on the mountain the eye had nothing to hold and read the whole
+  surface as flowing.** Static lit relief on the rock fixes it.
+- **"It just doesn't have that 'ooh, aah!' factor."** A dozen channels rim to
+  base is a curtain of orange and reads as melting. Their own specification:
+  "even in photos where there are just a few, it's breathtaking." Channel
+  frequency roughly halved, plus the glow over the vent that every one of the
+  reference photographs has and this had none.
+
+### Desert and flock
+
+- **"It needs to look hotter."** Nothing in it was hot: warm sand under a warm
+  sky is a beach in April. Heat is a property of the AIR — the far ground swims
+  and the horizon bleaches — and neither can be said with a palette. Also the
+  near dune was rendered nearly black by an aerial-perspective rule that is
+  right for a mountain range at nightfall and backwards for sunlit sand.
+- **"Sometimes it does seem to shrink and throb."** The clench scaled the whole
+  body frame by up to 34% on an onset, and the frame carries the outline AND the
+  grain — so every beat resized the flock. **That is a camera moving toward the
+  birds, and a zoom is the one motion in this mood with no bird in it.** The
+  startle moved into density: the silhouette holds and the mass packs and darkens.
+

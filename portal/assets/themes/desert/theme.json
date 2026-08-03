@@ -21,7 +21,8 @@
     "travel": 0.3,
     "travelX": 0.12,
     "travelY": 0,
-    "angular": 0.1
+    "angular": 0.1,
+    "heat": 0.9
   },
   "mappings": {
     "warpBass": 0.2,

@@ -40,6 +40,9 @@ let themeSeq = 0;
 
 let firstTheme = true;
 let currentName = null;
+// What the most recently accepted token WILL resolve to, known as soon as the
+// theme loads rather than when the eye finally swaps it in. See applyTheme.
+let pendingName = null;
 
 function applyTheme(token) {
   if (token === currentToken) return;
@@ -59,9 +62,19 @@ function applyTheme(token) {
     };
     // Kin morph in the open; a sub-mood is the same weather changing its mind,
     // not an arrival somewhere else. The first mood is not a change either.
+    //
+    // Compared against the mood that is ARRIVING, not the one on screen. For a
+    // lid transition swap() runs at the closed moment, so currentName goes on
+    // naming the previous mood for the whole length of the blink — and a mood
+    // chosen inside that window was tested for kinship against the mood before
+    // last. Two sub-moods of the same family could therefore take the lid, which
+    // is the only path we have found to the owner's report of the eye closing on
+    // an autumn-to-barren switch they could not reproduce.
+    const from = pendingName || currentName;
     if (firstTheme) { firstTheme = false; swap(false); }
-    else if (isKin(currentName, theme.name)) swap(true);
+    else if (isKin(from, theme.name)) swap(true);
     else eye.transition(() => swap(false));
+    pendingName = theme.name;
   });
 }
 

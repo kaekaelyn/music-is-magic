@@ -300,9 +300,15 @@ export const BUILTIN = {
   // one number. Blowing sand off a crest is spindrift, which is why snow is on
   // in a desert: that motif means "what the wind tears off the top", and it
   // never cared what the material was.
+  // heat: 0.9 — the day desert's own note. The owner's read was that it "seems
+  // pretty temperate", and they were right that nothing in it was actually hot:
+  // warm sand under a warm sky is a beach in April. Heat is a property of the
+  // AIR, so it shows as the far ground swimming and the horizon bleaching out,
+  // neither of which any palette can say. desert-night leaves it at 0 — the
+  // same sand, and the shimmer goes with the sun.
   desert: {
     palette: ['#2a1a10', '#6b4526', '#b98a4e', '#e5c489', '#fff4dc'],
-    params: { scale: 1.5, speed: 0.1, warp: 0.55, sparkle: 0.4, gloss: 0.12, base: 0.55, drift: 0.1, travel: 0.3, travelX: 0.12, angular: 0.1 },
+    params: { scale: 1.5, speed: 0.1, warp: 0.55, sparkle: 0.4, gloss: 0.12, base: 0.55, drift: 0.1, travel: 0.3, travelX: 0.12, angular: 0.1, heat: 0.9 },
     motifs: { ridge: 0.9, ripples: 0.75, snow: 0.35, clouds: 0.12 },
     mappings: { warpBass: 0.2, sparkleTreble: 0.8, pulseFlux: 0.8, shiftCentroid: 0.25 },
   },
@@ -335,20 +341,41 @@ export const BUILTIN = {
   // SHADOWS: the darkest thing in it is a lit green, not a black one. So the
   // bottom two steps come up and warm, the mid step goes to sunlit leaf, and
   // the top stays a warm white rather than the old cool pink-white.
+  //
+  // NO WHOLE FLOWERS. flower: 0 turns off the open-rosette shape, and this is
+  // the owner's call: "not a big fan of the full-on flowers, because it's very
+  // obvious that they don't tumble and float like they actually would. It gives
+  // it a very cartoonish effect." A five-lobed rosette fifteen pixels across
+  // reads as a symbol of a flower however well it moves, and a symbol among
+  // abstractions is what breaks the spell — the petals are the better object
+  // precisely because they are "more abstract". The shape stays in the engine
+  // behind its own parameter, so this is a data decision and reversible.
   'forest-blooming': {
     palette: ['#17250f', '#41632a', '#8cc25a', '#f4b3d0', '#fff8f0'],
-    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.62, drift: 0.35, travel: 0.5, travelX: 0.26, leaf: 0 },
+    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.62, drift: 0.35, travel: 0.5, travelX: 0.26, leaf: 0, flower: 0 },
     motifs: { columns: 0.75, dapple: 0.82, rays: 0.86, petals: 0.62, wisps: 0.25 },
     mappings: { warpBass: 0.4, sparkleTreble: 1.2, pulseFlux: 1.1, shiftCentroid: 0.35 },
   },
 
-  // The same wood, amber and rust in the upper steps — and leaf: 1, which is
-  // the rest of what makes it autumn. Long pointed leaves with a rib, more of
-  // them, and all of them answering one gust rather than each fluttering alone.
-  // Blooming and autumn are kin, so a move between them lerps this from 0 to 1
-  // and the blossom becomes leaves in the open, without the eye closing.
+  // The same wood, and leaf: 1 — long pointed leaves with a rib, more of them,
+  // each on its own swirling path. Blooming and autumn are kin, so a move
+  // between them lerps this from 0 to 1 and the blossom becomes leaves in the
+  // open, without the eye closing.
+  //
+  // THE LIGHT IS NOT COPPER. The palette used to run amber and rust through
+  // every step, which tinted the sky, the mist, the shafts and the trunks the
+  // colour of a leaf — the owner's note: "the sky/mist/light/whatever isn't
+  // actually that color during that season. It's the leaves that look like
+  // that." Quite so, and it was a lazy way to say autumn: one flat gesture
+  // doing the work of a season, which is the same fault barren's monochrome had.
+  //
+  // So the palette is the LIGHT now — a thin, cool, slightly olive daylight,
+  // greyer and lower than forest's living green, which is what late October
+  // actually looks like — and every bit of the copper has moved into the
+  // falling leaves themselves (see the u_leaf ramp in main). The warmth is
+  // still there; it is hanging in the air rather than smeared over the lens.
   'forest-autumn': {
-    palette: ['#140d07', '#3a2413', '#8a4a1c', '#d98a34', '#ffd98f'],
+    palette: ['#12140e', '#2c3327', '#59614c', '#949b83', '#dfe0d1'],
     params: { scale: 1.8, speed: 0.22, warp: 1.15, sparkle: 0.55, gloss: 0.14, glint: 0.12, canopy: 0.8, base: 0.46, drift: 0.32, travel: 0.55, travelX: 0.28, leaf: 1 },
     motifs: { columns: 0.8, dapple: 0.7, rays: 0.72, petals: 0.8 },
     mappings: { warpBass: 0.45, sparkleTreble: 1.1, pulseFlux: 1.0, shiftCentroid: 0.3 },
@@ -530,6 +557,19 @@ export const DEFAULT_PARAMS = Object.freeze({
               // thicker, long and pointed with a rib, and moved by a gust the
               // whole frame shares. Continuous, so blooming morphs into autumn
               // rather than cutting to it — they are kin, and a season turns
+  flower: 0,  // whether whole open blooms turn among the falling petals. Its
+              // OWN parameter rather than a reading of leaf, and that is not
+              // tidiness: gating the blooms on leaf < 0.35 meant a crossfade
+              // between two flowerless moods (autumn's leaf 1, barren's 0) swept
+              // through the window on the way and put blossom in a dead wood for
+              // a second. A gate fires on the PATH between two themes, not on
+              // their endpoints. Currently 0 everywhere — the rosette reads as
+              // cartoonish at mote size (the owner's call) — but the shape is
+              // still in the engine, so bringing it back is a data change
+  heat: 0,    // how hot the air is: the shimmer over far ground and the haze
+              // that bleaches the horizon. A property of the AIR, which is why
+              // it is a parameter and not a palette — no arrangement of warm
+              // colours distinguishes a hot landscape from a temperate one
   bark: 0,    // how far the trunks take a wood colour of their own instead of
               // standing as silhouettes. A wood with light still in it wants 0;
               // a barren one is nothing but its trunks and wants them legible

@@ -22,7 +22,8 @@
     "travelX": 0.26,
     "travelY": 0,
     "angular": 1,
-    "leaf": 0
+    "leaf": 0,
+    "flower": 0
   },
   "mappings": {
     "warpBass": 0.4,

@@ -1773,6 +1773,51 @@ deep ("let's just go full on crafting our own visualization engine"):
   gives it away is fixed by making spacing, angle and length into FIELDS —
   warp the along-coordinate before flooring it, or the spacing stays even
   however far each member is made to wander.
+- **A gate fires on the PATH between two themes, not on their endpoints.**
+  Whole flowers were gated on `leaf < 0.35`; autumn sets `leaf = 1` and barren
+  leaves it 0, so crossfading between two moods with no flowers in them swept
+  the gate on the way through and put blossom in a dead wood. Gate on a
+  parameter whose value is outside the window at BOTH ends of every edge in the
+  family, or the transition will find the window even when neither mood does.
+- **A shear linear in a coordinate preserves straight lines; a shear sinusoidal
+  in it does not.** The aurora's rays were displaced by `sin(up * 8.0) * 0.085`
+  against a ray spacing of 1/9.5 — more than a whole ray-width of sideways push
+  along each ray's own length. If a structure is meant to stay straight while
+  the body it hangs from moves, the body's motion has to be linear in the
+  structure's own axis, and the organic wander belongs on the hem.
+- **A constant-luminance hue ramp is a false-colour palette, not light.** Mapping
+  a scalar field through `cos(2πx + phase)` at fixed saturation carries all the
+  information as hue, which is exactly what a thermal camera does — and the
+  owner named it as "spy goggles" the first time they saw it. Real light varies
+  in BRIGHTNESS as well as hue, and it has pale zones. Vary saturation along
+  the sweep, lift toward white, and scale by the peak channel.
+- **Additive colour over an unlit shape IS the shape.** The same iridescence
+  read as a thermal blob partly because the cloud under it was mixed at 0.5
+  toward a mid palette step in a dark sky. If a modulation is meant to read as
+  colour ON something, the something has to be lit first.
+- **A cluster that is not drawn between its turns is not dim, it is absent.**
+  `if (env < 0.004) continue;` made the cave's crystals blink into existence
+  with the light on them. A solid object is there in the dark: keep a presence
+  floor and let the feature scale the LIGHTING. The spatial reject is what pays
+  for an enumeration; a nomination reject buys much less and costs the illusion.
+- **Scaling a body frame is a zoom, not a squeeze.** The flock's clench
+  multiplied the frame that carries both the outline and the grain, so an onset
+  resized the whole murmuration — read immediately as a camera move. A crowding
+  is a change of DENSITY at constant silhouette.
+- **A surface with no static texture reads as flowing if anything on it moves.**
+  The volcano's cone was a flat fill, so the only structure on it was the lava,
+  and the dark gaps between moving streams move. Give the rock fixed, visible
+  relief and the flow is plainly running over something.
+- **Warping a shared lattice moves the sheet, never the individual.** Every mote
+  in a region receives the same push from a field of `uv`, which is a plane with
+  things painted on it however lively the field is. Per-object motion has to be
+  hashed per object and added to its own centre — and two components in
+  quadrature make a loop, where two in phase only make a diagonal shuttle.
+- **A threshold placed by measuring a feature goes stale when the feature is
+  rescaled.** The centroid ran 60–8000 Hz while a piano occupies about 120–4000,
+  so the top third of the scale was unreachable and every gate placed against
+  observed values was calibrated to a range that did not exist. Fix the scale
+  first, then place thresholds — the reverse encodes the error in four places.
 - **The aperture must never open past 1.0.** The field is drawn at the fixed
   full aperture box on purpose (D17), so anything beyond it shows the plane's
   edge as a black band.

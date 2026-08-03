@@ -147,6 +147,9 @@ let firstTheme = true;
 // is not enough: an unknown one lands on the fallback, and kinship is about
 // where you actually are.
 let currentName = null;
+// What the most recently accepted token WILL resolve to, known when the theme
+// loads rather than when the eye finally swaps it in. See applyTheme.
+let pendingName = null;
 
 // `restart` is for a DELIBERATE re-selection of the mood already showing.
 //
@@ -191,9 +194,16 @@ function applyTheme(token, restart) {
     // not a change either; there is nothing to blink away from.
     // Re-entering the mood on screen is a fresh visit: it takes the lid and the
     // clock reset, which is what clears the frost. Everything else is unchanged.
+    // Against the mood ARRIVING, not the one on screen: for a lid transition
+    // swap() runs at the closed moment, so currentName names the previous mood
+    // for the whole length of the blink and a mood chosen inside that window
+    // gets tested against the mood before last. That is the one path we can find
+    // to the owner's autumn-to-barren report.
+    const from = pendingName || currentName;
     if (firstTheme) { firstTheme = false; swap(false); }
-    else if (!again && isKin(currentName, theme.name)) swap(true);
+    else if (!again && isKin(from, theme.name)) swap(true);
     else eye.transition(() => swap(false));
+    pendingName = theme.name;
   });
 }
 

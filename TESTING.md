@@ -210,6 +210,15 @@ real art in (M5).
   happening, run the three suites separately rather than through `npm test`, and
   check whether the branch you came from fails the same way before believing the
   failure is yours.
+- **`source returning mid-drowse resumes communing`, failing over and over, and
+  a longer timeout does not help.** This one is worth knowing by name because it
+  looks exactly like a real bug. The eye drowses when the source drops and seals
+  three seconds later; the check sets the source live again the moment it SEES
+  `drowsing`. On a loaded machine the browser can take longer than those three
+  seconds just to report the state back, so the eye seals, re-stirs, and settles
+  on `open` — and `communing` is unreachable from `open` without a click. The
+  failure absorbs, which is why waiting longer never rescues it. It is the
+  machine, not the code. Close what else is running and re-run.
 - `FAIL viz renderer selected (none)` → the shader did not compile. Run
   `node shader-errors.mjs` for the actual error; the suite cannot show it.
 - Anything reproducible → the failing line names the check. That name is the

@@ -20,8 +20,27 @@ const BANDS = { bass: [20, 250], mid: [250, 2000], treble: [2000, 8000] };
 // Exported so a readout can invert them. Keeping these private meant anything
 // displaying the centroid had to restate the bounds, and would then go on
 // quietly lying if they were ever retuned.
-export const CENTROID_LO_HZ = 60;
-export const CENTROID_HI_HZ = 8000;
+// THE RANGE A PIANO ACTUALLY OCCUPIES, not the range a spectrum analyser can
+// display. This was 60..8000 Hz — seven octaves — and a piano's spectral
+// centroid lives in a small part of it, because the fundamental dominates and
+// the fundamentals stop at 4186 Hz. Measured against the old bounds, low
+// playing landed near 0.25 and the brightest playing anyone could manage
+// reached about 0.72. The top third of the scale was unreachable by
+// construction.
+//
+// Everything gated on the register was therefore being judged against a number
+// that could not get there — cave's lamp (a cube, so 0.72 delivers a third of
+// its range), the aurora's charge (a gate at 0.66..0.86, whose upper half
+// nothing could reach), the cave pool's rock light, and the hue sweep. The
+// owner's note that "register is not affecting crystal illumination in any
+// obvious way" is that arithmetic, not a taste question.
+//
+// 120..4000 Hz spans about five octaves and puts a left-hand chord near 0.15,
+// the middle of the keyboard around 0.6, and bright high playing at 0.85 and
+// up. A threshold now has to sit inside what the feature can reach — which is
+// the rule that has already cost this project three passes at the aurora.
+export const CENTROID_LO_HZ = 120;
+export const CENTROID_HI_HZ = 4000;
 const CENTROID_SPAN = Math.log2(CENTROID_HI_HZ / CENTROID_LO_HZ);
 
 export const IDLE = Object.freeze({

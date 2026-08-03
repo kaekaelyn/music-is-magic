@@ -504,32 +504,92 @@ the shader fails to compile, `npm test` says only "FAIL viz renderer selected
    already talks to the relay; the cheap route is to render the same viz small
    there, driven by features the broadcast pushes over the relay, rather than
    streaming pixels.
-3. **Centroid rescale** — still blocked on two more readings, and it is the most
-   load-bearing open item in the file. Four things now read the register as if
-   the scale under it were calibrated: the aurora's wake envelope (0.66-0.86),
-   `mCrystals`' lamp gain and nomination window, the cave pool's light on the
-   rock, and main's aurora `band`. All of them were placed by measuring what the
-   feature actually spans rather than by trusting the scale, so a rescale moves
-   every one. Take the bass and mid readings, rescale, then retune all four in
-   the same commit — and re-check `syntheticFeatures` while you are there, since
-   its sweep was widened to match the current scale too.
+3. **Centroid rescale — DONE, and it needs watching on real playing.** The scale
+   was 60-8000 Hz against a piano that occupies roughly 120-4000, so the top
+   third was unreachable and every gate placed by measuring observed values was
+   calibrated to a range that did not exist. That is why "register is not
+   affecting crystal illumination in any obvious way". Now 120-4000. The four
+   dependent gates (the aurora's wake envelope at 0.66-0.86, `mCrystals`' lamp
+   gain and nomination window, the cave pool's rock light, main's aurora `band`)
+   were left where they are ON PURPOSE: they were placed to be reachable-but-
+   demanding against the old scale, and they are now reachable-and-demanding
+   against a correct one. If the owner reports the aurora arriving too easily,
+   that is the first place to look, and the fix is to raise those four rather
+   than to touch the scale again.
 4. **viz.js's shared `hash()` ends in `fract(p.x * p.y)`**, which correlates
    along both axes and draws a grid into whatever is built on it. That is the
    flock's fault #4, and the flock carries a fixed hash privately rather
    than disturb sixteen tuned moods. Worth investigating whether it is quietly
    banding other motifs — but it is a change that touches everything, so do it
    deliberately and re-render the whole set.
-5. **Fire and volcano are owed a pass.** The owner: *"I do have some beefs with
-   fire and volcano, but we'll tackle that later."* Nothing has been said yet;
-   do not guess at it.
-6. **Blossoms fall but nothing BURSTS.** The seventh pass put whole five-lobed
-   flowers among the falling petals, which is closer, but the owner's phrase is
-   "flowers bursting" and that reads as blossom opening on the tree — a cluster
-   in the canopy that pops and then sheds. It wants a site system (the rays
-   block already nominates sites) rather than another falling mote.
+5. **Fire and volcano got their pass (eighth) and volcano is the one to re-check
+   first.** Fire's two faults were both structural and both fixed (a mirrored
+   silhouette making a seam; a coverage mask punching holes in the interior).
+   Volcano was rebuilt around a peak instead of a mesa, static relief on the
+   rock, fewer channels and a glow over the vent — but that is four changes to
+   one mood in a single pass, which is exactly the situation where the render
+   usually finds that one of them overshot. Look at it before anything else.
+6. **Blossoms fall but nothing BURSTS — and the falling-flower route is now
+   closed.** The seventh pass put whole five-lobed flowers among the petals; the
+   owner's verdict on seeing them move was "very obvious that they don't tumble
+   and float like they actually would... a very cartoonish effect", and they are
+   off (`flower: 0`, shape still in the engine). Which leaves the original ask
+   unanswered and points at the only route left: "flowers bursting" reads as
+   blossom opening ON THE TREE — a cluster in the canopy that pops and then
+   sheds. A site system (the rays block already nominates sites), never another
+   falling mote.
 7. **Standing deadfall, for barren.** Bare branches landed in `mColumns`; a
    fallen or leaning trunk did not, and it is the other half of what makes a
    dead wood read as dead rather than as a wood in winter.
+
+#### 2026-08-03, eighth pass — fourteen notes from extended testing
+
+`MOODS.md` "Eighth pass" carries the reasoning. The through-line: **motion read
+as the wrong object.** In four moods the geometry was defensible and the way it
+moved named something else — a hue ramp at constant luminance is a thermal
+camera, a body frame scaled by an onset is a zoom lens, a lattice warped by a
+shared field is a sheet of glass with leaves painted on it, and a cone with a
+flat top is a mesa. None would have been found from a still.
+
+What landed: the flower gate moved off `leaf` onto its own parameter (a gate
+fires on the PATH between two themes); per-mote orbits in quadrature so motes
+stop travelling as one plane; whole flowers off; autumn's copper moved from the
+light to the leaves; the wisp density raised after counting that TWO of
+thirty-five cells were lit; the aurora's ray shear made linear; the centroid
+rescaled to 120-4000 Hz; cave crystals given a presence floor, a flattened spiky
+base and register-scaled sparkles; sunshower's cloud perspective softened from
+six-to-one to three-to-one, with billows and a lit deck; the iridescence given
+varying saturation and brightness; fire's mirrored silhouette split into two
+independent tear functions and its interior erosion moved to the outline;
+volcano rebuilt around a peak with static rock relief, fewer channels and a vent
+glow; desert given heat; the flock's clench moved from geometry into density.
+
+**Two things to check first, because they are the least verified:**
+
+1. **Volcano took four changes in one pass** — profile, rock texture, channel
+   count, vent glow. That is exactly the shape of a change where one of them
+   overshoots and the render finds it. The peak profile in particular changes
+   the silhouette of the whole mood.
+2. **The centroid rescale moved the ground under four gates at once** and they
+   were deliberately left where they sit (see the open list). The aurora is the
+   one to watch: it was tuned to be demanding against a scale whose top third
+   was unreachable, and the top third is now reachable.
+
+**Still unverified by the owner, and worth saying plainly:** everything in this
+pass was checked by shader compile, `npm test`, `perf.mjs` and field renders.
+The renders catch structure; they cannot catch how something moves, and eight
+passes of history say that is where this owner's notes come from.
+
+**A test-suite trap, so the next session does not lose an hour to it.** The
+website smoke check "source returning mid-drowse resumes communing" is racy on a
+loaded machine and its failure mode is ABSORBING, so raising the timeout does
+not help. The eye drowses, and if the harness takes longer than `drowseMs`
+(3000 in fast mode) to hand the observed state back to the test, the eye seals
+and then re-stirs to `open` — a state from which `communing` is unreachable
+without a gesture. The trail on a failing run reads
+`451ms drowsing -> 4800ms sealed -> 5992ms stirring -> 8655ms open`. If you see
+that, it is the machine, not the code: re-run. Confirmed by checking that node's
+own timers were drifting only 23ms, i.e. the browser process was the slow one.
 
 ---
 
