@@ -13,6 +13,16 @@
 // most likely to happen live, in an OBS browser source, at the worst moment.
 
 import { startPortal, launch } from './mock-portal.mjs';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { familiesOf } from '../portal/js/themes.js';
+
+const THEME_NAMES = JSON.parse(readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../portal/assets/themes/index.json'),
+  'utf8'
+));
+const FAMILIES = familiesOf(THEME_NAMES);
 
 let chromium;
 try {
@@ -786,7 +796,13 @@ try {
         topLevel: rows.map((r) => labelsOf(r)[0]),
       };
     });
-    check(shape.rows === 11, 'the panel groups sixteen moods into eleven families',
+    // Derived, not typed. The count of moods is data — adding a theme folder
+    // is all a mood is — so a literal here fails a test that claims to be
+    // checking the GROUPING every time the library grows. Ask the same
+    // function the page asks.
+    const expectRows = FAMILIES.length;
+    check(shape.rows === expectRows,
+      `the panel groups the ${THEME_NAMES.length} moods into ${expectRows} families`,
       `got ${shape.rows} rows / ${shape.buttons} buttons`);
     // sunshower belongs to BOTH its parents and to neither alone, so it is a
     // sub-mood twice over and a family none of the time.

@@ -134,8 +134,36 @@ available in `portal/js/viz.js`:
 - Seven generations instead of five would halve the handover gap again, but
   cost nearly 2× — the spatial phase stagger makes the skip-cheap-layers branch
   diverge between neighbouring pixels. Backed out.
-- **The real question is still unanswered:** its own mood (dusk sky, one flock,
-  nothing else) or a motif riding over existing moods? Do not decide alone.
+- **ANSWERED, 2026-08-03: its own mood.** The owner: *"I always wanted it to be
+  its own mood. it's way too costly to be a mere motif."* Ported into
+  `portal/js/viz.js` as the `flock` motif plus a `moon`, and shipped as the
+  `murmuration` theme — dusk sky, a few stars, a moon. The prototype stays in
+  `tools/prototypes/` as the place to iterate on the look cheaply; the engine
+  copy is the one that ships.
+
+### Porting notes, for whoever touches it next
+
+- **It keeps its own noise primitives**, under `fk*` names. The prototype's
+  fourth fault was a hash ending in `fract(p.x * p.y)`, which correlates along
+  both axes and draws a grid into everything built on it — and viz.js's shared
+  `hash()` ends in exactly that. Worth knowing on its own account: the shared
+  hash may be quietly banding other motifs.
+- **`speed` is derived, not chosen.** The prototype ran one clock at
+  `dt * agile * 0.40`, tuned at roughly agile 0.6; viz.js advances `u_t` at
+  `dt * speed * 1.2`, so speed 0.20 reproduces it. Every rate in the flock is
+  measured against that clock, so this number alone decides whether it looks
+  like what was approved over ten rounds.
+- **The gradient step must be `2.0 / u_res.y`,** not a constant. Ported as a
+  fixed 0.004 it went sub-pixel in the portal's small aperture, the gradient
+  became noise, and since both the band width and the sheet thickness derive
+  from it the flock washed out to a smudge at one size while looking right at
+  another.
+- **Known limitation, not yet solved:** at the *website's* aperture (~180px
+  tall) the flock is faint. The specks are sized in the body's frame, so below
+  a certain resolution they fall under a pixel and the thinning threshold
+  removes most of them. It reads correctly at broadcast resolution, which is
+  where this mood is meant to live. Making the grain resolution-aware without
+  changing the approved look is the open piece of work.
 
 ---
 

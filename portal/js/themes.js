@@ -242,6 +242,33 @@ export const BUILTIN = {
     mappings: { warpBass: 0.4, sparkleTreble: 1.0, pulseFlux: 1.3, shiftCentroid: 0.15 },
   },
 
+  // A murmuration at dusk. Its OWN mood — the owner's decision, and the right
+  // one: the flock's backwards-in-time trace is far too expensive to make
+  // every other mood carry it, and here exactly one mood does.
+  //
+  // "a dark dusky sanguine purple sky, a few stars and a moon maybe". So the
+  // palette runs blood-dark violet up from near-black into a bruised rose,
+  // with the last light of the day left in the top step — the flock is a
+  // silhouette, and a silhouette needs something behind it that is still lit.
+  //
+  // stars deliberately low: 0.30 is a few points of light, and below the
+  // threshold where mStars adds its galactic band, because a Milky Way would
+  // pull the eye off the one thing this mood is about. The moon does not
+  // answer the music at all — a sky that reacts is a lamp, and the whole
+  // effect depends on the sky being indifferent while the flock is not.
+  murmuration: {
+    palette: ['#0a0610', '#241030', '#4a1a3a', '#8c3050', '#e8a48c'],
+    // speed is derived, not picked. The prototype ran its one clock at
+    // dt * agile * 0.40 and the owner tuned the look at roughly agile 0.6, so
+    // about 0.24x real time; viz.js advances u_t at dt * speed * 1.2, which
+    // puts the same rate at speed 0.20. Every rate in the flock — folding,
+    // banking, a generation's lifetime — is measured against that one clock,
+    // so this number alone decides whether it looks like what was approved.
+    params: { scale: 1.3, speed: 0.2, warp: 0.35, sparkle: 0.35, gloss: 0.08, base: 0.3, drift: 0.1, travel: 0.16, travelX: 0.05 },
+    motifs: { flock: 1.0, moon: 0.9, stars: 0.3 },
+    mappings: { warpBass: 0.12, sparkleTreble: 0.7, pulseFlux: 1.35, shiftCentroid: 0.18 },
+  },
+
   // Dunes are ridgelines that are not angular. `angular: 0.1` folds the same
   // silhouette from smooth noise instead of linear, and rock becomes sand for
   // one number. Blowing sand off a crest is spindrift, which is why snow is on
@@ -430,6 +457,8 @@ export const MOTIFS = Object.freeze({
   lava: 0,      // molten rock finding its way downhill, glowing from within
   ripples: 0,   // wind-combed sand, ridge upon ridge of it
   petals: 0,    // blossom and leaf-fall, tumbling as they go
+  flock: 0,     // a murmuration: one body of birds, folded by its own flow
+  moon: 0,      // a moon, and the light it puts on everything under it
 });
 
 // Spread under every theme so each one carries every key. Morphing is then a

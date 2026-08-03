@@ -1578,6 +1578,399 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   return 1.0 - sky;
 }
 
+
+
+// A moon, and the light it puts on everything under it.
+//
+// Deliberately not a disc pasted on the sky. What a moon is FOR here is the
+// light: it decides where the sky is brightest, it silhouettes whatever passes
+// in front of it, and it gives a dusk that would otherwise be a flat gradient
+// a place to have come from. The disc is the smallest part of that.
+//
+// It does not move with the music and it does not brighten with it. A moon
+// that answers the playing is a lamp, and the whole point of this mood is that
+// the sky is indifferent and the flock is not.
+float mMoon(vec2 uv, out float glow) {
+  // Out toward the corner: the flock's centre wanders about the origin, and a
+  // moon near it is permanently behind birds. Off to one side it is a presence
+  // the body crosses now and then, which is the moment worth having.
+  vec2 c = vec2(0.66, 0.28);
+  float r = length(uv - c);
+  // A soft limb rather than a hard circle: at this size a crisp edge reads as
+  // a sticker, and the aperture is small enough that one pixel of falloff is
+  // most of the disc's character.
+  float disc = smoothstep(0.082, 0.070, r);
+  // The maria, faint. A perfectly even disc is a hole punched in the sky.
+  disc *= 0.86 + 0.14 * fbm((uv - c) * 22.0);
+  // The halo — moonlight scattered in the air around it, which is what carries
+  // the light into the rest of the frame.
+  glow = exp(-r * r * 26.0) * 0.55 + exp(-r * r * 3.2) * 0.22;
+  return disc;
+}
+
+// --- murmuration ----------------------------------------------------------
+//
+// Ported from tools/prototypes/murmuration.html after ten rounds of the owner
+// watching it. Its OWN MOOD, not a motif riding over the others: the trace is
+// far too expensive to make every mood pay for it, and as a mood only this one
+// does. That was the open question in HANDOFF.md and the owner has answered it.
+//
+// How it works, in one paragraph: the flock is a level set of a noise field.
+// Each pixel is traced BACKWARDS THROUGH TIME along a flow of vortices and
+// crossed shear waves, and the noise is read at the material coordinate that
+// comes back — so deformation compounds, which is what folds a body over
+// itself rather than wobbling it. Compounding strain shreds any texture
+// eventually, so material has a lifetime and staggered generations hand over.
+// The boundary comes off the same traced coordinate as the interior, so the
+// outline folds with it instead of being a stencil the folding happens inside.
+//
+// IT KEEPS ITS OWN NOISE PRIMITIVES, and that is deliberate. The prototype's
+// fourth fault — "blunt and squared-off" — was a hash ending in
+// fract(p.x * p.y), which correlates along both axes and draws a grid into
+// everything built on it. viz.js's shared hash() ends in exactly that. Rather
+// than change a primitive every other mood is tuned against, the flock carries
+// the fixed one under its own names. (Worth knowing that the shared hash has
+// the fault: it may be quietly banding other motifs too.)
+//
+// The five knobs the prototype exposed as sliders are file-scope globals set
+// once at the top of mFlock, because bodyFrame and flow read them several
+// calls deep and threading them through every signature buys nothing.
+// (The prototype's fifth slider, "agile", never entered the shader — it
+// scaled the JS clock, which is the theme's speed here. See the theme.)
+float fkChurn, fkGrain, fkClench, fkWave;
+
+const float FK_PER = 2.6;
+
+// The old fkHash ended in fract(p.x * p.y), which correlates along both
+// axes — small x gives a small product gives a low value, in bands. That
+// is a grid drawn into the fkNoise, and everything built on it inherited
+// the grid's corners.
+float fkHash(vec2 p){
+  vec3 q = fract(vec3(p.xyx) * 0.1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y) * q.z);
+}
+float fkNoise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+// Quintic, not cubic. Smoothstep leaves a discontinuity in the SECOND
+// derivative at every cell boundary, and this shader divides by the
+// gradient — so those creases were being amplified into visible seams
+// running along the lattice.
+  f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  return mix(mix(fkHash(i), fkHash(i + vec2(1.0,0.0)), f.x),
+             mix(fkHash(i + vec2(0.0,1.0)), fkHash(i + vec2(1.0,1.0)), f.x), f.y);
+}
+float fkFbm(vec2 p){
+  float v = 0.0, a = 0.5;
+// Rotate between octaves. Stacking octaves on the same axes lines every
+// scale's corners up with every other scale's, which is most of why the
+// mass came out blocky rather than billowing.
+  mat2 r = mat2(0.80, -0.60, 0.60, 0.80);
+  for (int i = 0; i < 4; i++){ v += a * fkNoise(p); p = r * p * 2.03 + vec2(17.3, 9.1); a *= 0.5; }
+  return v;
+}
+
+// Round fkSpecks on a jittered lattice. Value fkNoise thresholded low leaves
+// RECTANGLES — its cells are axis-aligned boxes — and at the thinned edge
+// those rectangles are literally the stragglers, which is what read as
+// squared-off. A point per cell measured by distance gives round ones.
+float fkSpecks(vec2 q){
+  vec2 i = floor(q), f = fract(q);
+  float d = 8.0;
+  for (int y = -1; y <= 1; y++){
+    for (int x = -1; x <= 1; x++){
+      vec2 o = vec2(float(x), float(y));
+      vec2 h = vec2(fkHash(i + o), fkHash(i + o + 41.7));
+      d = min(d, length(f - o - h));
+    }
+  }
+  return d;
+}
+mat2 fkRot(float a){ float s = sin(a), c = cos(a); return mat2(c, -s, s, c); }
+
+// Where the fkField IS. A finite body, not a medium — it travels on a
+// curving heading and its outline deforms as it goes. Without this the
+// field fills the frame and reads as fluid in a container.
+// It travels less far than it used to, because it also got smaller: the
+// body used to be wider than the frame, and a body you never see the ends
+// of cannot be seen to TURN. Every narrowing then reads as shrinking,
+// because nothing on screen tells you which it was.
+vec2 fkCentre(float t){
+  return vec2(sin(t * 0.21) * 0.28 + sin(t * 0.13 + 1.7) * 0.09,
+              sin(t * 0.17 + 0.6) * 0.13);
+}
+
+// The heading it is banked onto.
+float fkBank(float t){ return sin(t * 0.19) * 1.1; }
+
+// How edge-on the sheet is: 0 broadside, 1 seen along its own plane.
+// A murmuration turning edge-on is its most recognisable move — it goes
+// narrow and DARK at once, because the same birds now stack behind one
+// another. Narrow WITHOUT dark is just a thing getting smaller.
+// sin-SQUARED, not the absolute value. abs() has a corner at every zero
+// crossing, which is exactly the moment the body is fully edge-on: it
+// stopped narrowing and started widening with a kink in the rate. Squaring
+// gives the same range and period with no corner anywhere.
+float fkTurn(float t){ float s = sin(t * 0.117 + 0.4); return 1.0 - s * s; }
+float fkFore(float t){ return mix(1.0, 0.46, fkTurn(t)); }
+
+// THE BODY FRAME. Everything the fkField is made of is read here — field,
+// outline and grain alike — so the interior travels, banks and compresses
+// WITH the body. Previously only the outline lived in this frame and the
+// field was world-locked, which made the body an aperture sliding over
+// fixed wallpaper: the hole changed size while the pattern behind it held
+// still, and that is exactly "growing and shrinking rather than morphing".
+// Rigid apart from the two things that genuinely change the body's shape:
+// the foreshortening as it turns, and the squeeze when it startles. The
+// outline's own long-and-thin proportion is NOT in here — that shapes the
+// boundary, not the texture, and folding it in made the structure coarse.
+vec2 fkBodyFrame(vec2 p, float t){
+  vec2 b = fkRot(-fkBank(t)) * (p - fkCentre(t));
+  float ball = 1.0 + fkClench * 0.34;
+  return b * vec2(1.0, 1.0 / fkFore(t)) * ball;
+}
+
+// THE FLOW. Vortices that drift and reverse, plus a shear along the
+// heading. Deliberately fkField-RELATIVE: the old fkFlow carried a uniform
+// 0.55/s stream along the heading, which over a long trace turns the body
+// into a conveyor belt, material pouring in one end and out the other of a
+// body that itself only moves at a tenth of that speed. Travelling is
+// fkCentre's job. What happens in here is circulation and shear, which
+// is the only thing that actually deforms anything.
+vec2 fkFlow(vec2 p, float t){
+  vec2 ctr = fkCentre(t);
+  vec2 rel = p - ctr;
+  float bk = fkBank(t);
+  vec2 al = vec2(cos(bk), sin(bk));
+  vec2 ac = vec2(-al.y, al.x);
+// Two shear WAVES: speed along the heading varying sinusoidally across it,
+// and the same the other way round. Both are divergence-free — velocity
+// perpendicular to the direction it varies in — so they stretch and fold
+// without bunching material up or thinning it out.
+//
+// The point of the waves is that they are non-linear. A uniform shear is a
+// linear map, and a linear map can only ever turn an oval into a LONGER
+// oval, which is why the body kept resolving into a smooth sliver with
+// straight flanks however hard it was stretched. Crossed waves like these
+// are the standard recipe for chaotic mixing: they fold.
+// Amplitudes well down from where they were, and now under Churn like the
+// vortices are. These waves are what stretches the body, and their strain
+// compounds over a whole lifetime — so the modest-looking number here was
+// drawing a circle out to something like six times its length before the
+// material was replaced. Churn is the stretchiness control now, not just
+// the vortex control.
+  vec2 v = al * (0.24 * fkChurn * sin(t * 0.37 + 1.2)) * cos(dot(rel, ac) * 12.0 + t * 0.55);
+  v += ac * (0.16 * fkChurn * sin(t * 0.29 + 3.1)) * cos(dot(rel, al) * 6.0 - t * 0.41);
+  for (int i = 0; i < 4; i++){
+    float fi = float(i);
+// Orbiting INSIDE the body, and on a several-second clock rather than a
+// twenty-second one. Everything in here used to turn over so slowly that
+// the interior had no time to rearrange between one look and the next.
+    vec2 c = ctr + vec2(sin(t * (0.68 + fi * 0.24) + fi * 2.3),
+                        cos(t * (0.57 + fi * 0.28) + fi * 1.1)) * (0.14 + fi * 0.09);
+    vec2 d = p - c;
+    float r2 = dot(d, d) + 0.09;
+// Alternating spin, and the strength itself reverses on its own clock — a
+// vortex that only ever turns one way reads as a whirlpool.
+    float s = sin(t * (0.52 + fi * 0.20) + fi * 2.0) * (0.055 + fi * 0.010);
+    v += vec2(-d.y, d.x) * s * fkChurn / r2;
+  }
+// No agility factor here any more. It scaled the fkFlow AND the rate of the
+// clock the fkFlow is measured against, so the slider was changing speed
+// quadratically. Tempo is one thing, set in one place.
+  return v;
+}
+
+// ONE GENERATION OF MATERIAL. Seeded undeformed, then carrying everything
+// the fkFlow has done to it since — the trace runs backwards through TIME,
+// so deformation accumulates along it.
+//
+// This is the whole difference between folding and warping, and it is what
+// was missing. The old trace stepped five times through the fkFlow at a
+// SINGLE INSTANT, which is a fixed distortion of a fixed texture: the
+// distortion changed slowly, so the picture wobbled, but the pattern never
+// went anywhere. A flag with a design printed on it.
+// Where the fkField was WHEN THE GENERATION WAS BORN. Just an oval — it does
+// not need to be ragged, and it used to be, pointlessly. What you see is
+// this oval after the fkFlow has had its way with it, and a compounding
+// strain will draw arms off it, fold notches into it and tear pieces away
+// far better than any amount of wobble on a rigid outline could.
+float fkBodySeed(vec2 b){
+  return smoothstep(0.40, 0.30, length(b * vec2(0.72, 1.75)));
+}
+
+vec2 fkLayer(vec2 p, float t, float age){
+// A FIXED step, and as many of them as this generation's age needs. Eight
+// steps regardless meant a newborn generation paid full price to travel
+// almost no distance; since the two ages always sum to one period, the two
+// together now cost what a single one used to. Same accuracy, half the
+// work — and the young fkLayer is integrated more finely than before.
+  float h = 0.33;
+  vec2 q = p;
+  for (int i = 0; i < 8; i++){
+    float done = float(i) * h;
+    if (done >= age) break;
+    float dt = min(h, age - done);
+    q -= fkFlow(q, t - done - dt * 0.5) * dt;
+  }
+// Read in the body frame AT THE TIME THE MATERIAL WAS THERE, so the
+// structure stays attached to the fkField across the whole trace.
+//
+// Both come off the SAME traced coordinate: what the material looks like,
+// and whether it is part of the fkField at all. That is the point — the
+// boundary is now made of the same stuff as the interior and folds with
+// it, instead of being a fixed shape the folding happens inside.
+  vec2 b = fkBodyFrame(q, t - age);
+  return vec2(fkFbm(b * 4.0 + 3.0), fkBodySeed(b));
+}
+
+// THE FIELD, with no envelope in it. This used to be multiplied by the
+// body's falloff, which squashed the signed field toward zero near the
+// rim — and since the sheet is a LEVEL SET of this field, squashing it
+// dissolved the sheet instead of ending it.
+//
+// Two generations of material, half a period apart. Each is born
+// undeformed at zero weight and dies fully drawn out at zero weight, so
+// what is on screen is always the middle of a fold and the regeneration
+// never shows. Something has to do this: accumulated strain tears any
+// texture to threads eventually, and a real fkField keeps making new
+// structure rather than stretching one arrangement forever.
+vec2 fkField(vec2 p, float t){
+// The phase is offset smoothly across the body, so generations do not all
+// turn over at the same instant everywhere. With one global phase the
+// ENTIRE fkField crossfades at once, which is precisely what a crossfade
+// between two configurations looks like. Staggered, a changeover is local
+// churn while its neighbours hold — which is what a fkField does anyway.
+// One octave, not four — this only has to be smooth and large-scale. And
+// measured on the RIGID coordinate: read in the full body frame, the
+// foreshortening and the startle squeeze were stretching the phase field
+// itself, so a strike shifted which regions were due to hand over.
+  vec2 rp = fkRot(-fkBank(t)) * (p - fkCentre(t));
+  float ph = fkNoise(rp * 1.3 + vec2(t * 0.07, 4.0));
+  float base = fract(t / FK_PER + 0.35 * ph);
+
+// FIVE generations, not two, weighted by sin^8 rather than a raised
+// cosine. Two generations spaced half a period apart means the crossover
+// is always between a nearly-fresh arrangement and a nearly-shredded one —
+// disparate by construction, and the gentle cosine gave a barely-deformed
+// newcomer half the weight. Now one generation holds most of the weight
+// most of the time, and the two that ever share it are a fifth of a
+// lifetime apart rather than half of one.
+  float raw = 0.0;
+  for (int k = 0; k < 5; k++){
+    float s = sin(3.14159265 * fract(base + float(k) * 0.2));
+    s *= s; s *= s; s *= s; s *= s;
+    raw += s;
+  }
+// A floor SUBTRACTED rather than a cutoff tested. A generation whose
+// weight falls below it is not dropped at five per cent of the picture —
+// its weight reaches zero smoothly and it stops being traced with nothing
+// to see. That is what makes skipping safe, and skipping is what keeps
+// five generations cheaper than the two they replace.
+  float wsum = 0.0;
+  for (int k = 0; k < 5; k++){
+    float s = sin(3.14159265 * fract(base + float(k) * 0.2));
+    s *= s; s *= s; s *= s; s *= s;
+    wsum += max(s / raw - 0.05, 0.0);
+  }
+  vec2 acc = vec2(0.0);
+  for (int k = 0; k < 5; k++){
+    float u = fract(base + float(k) * 0.2);
+    float s = sin(3.14159265 * u);
+    s *= s; s *= s; s *= s; s *= s;
+    float w = max(s / raw - 0.05, 0.0) / wsum;
+    if (w > 0.0) acc += fkLayer(p, t, u * FK_PER) * w;
+  }
+  return vec2(acc.x - 0.5, acc.y);
+}
+
+// A conservative bound on where the deformed body can possibly have got
+// to, used only to skip the trace entirely out in the empty sky. It has to
+// be generous — the fkFlow carries material well outside the seed oval, and
+// clipping an arm would put a straight cut across it.
+// Measured on the RIGID coordinate — no foreshortening, no startle
+// squeeze. Using the full body frame made the bound tightest exactly when
+// the body was thinnest, which is when the fkFlow has flung material
+// furthest across the heading; an arm crossing it would be cut off with a
+// straight edge.
+bool fkNear(vec2 p, float t){
+  vec2 r = fkRot(-fkBank(t)) * (p - fkCentre(t));
+  return length(r * vec2(0.72, 2.0)) < 0.94;
+}
+
+
+// The mood's one motif. Returns how much of this pixel is birds.
+//
+// The knob mapping is where the music gets in:
+//   churn  — how hard the flow circulates. A busier room folds the body more.
+//   agile  — how quickly it answers, the same signal on the trace's own scale.
+//   clench — the flock balls up when struck, which is what a real one does
+//            when something frightens it.
+//   wave   — the agitation ripple: a band of darkening racing through the body
+//            far faster than any bird flies. The single most recognisable
+//            thing a murmuration does, and it only happens on an onset.
+float mFlock(vec2 uv, float t, float drive, float kick) {
+  fkChurn = 0.55 + drive * 0.75;
+  fkGrain = 34.0;
+  fkClench = kick * 0.85;
+  fkWave = kick;
+  if (!fkNear(uv, t)) return 0.0;
+
+  vec2 f0 = fkField(uv, t);
+  float s = f0.x;
+  float env = f0.y;
+  // Forward differences, not central: a trace runs two generations through
+  // eight steps each, so a tap is worth twice what it was.
+  // TWO PIXELS, measured. The prototype used 2.0 / u_res.y and that is not
+  // incidental: a forward difference taken at a fixed uv step becomes
+  // sub-pixel wherever the aperture is small, and a gradient differenced below
+  // the sample rate is noise. g then goes unstable, and since the band's width
+  // and the sheet's thickness are both derived from g, the whole flock washes
+  // out to a smudge. Porting it as a constant made the mood look one way at
+  // 900px and another in the portal's lens.
+  float e = 2.0 / u_res.y;
+  vec2 gv = vec2(fkField(uv + vec2(e, 0.0), t).x - s,
+                 fkField(uv + vec2(0.0, e), t).x - s) / e;
+  float g = max(length(gv), 1e-4);
+
+  // Distance to the surface, so the band keeps a constant screen width, and
+  // NARROWS toward the rim as well as thinning out — at a constant width every
+  // ribbon ended in a flat stub. Width is not opacity.
+  float d = abs(s) / g;
+  float band = smoothstep(0.075 * (0.42 + 0.58 * env), 0.0, d);
+  // Thickness is the INVERSE gradient: a shallow gradient means we are looking
+  // along the sheet, through a lot of it. That is the dark band.
+  float thick = band / (g * 0.34 + 0.30);
+  // Turning edge-on stacks the birds behind one another, and balling up packs
+  // them together. Both make the mass DARKER as it narrows; without this the
+  // narrowing is just a shrink, however honest the geometry is.
+  thick *= 1.0 + fkTurn(t) * 0.35 + fkClench * 0.3;
+
+  vec2 ctr = fkCentre(t);
+  float bank = fkBank(t);
+  float along = dot(uv - ctr, vec2(cos(bank), sin(bank)));
+  float wf = fkWave * 3.2 - 1.6;
+  float ripple = exp(-pow((along - wf) * 4.5, 2.0)) * step(0.001, fkWave);
+  thick *= 1.0 + ripple * 2.6;
+
+  // Grain stretched ALONG the sheet, because birds align with neighbours, and
+  // measured in the body's frame so an individual bird travels with the flock.
+  vec2 bp = fkRot(-bank) * (uv - ctr);
+  vec2 dir = fkRot(-bank) * (gv / g);
+  vec2 alo = vec2(dot(bp, vec2(-dir.y, dir.x)), dot(bp, dir));
+  float sp = fkSpecks(vec2(alo.x * fkGrain, alo.y * fkGrain * 2.6));
+  float grain = 0.30 + 0.70 * (1.0 - smoothstep(0.12, 0.66, sp));
+
+  // THINNING, not fading. Multiplying opacity by the envelope makes every bird
+  // at the rim half-there, which is what read as a blurry lens. Raising a
+  // threshold against the grain instead REMOVES birds while leaving the ones
+  // that remain fully solid — so the edge is stragglers, which is what the
+  // edge of a flock actually is.
+  float thr = mix(1.12, 0.42, env);
+  float keep = smoothstep(thr, thr + 0.10, grain);
+  return clamp(thick, 0.0, 1.0) * keep;
+}
+
 // Will-o-wisps: a few slow lights wandering between the trunks.
 //
 // Deliberately not glints. A glint is a surface catching light for an instant;
@@ -1877,6 +2270,9 @@ void main() {
   float coneDescent = 0.0; // how far below the crater rim — how far the lava has run
   float coneOn = 0.0;     // on the cone proper, as opposed to the plain it stands on
   float coneVent = 0.0;   // the crater pool
+  float flockDens = 0.0;  // the murmuration's coverage
+  float moonDisc = 0.0;
+  float moonGlow = 0.0;
 
   // Where this theme's glints are allowed to be (§14.2). A glint used to be a
   // global overlay multiplied by surface lightness, and the owner's three
@@ -2222,6 +2618,19 @@ void main() {
     lift += s * 0.42;
     spec += s * 1.2;
   }
+  if (W_moon > 0.0) {
+    float mg;
+    moonDisc = mMoon(uv, mg) * W_moon;
+    moonGlow = mg * W_moon;
+    // The moon lights the sky it hangs in.
+    lift += moonGlow * 0.30;
+  }
+  if (W_flock > 0.0) {
+    // The one place the murmuration's cost is paid, and only this mood pays
+    // it. mFlock early-outs in open sky before any tracing happens.
+    flockDens = mFlock(uv, u_t, clamp(u_rms, 0.0, 1.0), clamp(u_pulse, 0.0, 1.0))
+              * W_flock;
+  }
   float lava = 0.0;
   float lavaHot = 0.0;
   if (W_lava > 0.0) {
@@ -2419,6 +2828,29 @@ void main() {
     nsky += vec3(0.55, 0.20, 0.06) * ventGlow;
     col = mix(col, nsky, clamp(skyMask, 0.0, 1.0) * W_cone);
   }
+  if (W_flock > 0.0) {
+    // DUSK, painted as its own material for the reason mountain's sky and
+    // volcano's are: a five-step ramp driven by a fog field makes haze, not a
+    // sky, and this mood is a silhouette against a sky — if the backdrop is
+    // flat there is nothing for the flock to be a silhouette ON.
+    //
+    // "a dark dusky sanguine purple sky": the last of the light low down and
+    // sanguine with it, going bruised violet through the middle and nearly
+    // black overhead, which is where the stars are.
+    vec3 duskLow = vec3(0.42, 0.13, 0.16);
+    vec3 duskMid = vec3(0.22, 0.08, 0.22);
+    vec3 duskTop = vec3(0.045, 0.020, 0.075);
+    float up = clamp(uv.y * 1.05 + 0.46, 0.0, 1.0);
+    vec3 dusk = mix(duskLow, duskMid, smoothstep(0.0, 0.44, up));
+    dusk = mix(dusk, duskTop, smoothstep(0.38, 0.95, up));
+    col = mix(col, dusk, W_flock * 0.92);
+  }
+  if (W_moon > 0.0) {
+    // Its own colour, like the aurora's and the snow's: moonlight is not a
+    // step on a dusk palette, and mixing it from one gives a pink moon.
+    col += vec3(0.95, 0.93, 0.88) * clamp(moonGlow, 0.0, 1.0) * 0.42;
+    col = mix(col, vec3(0.97, 0.95, 0.90), clamp(moonDisc, 0.0, 1.0));
+  }
   col = mix(col, mix(u_c2, u_c4, 0.45), clamp(cloud, 0.0, 1.0) * 0.5);
   col += mix(u_c3, u_c4, 0.35) * clamp(cloudRim, 0.0, 1.0) * 0.85;
 
@@ -2562,6 +2994,15 @@ void main() {
   // envelope on its own gesture — rays leap, shards flash, a meteor falls,
   // splashes burst — and a circle on top of that is a leftover that fights
   // them. u_pulse is still very much alive; only the overlay is gone.
+  // THE FLOCK IS A SILHOUETTE, so it goes on last — over the sky, and over
+  // the moon, which is most of when you actually see a murmuration clearly.
+  // Not quite black: birds against a lit dusk keep a little of the sky in
+  // them, and pure black reads as a hole cut in the picture.
+  if (W_flock > 0.0) {
+    vec3 birds = mix(vec3(0.045, 0.040, 0.060), u_c1, 0.18);
+    col = mix(col, birds, clamp(flockDens, 0.0, 1.0) * 0.96);
+  }
+
   float d = length(uv);
   col *= 1.0 - 0.28 * d * d;   // slight vignette; the eye's socket supplies the rest
   col *= u_open;
