@@ -746,7 +746,12 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
   if (ha.y < 0.42) return 0.0;
   // Never past armCap: the neighbourhood is sized for exactly that reach, and a
   // crystal that overruns it is clipped along a straight line.
-  float armMax = armCap * (0.26 + ha.x * ha.x * 0.86);
+  // Linear, not squared. Squaring made short arms the rule and a long one an
+  // event, which is true of a growing crystal and wrong for a grown one: the
+  // five-minute render came out as a field of small sprigs where the references
+  // are long ferns sweeping across each other. 3:1 between the shortest and the
+  // longest is plenty of raggedness.
+  float armMax = armCap * (0.35 + ha.x * 0.65);
   float lim = min(front, armMax);
   if (along > lim + 0.01) return 0.0;
 
@@ -782,7 +787,7 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
     float side = across < 0.0 ? 0.5 : 0.0;
     float bu = along - sq * lean1;              // this branch's root, along the arm
     bu += (lnoise(vec2(bu * 9.0 + armId * 3.1, 61.0)) - 0.5) * 0.014;
-    const float P1 = 26.0;
+    const float P1 = 32.0;
     float bx = bu * P1 + armId * 1.7 + side;
     float bi = floor(bx);
     float bf = fract(bx) - 0.5;
@@ -863,7 +868,13 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
 // a crystal can reach 0.64 spacings, so at a spacing of 0.50 two neighbours
 // overlap by about a third of their diameters and their arms run through each
 // other, which is what the references are made of.
-const float FROST_S = 0.50;
+// FEWER AND BIGGER, at the same coverage. At 0.50 the pane filled with small
+// sprigs — correctly interlocked, and the wrong SIZE, because a fern's scale
+// relative to the frame is most of what the eye is reading. Coverage goes as
+// (arms per seed) x (seeds per area) x (area per fern), so trading seed count
+// for fern size holds it constant: 0.80 puts about a dozen crystals in shot with
+// arms reaching nearly half the frame's height, which is the reference.
+const float FROST_S = 0.80;
 const float FROST_R = FROST_S * 0.64;
 
 float mFrost(vec2 q, float grow) {
