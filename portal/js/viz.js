@@ -1132,15 +1132,25 @@ float mPetals(vec2 uv, float t, float w, float drive, float kick, float fall,
 // with that same field is what turns a smooth tongue into fire. Two scales —
 // the slow one bends the whole flame, the fast one tears its tip into tongues.
 float mFlame(vec2 uv, float t, float drive, float kick, out float core) {
-  vec2 p = uv - vec2(0.0, -0.34);       // seated low
-  float rise = t * 1.15;
+  // SEATED BELOW THE FRAME. The seat was at -0.34, inside the aperture, so the
+  // fire's base — the brightest, most solid part of it — sat in plain view as
+  // a lit wedge standing on nothing, and you could see exactly where the whole
+  // thing began. A flame you cannot find the bottom of is a larger fire
+  // somewhere below, which is the reading this mood wants.
+  //
+  // The reach grows to match: with the seat that much lower, the same reach
+  // would put the tip below the middle of the frame. What is on screen is now
+  // the upper part of a taller flame.
+  vec2 p = uv - vec2(0.0, -0.78);
+  // Flicker quickens with the room as well as brightening.
+  float rise = t * (1.15 + drive * 0.55);
   float slow = fbm(vec2(p.x * 3.2, p.y * 1.9 - rise));
   float fast = fbm(vec2(p.x * 7.5 + 3.0, p.y * 3.6 - rise * 1.55));
 
   // Height, normalised to the flame's reach. Loudness feeds it and an onset
   // makes it leap — a struck chord should make the fire jump, which is most of
   // what makes a fire feel like it is listening.
-  float reach = 0.34 + drive * 0.26 + kick * 0.16;
+  float reach = 0.90 + drive * 0.34 + kick * 0.22;
   float h = clamp(p.y / reach, 0.0, 1.0);
 
   // A lobe: broad at the seat, drawn to a point. Squaring the taper keeps the
@@ -1150,9 +1160,34 @@ float mFlame(vec2 uv, float t, float drive, float kick, out float core) {
   // Narrower at the seat than the first cut. A wide base that the erosion
   // could not reach came out as a solid bright rectangle sitting on the
   // bottom of the aperture — a box, not a fire.
-  float wid = (0.095 + drive * 0.04) * taper;
-  // The whole flame leans and wanders with the slow field.
-  float lean = (slow - 0.5) * 0.20 * h;
+  // The epsilon is not cosmetic. Above the flame's reach h clamps to 1, so
+  // taper is exactly 0 and wid with it — and smoothstep(0.0, 0.0, x) has equal
+  // edges, which is a divide by zero. The result came back as coverage rather
+  // than nothing, got textured by the erosion below, and drew torn
+  // flame-coloured tongues along the top edge of the frame in a mood whose
+  // whole point is one small fire in the dark. Keeping wid strictly positive
+  // makes the same expression evaluate to zero everywhere instead.
+  float wid = (0.14 + drive * 0.055) * taper + 1e-4;
+  // THE DANCE.
+  //
+  // This was lean = (slow - 0.5) * 0.20 * h: one displacement scaled by height,
+  // so the flame pivoted about its seat as a rigid body — it swayed, but every
+  // part of it swayed the same way at the same instant, and the amplitude was a
+  // constant the music never touched. A thing that leans is not a thing that
+  // dances.
+  //
+  // What moves it now is a WAVE traveling up its length. Because the phase
+  // depends on p.y, a bend enters at the bottom and climbs, so the flame
+  // undulates through an S and back rather than tipping — and the two
+  // wavelengths beating against each other keep it from ever repeating. The
+  // amplitude and the climb rate both answer the room, so quiet playing leaves
+  // a slow serpentine and a struck chord throws a whip up the whole length.
+  float amp = 0.055 + drive * 0.13 + kick * 0.10;
+  float wave = sin(p.y * 5.2 - t * (1.5 + drive * 1.7))
+             + 0.55 * sin(p.y * 9.7 - t * (2.3 + drive * 2.2) + 1.7);
+  // The slow field still wanders the whole flame, so the dance has somewhere
+  // to happen rather than oscillating about a fixed axis.
+  float lean = (slow - 0.5) * 0.22 * h + wave * amp * h * h;
   float body = smoothstep(wid, wid * 0.15, abs(p.x - lean));
   // Softened at the bottom, and only just below the seat: a hard step there
   // draws a straight edge across the base of the flame.
@@ -1161,7 +1196,10 @@ float mFlame(vec2 uv, float t, float drive, float kick, out float core) {
   // but the seat gets some of it too, or the base is a slab.
   body *= smoothstep(0.30 + h * 0.34, 0.62 + h * 0.2, fast + (1.0 - h) * 0.34);
   // The white heart, low and small, and no longer the whole base.
-  core = body * smoothstep(0.30, 0.0, h);
+  // The white heart belongs to the base, and the base is off frame now, so
+  // this is deliberately reached only at the very bottom of the picture: what
+  // shows is the hot lower body, not the incandescent seat.
+  core = body * smoothstep(0.34, 0.10, h);
   return body;
 }
 
@@ -1198,16 +1236,34 @@ float mEmbers(vec2 uv, float t, float w, float drive, float kick) {
 
 // The plume. Widens and thins as it climbs, and drifts on its own slow sway,
 // so the smoke is never directly above the fire for long.
-float mSmoke(vec2 uv, float t, float w, float drive) {
-  vec2 p = uv - vec2(0.0, -0.22);
-  float sway = sin(p.y * 1.9 + t * 0.34) * 0.13 + sin(p.y * 3.7 - t * 0.21) * 0.05;
+float mSmoke(vec2 uv, float t, float w, float drive, out float lit) {
+  // Anchored ABOVE the flame, not at its old seat. The origin was -0.22, which
+  // was just above a fire seated at -0.34; with the seat moved off the bottom
+  // of the frame and the reach grown to match, that puts the plume's root well
+  // inside the burning part, where it can only muddy it. Smoke starts where
+  // the flame stops being bright.
+  vec2 p = uv - vec2(0.0, 0.04);
+  // Same trick the flame uses: the phase depends on height, so a bend climbs
+  // the plume instead of the whole column swinging as one.
+  float sway = sin(p.y * 2.4 + t * (0.34 + drive * 0.30)) * 0.15
+             + sin(p.y * 4.6 - t * (0.21 + drive * 0.22)) * 0.06;
   float wid = 0.13 + max(p.y, 0.0) * 0.75;
   float column = smoothstep(wid, wid * 0.1, abs(p.x + sway));
   float n = fbm(vec2(p.x * 2.0, p.y * 1.5 - t * 0.42));
   // Starts above the flame and fades out well before the top of the aperture:
   // smoke that reaches the frame edge reads as fog, not as a plume.
-  float span = smoothstep(0.02, 0.22, p.y) * (1.0 - smoothstep(0.30, 0.72, p.y));
-  return column * span * smoothstep(0.34, 0.74, n) * (0.55 + drive * 0.5) * w;
+  // Gone before the frame edge, so it reads as a plume dispersing rather than
+  // as fog filling the top of the aperture.
+  float span = smoothstep(0.0, 0.16, p.y) * (1.0 - smoothstep(0.22, 0.52, p.y));
+  float v = column * span * smoothstep(0.34, 0.74, n) * (0.55 + drive * 0.5) * w;
+  // LIT FROM BELOW. Smoke composited only as a darkening is invisible over a
+  // night sky — it is already darker than what it covers, so the mood had a
+  // plume in it that could not be seen and read as having none at all. What
+  // makes smoke visible above a fire is the fire: the first part of the plume
+  // catches the light and glows, and it is only higher up, once it has spread
+  // and cooled out of the light, that it goes to a darkening.
+  lit = v * exp(-max(p.y, 0.0) * 5.0);
+  return v;
 }
 
 // A rainbow.
@@ -1685,7 +1741,15 @@ float mStars(vec2 uv, float t, float w, float strike) {
   float meteor = smoothstep(0.012, 0.0, side)
                * smoothstep(-0.24, -0.02, along) * smoothstep(0.02, 0.0, along)
                * strike * strike * 1.6 * smoothstep(0.34, 0.04, age);
-  return (star + band * 0.42 + meteor) * w;
+  // A HANDFUL OF STARS IS NOT A GALAXY. The band used to scale linearly with
+  // the star weight, so a mood that wanted a couple of points of light
+  // overhead got a Milky Way as well — and in fire's palette, where the
+  // specular channel runs to warm gold, that came out as glowing orange cloud
+  // banks over a campfire. Gated on the weight instead: only a mood committed
+  // to a night sky (night, desert-night) gets the band, and fire's 0.18 and
+  // volcano's 0.35 get stars alone.
+  float galaxy = band * 0.42 * smoothstep(0.35, 0.80, w);
+  return (star + galaxy + meteor) * w;
 }
 
 // Curtains of light in a night sky. The lower hem is a slow noise line and
@@ -2202,20 +2266,32 @@ void main() {
   float flameCore = 0.0;
   float embers = 0.0;
   float smoke = 0.0;
+  float smokeLit = 0.0;   // the part of the plume still inside the firelight
   if (W_flame > 0.0) {
     float c;
     flame = mFlame(uv, u_t, u_rms, u_pulse, c) * W_flame;
     flameCore = c * W_flame;
     // A fire lights what is around it. The seat glows, the rest of the frame
     // does not — which is the whole of "small fire in the dark".
-    float glow = exp(-dot(uv - vec2(0.0, -0.30), uv - vec2(0.0, -0.30)) * 5.5);
+    // The glow follows the seat. Left at -0.30 it sat well above the fire's
+    // new base and lit the middle of the frame instead of the bottom of it.
+    vec2 gd = (uv - vec2(0.0, -0.62)) * vec2(1.0, 0.72);
+    float glow = exp(-dot(gd, gd) * 4.2);
     lift += glow * W_flame * (0.22 + u_rms * 0.3);
   }
   if (W_embers > 0.0) {
     embers = mEmbers(uv, u_t, W_embers, u_rms, u_pulse);
   }
   if (W_smoke > 0.0) {
-    smoke = mSmoke(uv, u_t, W_smoke, u_rms);
+    smoke = mSmoke(uv, u_t, W_smoke, u_rms, smokeLit);
+    // Never in front of the flame. The plume's root and the fire's tip share
+    // the same space, and smoke composited as a darkening over that overlap
+    // takes a dark bite out of the middle of the flame — which is the one
+    // place a fire must be solid. Smoke is what has stopped burning; it goes
+    // behind what still is.
+    float behind = 1.0 - clamp(flame * 1.6, 0.0, 1.0);
+    smoke *= behind;
+    smokeLit *= behind;
     // Smoke is opaque: it hides what is behind it rather than glowing.
     mass += smoke * 0.35;
   }
@@ -2447,6 +2523,8 @@ void main() {
   // it is the one thing here that is genuinely the colour of the surroundings.
   if (W_smoke > 0.0) {
     col = mix(col, mix(u_c1, u_c2, 0.55), clamp(smoke, 0.0, 1.0) * 0.5);
+    // and the low plume glows with what is burning under it.
+    col += mix(u_c2, u_c3, 0.6) * clamp(smokeLit, 0.0, 1.0) * (0.55 + u_rms * 0.5);
   }
   col += u_c4 * clamp(spec, 0.0, 1.0) * (0.16 + u_gloss * 0.5);
   // Wisps are their own small light sources, added rather than mixed: they
