@@ -2015,7 +2015,7 @@ vec3 filmSpectrum(float x, float sat) {
 // Brighter near the sun in both cases: iridescence is a forward-scattering
 // effect and it is strongest within a few degrees of the source. The engine
 // puts its light in the upper left, as mRays, mCrags and mColumns all assume.
-vec3 mIridescence(vec2 uv, float t, float flow, float dens, vec2 thr,
+vec3 mIridescence(vec2 uv, float t, float flow, float dens, vec2 thr, float body,
                   float drive, float kick, float pitch, out float amt) {
   const vec2 SUN = vec2(-0.46, 0.30);
   float nearSun = smoothstep(1.15, 0.16, length(uv - SUN));
@@ -2039,7 +2039,20 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, vec2 thr,
   // only way to get that is to work in a coordinate that can go past 0 and 1.
   float span = max(thr.y - thr.x, 1e-3);
   float across = (dens - thr.x) / span;
-  float fringe = smoothstep(-1.7, -0.25, across) * smoothstep(2.6, 0.95, across);
+  // TWO DIFFERENT GATES FOR THE TWO SIDES, and they have to be different.
+  //
+  // Using the across coordinate on BOTH sides put the whole sky under rainbow:
+  // a ramp-width is a distance in DENSITY, and where the cloud field is nearly
+  // flat that distance is hundreds of pixels. The coverage saturates and so
+  // cannot run away like that; the across coordinate has nothing to stop it.
+  //
+  // So the outer edge is gated on the coverage, which pins it to the cloud's own
+  // boundary — the references do show a fairly crisp outer limit, because
+  // outside the cloud there is nothing to diffract. The inner falloff is gated
+  // on across, which is what makes the colour reach several ramp-widths into the
+  // cloud instead of clinging to its outline. Colour on the outer part of a
+  // cloud, fading inward: that is what the photographs are.
+  float fringe = smoothstep(0.03, 0.38, body) * smoothstep(3.0, 1.0, across);
   // Roughly three orders over the whole width of that band. Ten was a
   // topographic map; three is where a band is wide enough to read as colour
   // while still going round the spectrum more than once, which is what says
@@ -2063,7 +2076,7 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, vec2 thr,
   // Foreshortened out near the horizon, like every other ground texture: the
   // swirls fall below resolving distance long before the puddle does.
   wet *= smoothstep(0.0, 0.09, dep);
-  float pudAmt = wet * (0.18 + nearSun * 0.30);
+  float pudAmt = wet * (0.12 + nearSun * 0.20);
 
   // The register tilts which orders are showing — playing higher slides the
   // whole film thinner, so the colour sequence walks. It is the one thing here
@@ -3948,7 +3961,7 @@ void main() {
     // The raw density and the cloud's own moving threshold, not its coverage:
     // the fringe is several ramp-widths across, which is a span the coverage
     // cannot express (it saturates at both ends of exactly one ramp).
-    vec3 bow = mIridescence(uv, u_t, u_flow, cloudDens, cloudThr,
+    vec3 bow = mIridescence(uv, u_t, u_flow, cloudDens, cloudThr, cloudBody,
                             u_rms, u_pulse, u_centroid, bowAmt);
     col += bow * bowAmt * W_rainbow * 1.25;
   }
