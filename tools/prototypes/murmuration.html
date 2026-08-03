@@ -1,0 +1,979 @@
+<title>Murmuration — field prototype</title>
+
+<style>
+  :root {
+    --ground: #0a0c11;
+    --panel: #12161d;
+    --rule: #232b37;
+    --text: #c9d1dc;
+    --dim: #79838f;
+    --accent: #8d80b8;
+
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  /* Deliberately single-theme. This page is a viewing surface for a dark
+     render — a light ground would fight the thing it exists to show. */
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px 16px 56px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  header { display: flex; flex-direction: column; gap: 6px; }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 25px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  .lede { margin: 0; color: var(--dim); max-width: 58ch; }
+
+  /* --- the render ------------------------------------------------------- */
+
+  .stage {
+    position: relative;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #05070b;
+    aspect-ratio: 4 / 3;
+  }
+  @media (min-width: 620px) { .stage { aspect-ratio: 16 / 9; } }
+
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .fallback {
+    position: absolute;
+    inset: 0;
+    display: none;
+    place-content: center;
+    padding: 24px;
+    text-align: center;
+    color: var(--dim);
+  }
+  .stage[data-failed="1"] canvas { display: none; }
+  .stage[data-failed="1"] .fallback { display: grid; }
+
+  /* --- controls --------------------------------------------------------- */
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--panel);
+  }
+
+  .row { display: flex; flex-direction: column; gap: 7px; }
+
+  .label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 600;
+  }
+  .val {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 26px;
+    cursor: pointer;
+  }
+
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; }
+
+  button {
+    font: inherit;
+    font-size: 14px;
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--rule);
+    background: #171c25;
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  button:hover { background: #1d2430; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: #221d33;
+    color: #fff;
+  }
+  .strike { border-color: #3a3350; }
+
+  /* --- notes ------------------------------------------------------------ */
+
+  .notes {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--dim);
+  }
+  .notes h2 {
+    margin: 0;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .notes ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+  .notes b { color: var(--text); font-weight: 600; }
+  .notes .was {
+    border-left: 2px solid var(--rule);
+    padding-left: 12px;
+    margin: 0;
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">music is magic · prototype · v10</span>
+    <h1>Murmuration as a field</h1>
+    <p class="lede">
+      No birds are drawn. The flock is a finite body of density carried
+      backwards through time along a field of drifting vortices, so its
+      deformation compounds — it folds over itself rather than wobbling.
+    </p>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="c"></canvas>
+    <div class="fallback">
+      <p>This needs WebGL, and this browser didn't give it to us.</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="row">
+      <span class="label">Setting</span>
+      <div class="seg" role="group" aria-label="Setting">
+        <button id="mSky" aria-pressed="true">Dusk sky</button>
+        <button id="mSea" aria-pressed="false">Open water</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="label">Churn <span class="val" id="vChurn">1.00</span></span>
+      <input type="range" id="churn" min="0" max="200" value="100" aria-label="Churn">
+    </div>
+
+    <div class="row">
+      <span class="label">Tempo <span class="val" id="vAgile">1.00</span></span>
+      <input type="range" id="agile" min="20" max="240" value="100" aria-label="Tempo">
+    </div>
+
+    <div class="row">
+      <span class="label">Grain <span class="val" id="vGrain">70</span></span>
+      <input type="range" id="grain" min="16" max="150" value="70" aria-label="Grain">
+    </div>
+
+    <button class="strike" id="strike">Strike — send a wave through it</button>
+  </div>
+
+  <div class="notes">
+    <h2>Too stretchy, too fast</h2>
+    <ul>
+      <li>
+        <b>The strain compounds, so a modest number was not one.</b> The shear
+        waves are what draw the body out, and their effect multiplies over a
+        whole material lifetime — the amplitude in there was pulling a circle
+        out to roughly six times its length before the material was replaced.
+        It is down by well over half, and the flock keeps a body now rather
+        than resolving into ribbons within a couple of seconds.
+      </li>
+      <li>
+        <b>Churn controls it.</b> It used to scale only the vortices, which was
+        the smaller half of the stretching. It scales the shear waves too now,
+        so it is the stretchiness dial — push it up for the drawn-out version.
+      </li>
+      <li>
+        <b>Two corners smoothed.</b> The foreshortening ran on the absolute
+        value of a sine, which has a kink at every zero crossing — precisely
+        the moment the body is fully edge-on, so it stopped narrowing and began
+        widening with a jolt in the rate. It is a squared sine now: same range,
+        same period, no corner. And the changeover phase field is measured on
+        the rigid body axes, so a startle no longer stretches the phase field
+        itself and shifts which regions are due to hand over.
+      </li>
+    </ul>
+
+    <h2>Before that: crossfading between configurations</h2>
+    <p class="was">
+      Still jumping — and it looked like a dissolve between two unrelated
+      arrangements rather than one arrangement moving.
+    </p>
+    <ul>
+      <li>
+        <b>It was doing exactly that, by construction.</b> The material has a
+        lifetime, so generations have to hand over — and with only two of them,
+        half a lifetime apart, every handover was between a nearly-fresh
+        arrangement and a nearly-shredded one. Disparate is the word. Worse,
+        the gentle raised-cosine weighting gave a barely-deformed newcomer half
+        the picture while it was still a smooth blob.
+      </li>
+      <li>
+        <b>Five generations, weighted much more sharply.</b> One holds most of
+        the picture most of the time, and the two that ever share it are a
+        fifth of a lifetime apart instead of half of one — near-identical
+        arrangements a moment apart, so the handover reads as a slight
+        softening rather than as a dissolve.
+      </li>
+      <li>
+        <b>And they no longer all turn over at once.</b> The changeover phase
+        is offset smoothly across the body, so a handover is local churn while
+        its neighbours hold. A single global phase meant the entire flock
+        crossfaded in unison, which is most of why it was legible as a
+        crossfade at all.
+      </li>
+      <li>
+        <b>Cheaper than the two it replaces.</b> A generation's weight is
+        floored to zero smoothly rather than cut off at a threshold, so one
+        that is not worth drawing can simply not be traced — with nothing
+        popping when it goes.
+      </li>
+    </ul>
+
+    <h2>Before that: stutters into a different shape</h2>
+    <ul>
+      <li>
+        <b>The startle was a step.</b> A strike set the contraction to full in
+        a single frame. That was harmless while it only scaled the outline —
+        but it now sits inside the body frame, where it is applied to the
+        traced material coordinate, so a strike was instantaneously remapping
+        the texture <i>and</i> the boundary together. Every few seconds the
+        whole flock jumped to a different shape between one frame and the next.
+        It has an attack now: fast, and finite. Birds are quick; they are not
+        discontinuous.
+      </li>
+      <li>
+        <b>A late frame here is worse than a dropped one.</b> The flock is a
+        function of time, so a frame that arrives late does not repeat — it
+        shows a moment that has already moved on, which reads as a lurch. The
+        tracing got expensive enough that a phone can fall behind, so the
+        render resolution now backs off until the frame rate holds, and climbs
+        back when it can.
+      </li>
+      <li>
+        <b>Not the boundary of the traced region</b>, which was the other
+        suspect — an arm crossing it would be cut off with a straight edge and
+        pop. Measured against a bound twice as generous, the average mass on
+        screen is the same to within a per cent. It is measured on the rigid
+        body axes now rather than the foreshortened ones, which had made it
+        tightest exactly when the body was thinnest.
+      </li>
+    </ul>
+
+    <h2>Before that: the outline never changed</h2>
+    <p class="was">
+      Not literally an outline, but it was still clear where the flock started
+      and ended, and that never changed.
+    </p>
+    <ul>
+      <li>
+        <b>The boundary was a stencil.</b> The interior folded; the edge was a
+        rigid oval that the folding happened <i>inside</i>. It rotated and
+        narrowed, and the rim was ragged, but its shape was decided in advance
+        and the flow never touched it. Where the flock ends is now worked out
+        the same way as everything else — from the traced material coordinate —
+        so the boundary is made of the same stuff as the interior and folds
+        with it. Arms get drawn off it, notches fold into it, pieces tear away
+        and drift.
+      </li>
+      <li>
+        <b>The seed is just an oval, and that is fine.</b> It used to carry a
+        two-scale ragged wobble, which is now pointless: an oval that has been
+        through two seconds of compounding strain is more irregular than any
+        wobble could make it, and irregular in ways that mean something.
+      </li>
+      <li>
+        <b>The shear had to stop being uniform.</b> A uniform shear is a linear
+        map, and a linear map can only ever turn an oval into a longer oval —
+        so however hard it was stretched, the body kept resolving into a smooth
+        sliver with straight flanks. It is now two crossed shear <i>waves</i>,
+        each with velocity perpendicular to the direction it varies in, which
+        makes them divergence-free: they stretch and fold without bunching
+        material up. Crossed waves like these are the standard recipe for
+        chaotic mixing.
+      </li>
+      <li>
+        <b>Half the tracing was wasted.</b> Eight steps regardless of age meant
+        a newborn generation paid full price to travel almost no distance. The
+        step size is fixed now and the count follows the age — and since the
+        two ages always sum to one period, the pair costs what one used to.
+      </li>
+    </ul>
+
+    <h2>Before that: a flag with a pattern on it</h2>
+    <ul>
+      <li>
+        <b>Nothing accumulated.</b> The trace stepped five times through the
+        flow <i>at a single instant</i> — a fixed distortion applied to a fixed
+        texture. The distortion drifted, so the picture wobbled, but no part of
+        the pattern ever went anywhere. That is a flag, exactly. The trace now
+        runs backwards through <b>time</b>: each point is followed through the
+        flow as it was one second ago, two seconds ago, and the deformation
+        <i>compounds</i> along the way. Compounding strain is what draws a blob
+        into a filament and then folds the filament over itself.
+      </li>
+      <li>
+        <b>So the material has a lifetime.</b> Strain that compounds forever
+        tears any texture to threads, and a real flock keeps making new
+        structure rather than stretching one arrangement indefinitely. Two
+        generations run half a period apart; each is born undeformed at zero
+        weight and dies fully drawn out at zero weight, so what is on screen is
+        always the middle of a fold and the changeover never shows.
+      </li>
+      <li>
+        <b>The flow was a conveyor belt.</b> It carried a uniform stream along
+        the heading, nine times faster than the body itself travels. Over a
+        long trace that just pours material in one end and out the other.
+        Travelling is the body's job; the flow is now circulation plus a shear
+        along the heading — speed proportional to how far across you are, which
+        is what draws everything out into slanted filaments.
+      </li>
+      <li>
+        <b>And it was all far too slow.</b> Every clock in the flow — vortex
+        drift, vortex reversal — ran on twenty to thirty-five seconds. The
+        interior had no time to rearrange between one look and the next. They
+        run on a few seconds now, and the vortices orbit <i>inside</i> the body
+        rather than out beyond its ends.
+      </li>
+      <li>
+        <b>The inside was a solid sheet.</b> The specks only ever bit at the
+        rim, so the body's interior was continuous — and a continuous sheet
+        that folds is goo, whatever it is notionally made of. The grain now
+        opens up throughout, so there is sky visible through the mass
+        everywhere, not just at the edges.
+      </li>
+    </ul>
+
+    <h2>Fixed in earlier passes</h2>
+    <ul>
+      <li>
+        <b>Everything is read in the body's own frame</b>, so the interior
+        travels, banks and compresses with the flock instead of the flock being
+        a hole sliding across fixed wallpaper — which is what made it read as
+        growing and shrinking.
+      </li>
+      <li>
+        <b>The body is smaller than the frame</b>, deliberately. You cannot see
+        a thing <i>turn</i> if you never see the ends of it. Turning edge-on
+        now goes narrow and dark together, because the same birds stack.
+      </li>
+      <li>
+        <b>The edge thins rather than fades</b> — birds are removed by a rising
+        threshold and the ones that remain stay solid, instead of every one of
+        them going half-transparent, which read as a blurry lens.
+      </li>
+      <li>
+        <b>Round specks, rotated octaves, tapering ribbons.</b> The noise had a
+        grid inside it and the specks were axis-aligned rectangles, which is
+        what looked squared-off.
+      </li>
+      <li>
+        <b>Strike sends an agitation wave</b> — a ripple racing through far
+        faster than the body travels, with the mass balling up behind it. It
+        fires on its own at irregular intervals; on a fixed clock it read as
+        breathing rather than as a startle.
+      </li>
+    </ul>
+    <p style="margin:0">
+      <b>Churn</b> is vortex strength — how violently it folds.
+      <b>Tempo</b> is the single clock everything runs on. It used to scale the
+      flow <i>and</i> the clock the flow is measured against, so it changed
+      speed quadratically; it does one thing now. The default is a good deal
+      slower than it was — say if it wants to be slower still.
+      <b>Grain</b> is the illusion of number, and also sets how coarse the
+      stragglers at the edge are.
+    </p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var stage = document.getElementById('stage');
+  var gl = canvas.getContext('webgl', { antialias: false, alpha: false })
+        || canvas.getContext('experimental-webgl');
+  if (!gl) { stage.dataset.failed = '1'; return; }
+
+  var VERT = [
+    'attribute vec2 a;',
+    'void main(){ gl_Position = vec4(a, 0.0, 1.0); }'
+  ].join('\n');
+
+  var FRAG = [
+    'precision highp float;',
+    'uniform vec2 u_res;',
+    'uniform float u_t;',
+    'uniform float u_churn;',
+    'uniform float u_agile;',
+    'uniform float u_grain;',
+    'uniform float u_clench;',
+    'uniform float u_wave;',
+    'uniform float u_sea;',
+
+    // How long a generation of material lives before it is replaced. Long
+    // enough to fold over itself several times; short enough that it is not
+    // shredded to threads by the time it goes.
+    'const float PER = 2.6;',
+
+    // The old hash ended in fract(p.x * p.y), which correlates along both
+    // axes — small x gives a small product gives a low value, in bands. That
+    // is a grid drawn into the noise, and everything built on it inherited
+    // the grid's corners.
+    'float hash(vec2 p){',
+    '  vec3 q = fract(vec3(p.xyx) * 0.1031);',
+    '  q += dot(q, q.yzx + 33.33);',
+    '  return fract((q.x + q.y) * q.z);',
+    '}',
+    'float noise(vec2 p){',
+    '  vec2 i = floor(p), f = fract(p);',
+    // Quintic, not cubic. Smoothstep leaves a discontinuity in the SECOND
+    // derivative at every cell boundary, and this shader divides by the
+    // gradient — so those creases were being amplified into visible seams
+    // running along the lattice.
+    '  f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);',
+    '  return mix(mix(hash(i), hash(i + vec2(1.0,0.0)), f.x),',
+    '             mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y);',
+    '}',
+    'float fbm(vec2 p){',
+    '  float v = 0.0, a = 0.5;',
+    // Rotate between octaves. Stacking octaves on the same axes lines every
+    // scale's corners up with every other scale's, which is most of why the
+    // mass came out blocky rather than billowing.
+    '  mat2 r = mat2(0.80, -0.60, 0.60, 0.80);',
+    '  for (int i = 0; i < 4; i++){ v += a * noise(p); p = r * p * 2.03 + vec2(17.3, 9.1); a *= 0.5; }',
+    '  return v;',
+    '}',
+
+    // Round specks on a jittered lattice. Value noise thresholded low leaves
+    // RECTANGLES — its cells are axis-aligned boxes — and at the thinned edge
+    // those rectangles are literally the stragglers, which is what read as
+    // squared-off. A point per cell measured by distance gives round ones.
+    'float specks(vec2 q){',
+    '  vec2 i = floor(q), f = fract(q);',
+    '  float d = 8.0;',
+    '  for (int y = -1; y <= 1; y++){',
+    '    for (int x = -1; x <= 1; x++){',
+    '      vec2 o = vec2(float(x), float(y));',
+    '      vec2 h = vec2(hash(i + o), hash(i + o + 41.7));',
+    '      d = min(d, length(f - o - h));',
+    '    }',
+    '  }',
+    '  return d;',
+    '}',
+    'mat2 rot(float a){ float s = sin(a), c = cos(a); return mat2(c, -s, s, c); }',
+
+    // Where the flock IS. A finite body, not a medium — it travels on a
+    // curving heading and its outline deforms as it goes. Without this the
+    // field fills the frame and reads as fluid in a container.
+    // It travels less far than it used to, because it also got smaller: the
+    // body used to be wider than the frame, and a body you never see the ends
+    // of cannot be seen to TURN. Every narrowing then reads as shrinking,
+    // because nothing on screen tells you which it was.
+    'vec2 flockCentre(float t){',
+    '  return vec2(sin(t * 0.21) * 0.28 + sin(t * 0.13 + 1.7) * 0.09,',
+    '              sin(t * 0.17 + 0.6) * 0.13);',
+    '}',
+
+    // The heading it is banked onto.
+    'float flockBank(float t){ return sin(t * 0.19) * 1.1; }',
+
+    // How edge-on the sheet is: 0 broadside, 1 seen along its own plane.
+    // A murmuration turning edge-on is its most recognisable move — it goes
+    // narrow and DARK at once, because the same birds now stack behind one
+    // another. Narrow WITHOUT dark is just a thing getting smaller.
+    // sin-SQUARED, not the absolute value. abs() has a corner at every zero
+    // crossing, which is exactly the moment the body is fully edge-on: it
+    // stopped narrowing and started widening with a kink in the rate. Squaring
+    // gives the same range and period with no corner anywhere.
+    'float flockTurn(float t){ float s = sin(t * 0.117 + 0.4); return 1.0 - s * s; }',
+    'float flockFore(float t){ return mix(1.0, 0.46, flockTurn(t)); }',
+
+    // THE BODY FRAME. Everything the flock is made of is read here — field,
+    // outline and grain alike — so the interior travels, banks and compresses
+    // WITH the body. Previously only the outline lived in this frame and the
+    // field was world-locked, which made the body an aperture sliding over
+    // fixed wallpaper: the hole changed size while the pattern behind it held
+    // still, and that is exactly "growing and shrinking rather than morphing".
+    // Rigid apart from the two things that genuinely change the body's shape:
+    // the foreshortening as it turns, and the squeeze when it startles. The
+    // outline's own long-and-thin proportion is NOT in here — that shapes the
+    // boundary, not the texture, and folding it in made the structure coarse.
+    'vec2 bodyFrame(vec2 p, float t){',
+    '  vec2 b = rot(-flockBank(t)) * (p - flockCentre(t));',
+    '  float ball = 1.0 + u_clench * 0.34;',
+    '  return b * vec2(1.0, 1.0 / flockFore(t)) * ball;',
+    '}',
+
+    // THE FLOW. Vortices that drift and reverse, plus a shear along the
+    // heading. Deliberately flock-RELATIVE: the old flow carried a uniform
+    // 0.55/s stream along the heading, which over a long trace turns the body
+    // into a conveyor belt, material pouring in one end and out the other of a
+    // body that itself only moves at a tenth of that speed. Travelling is
+    // flockCentre's job. What happens in here is circulation and shear, which
+    // is the only thing that actually deforms anything.
+    'vec2 flow(vec2 p, float t){',
+    '  vec2 ctr = flockCentre(t);',
+    '  vec2 rel = p - ctr;',
+    '  float bk = flockBank(t);',
+    '  vec2 al = vec2(cos(bk), sin(bk));',
+    '  vec2 ac = vec2(-al.y, al.x);',
+    // Two shear WAVES: speed along the heading varying sinusoidally across it,
+    // and the same the other way round. Both are divergence-free — velocity
+    // perpendicular to the direction it varies in — so they stretch and fold
+    // without bunching material up or thinning it out.
+    //
+    // The point of the waves is that they are non-linear. A uniform shear is a
+    // linear map, and a linear map can only ever turn an oval into a LONGER
+    // oval, which is why the body kept resolving into a smooth sliver with
+    // straight flanks however hard it was stretched. Crossed waves like these
+    // are the standard recipe for chaotic mixing: they fold.
+    // Amplitudes well down from where they were, and now under Churn like the
+    // vortices are. These waves are what stretches the body, and their strain
+    // compounds over a whole lifetime — so the modest-looking number here was
+    // drawing a circle out to something like six times its length before the
+    // material was replaced. Churn is the stretchiness control now, not just
+    // the vortex control.
+    '  vec2 v = al * (0.24 * u_churn * sin(t * 0.37 + 1.2)) * cos(dot(rel, ac) * 12.0 + t * 0.55);',
+    '  v += ac * (0.16 * u_churn * sin(t * 0.29 + 3.1)) * cos(dot(rel, al) * 6.0 - t * 0.41);',
+    '  for (int i = 0; i < 4; i++){',
+    '    float fi = float(i);',
+    // Orbiting INSIDE the body, and on a several-second clock rather than a
+    // twenty-second one. Everything in here used to turn over so slowly that
+    // the interior had no time to rearrange between one look and the next.
+    '    vec2 c = ctr + vec2(sin(t * (0.68 + fi * 0.24) + fi * 2.3),',
+    '                        cos(t * (0.57 + fi * 0.28) + fi * 1.1)) * (0.14 + fi * 0.09);',
+    '    vec2 d = p - c;',
+    '    float r2 = dot(d, d) + 0.09;',
+    // Alternating spin, and the strength itself reverses on its own clock — a
+    // vortex that only ever turns one way reads as a whirlpool.
+    '    float s = sin(t * (0.52 + fi * 0.20) + fi * 2.0) * (0.055 + fi * 0.010);',
+    '    v += vec2(-d.y, d.x) * s * u_churn / r2;',
+    '  }',
+    // No agility factor here any more. It scaled the flow AND the rate of the
+    // clock the flow is measured against, so the slider was changing speed
+    // quadratically. Tempo is one thing, set in one place.
+    '  return v;',
+    '}',
+
+    // ONE GENERATION OF MATERIAL. Seeded undeformed, then carrying everything
+    // the flow has done to it since — the trace runs backwards through TIME,
+    // so deformation accumulates along it.
+    //
+    // This is the whole difference between folding and warping, and it is what
+    // was missing. The old trace stepped five times through the flow at a
+    // SINGLE INSTANT, which is a fixed distortion of a fixed texture: the
+    // distortion changed slowly, so the picture wobbled, but the pattern never
+    // went anywhere. A flag with a design printed on it.
+    // Where the flock was WHEN THE GENERATION WAS BORN. Just an oval — it does
+    // not need to be ragged, and it used to be, pointlessly. What you see is
+    // this oval after the flow has had its way with it, and a compounding
+    // strain will draw arms off it, fold notches into it and tear pieces away
+    // far better than any amount of wobble on a rigid outline could.
+    'float bodySeed(vec2 b){',
+    '  return smoothstep(0.40, 0.30, length(b * vec2(0.72, 1.75)));',
+    '}',
+
+    'vec2 layer(vec2 p, float t, float age){',
+    // A FIXED step, and as many of them as this generation's age needs. Eight
+    // steps regardless meant a newborn generation paid full price to travel
+    // almost no distance; since the two ages always sum to one period, the two
+    // together now cost what a single one used to. Same accuracy, half the
+    // work — and the young layer is integrated more finely than before.
+    '  float h = 0.33;',
+    '  vec2 q = p;',
+    '  for (int i = 0; i < 8; i++){',
+    '    float done = float(i) * h;',
+    '    if (done >= age) break;',
+    '    float dt = min(h, age - done);',
+    '    q -= flow(q, t - done - dt * 0.5) * dt;',
+    '  }',
+    // Read in the body frame AT THE TIME THE MATERIAL WAS THERE, so the
+    // structure stays attached to the flock across the whole trace.
+    //
+    // Both come off the SAME traced coordinate: what the material looks like,
+    // and whether it is part of the flock at all. That is the point — the
+    // boundary is now made of the same stuff as the interior and folds with
+    // it, instead of being a fixed shape the folding happens inside.
+    '  vec2 b = bodyFrame(q, t - age);',
+    '  return vec2(fbm(b * 4.0 + 3.0), bodySeed(b));',
+    '}',
+
+    // THE FIELD, with no envelope in it. This used to be multiplied by the
+    // body's falloff, which squashed the signed field toward zero near the
+    // rim — and since the sheet is a LEVEL SET of this field, squashing it
+    // dissolved the sheet instead of ending it.
+    //
+    // Two generations of material, half a period apart. Each is born
+    // undeformed at zero weight and dies fully drawn out at zero weight, so
+    // what is on screen is always the middle of a fold and the regeneration
+    // never shows. Something has to do this: accumulated strain tears any
+    // texture to threads eventually, and a real flock keeps making new
+    // structure rather than stretching one arrangement forever.
+    'vec2 flock(vec2 p, float t){',
+    // The phase is offset smoothly across the body, so generations do not all
+    // turn over at the same instant everywhere. With one global phase the
+    // ENTIRE flock crossfades at once, which is precisely what a crossfade
+    // between two configurations looks like. Staggered, a changeover is local
+    // churn while its neighbours hold — which is what a flock does anyway.
+    // One octave, not four — this only has to be smooth and large-scale. And
+    // measured on the RIGID coordinate: read in the full body frame, the
+    // foreshortening and the startle squeeze were stretching the phase field
+    // itself, so a strike shifted which regions were due to hand over.
+    '  vec2 rp = rot(-flockBank(t)) * (p - flockCentre(t));',
+    '  float ph = noise(rp * 1.3 + vec2(t * 0.07, 4.0));',
+    '  float base = fract(t / PER + 0.35 * ph);',
+
+    // FIVE generations, not two, weighted by sin^8 rather than a raised
+    // cosine. Two generations spaced half a period apart means the crossover
+    // is always between a nearly-fresh arrangement and a nearly-shredded one —
+    // disparate by construction, and the gentle cosine gave a barely-deformed
+    // newcomer half the weight. Now one generation holds most of the weight
+    // most of the time, and the two that ever share it are a fifth of a
+    // lifetime apart rather than half of one.
+    '  float raw = 0.0;',
+    '  for (int k = 0; k < 5; k++){',
+    '    float s = sin(3.14159265 * fract(base + float(k) * 0.2));',
+    '    s *= s; s *= s; s *= s; s *= s;',
+    '    raw += s;',
+    '  }',
+    // A floor SUBTRACTED rather than a cutoff tested. A generation whose
+    // weight falls below it is not dropped at five per cent of the picture —
+    // its weight reaches zero smoothly and it stops being traced with nothing
+    // to see. That is what makes skipping safe, and skipping is what keeps
+    // five generations cheaper than the two they replace.
+    '  float wsum = 0.0;',
+    '  for (int k = 0; k < 5; k++){',
+    '    float s = sin(3.14159265 * fract(base + float(k) * 0.2));',
+    '    s *= s; s *= s; s *= s; s *= s;',
+    '    wsum += max(s / raw - 0.05, 0.0);',
+    '  }',
+    '  vec2 acc = vec2(0.0);',
+    '  for (int k = 0; k < 5; k++){',
+    '    float u = fract(base + float(k) * 0.2);',
+    '    float s = sin(3.14159265 * u);',
+    '    s *= s; s *= s; s *= s; s *= s;',
+    '    float w = max(s / raw - 0.05, 0.0) / wsum;',
+    '    if (w > 0.0) acc += layer(p, t, u * PER) * w;',
+    '  }',
+    '  return vec2(acc.x - 0.5, acc.y);',
+    '}',
+
+    // A conservative bound on where the deformed body can possibly have got
+    // to, used only to skip the trace entirely out in the empty sky. It has to
+    // be generous — the flow carries material well outside the seed oval, and
+    // clipping an arm would put a straight cut across it.
+    // Measured on the RIGID coordinate — no foreshortening, no startle
+    // squeeze. Using the full body frame made the bound tightest exactly when
+    // the body was thinnest, which is when the flow has flung material
+    // furthest across the heading; an arm crossing it would be cut off with a
+    // straight edge.
+    'bool nearFlock(vec2 p, float t){',
+    '  vec2 r = rot(-flockBank(t)) * (p - flockCentre(t));',
+    '  return length(r * vec2(0.72, 2.0)) < 0.94;',
+    '}',
+
+    'void main(){',
+    '  vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y;',
+
+    '  float env = 0.0;',
+    '  float dens = 0.0;',
+    '  float g = 1.0;',
+    '  float band = 0.0;',
+    '  float grain = 0.0;',
+    // The trace is only skipped out in open sky now. It cannot be gated on the
+    // body any more, because where the body IS is one of the things the trace
+    // works out.
+    '  if (nearFlock(uv, u_t)) {',
+    '    vec2 f0 = flock(uv, u_t);',
+    '    float s = f0.x;',
+    '    env = f0.y;',
+    // Forward differences, not central. A trace now runs two generations
+    // through eight steps each, so a tap is worth twice what it was — three
+    // instead of five, and the loss of accuracy in a gradient used only for
+    // shading is not visible.
+    '    float e = 2.0 / u_res.y;',
+    '    vec2 gv = vec2(flock(uv + vec2(e, 0.0), u_t).x - s,',
+    '                   flock(uv + vec2(0.0, e), u_t).x - s) / e;',
+    '    g = max(length(gv), 1e-4);',
+
+    // Distance to the surface, so the band keeps a constant screen width...
+    '    float d = abs(s) / g;',
+    // The band NARROWS toward the rim as well as thinning out. At a constant
+    // width every ribbon ended in a flat stub, because it simply stopped
+    // being drawn at full thickness. Width is not opacity — this tapers the
+    // shape without making any bird less present.
+    '    band = smoothstep(0.075 * (0.42 + 0.58 * env), 0.0, d);',
+    // ...and thickness is the INVERSE gradient: a shallow gradient means we
+    // are looking along the sheet, through a lot of it. That is the dark band.
+    '    float thick = band / (g * 0.34 + 0.30);',
+
+    // Turning edge-on stacks the birds behind one another, and balling up
+    // packs them together. Both make the mass DARKER as it narrows. Without
+    // this the narrowing is just a shrink, however honest the geometry is.
+    '    thick *= 1.0 + flockTurn(u_t) * 0.35 + u_clench * 0.3;',
+
+    // The agitation wave: a ripple of darkening racing through the body far
+    // faster than any bird flies. The single most recognisable thing a real
+    // murmuration does, and it only exists on a strike.
+    '    vec2 ctr = flockCentre(u_t);',
+    '    float bank = flockBank(u_t);',
+    '    float along = dot(uv - ctr, vec2(cos(bank), sin(bank)));',
+    '    float wf = u_wave * 3.2 - 1.6;',
+    '    float ripple = exp(-pow((along - wf) * 4.5, 2.0)) * step(0.001, u_wave);',
+    '    thick *= 1.0 + ripple * 2.6;',
+
+    // Grain stretched ALONG the sheet, because birds align with neighbours —
+    // and measured in the body's frame, so an individual bird travels with the
+    // flock. Read in world space it was a stencil the flock slid across, and
+    // birds that stay put while the mass moves over them are half the reason
+    // the mass read as an opening and closing hole.
+    '    vec2 bp = rot(-bank) * (uv - ctr);',
+    '    vec2 dir = rot(-bank) * (gv / g);',
+    '    vec2 alo = vec2(dot(bp, vec2(-dir.y, dir.x)), dot(bp, dir));',
+    // Flattened across the sheet, so a speck is a short dash lying along it —
+    // round-ended, which a noise cell never is.
+    '    float sp = specks(vec2(alo.x * u_grain, alo.y * u_grain * 2.6));',
+    '    grain = 0.30 + 0.70 * (1.0 - smoothstep(0.12, 0.66, sp));',
+
+    // THINNING, not fading. Multiplying opacity by the envelope makes every
+    // bird at the rim half-there, which is what read as a blurry lens. Raising
+    // a threshold against the grain instead REMOVES birds while leaving the
+    // ones that remain fully solid — so the edge is stragglers, which is what
+    // the edge of a flock actually is.
+    // The floor is not zero. Left at 0.16 the specks only ever bit at the rim,
+    // so the inside of the body was a solid sheet — and a solid sheet that
+    // folds is goo, whatever it is made of. At 0.42 the gaps between specks
+    // open up throughout, so you see sky through the mass everywhere.
+    '    float thr = mix(1.12, 0.42, env);',
+    '    float keep = smoothstep(thr, thr + 0.10, grain);',
+    '    dens = clamp(thick, 0.0, 1.0) * keep;',
+    '  }',
+
+    // --- grounds ---------------------------------------------------------
+    '  float h = uv.y + 0.42;',
+    '  vec3 skyLow = vec3(0.88, 0.71, 0.52);',
+    '  vec3 skyMid = vec3(0.55, 0.55, 0.68);',
+    '  vec3 skyTop = vec3(0.10, 0.13, 0.28);',
+    '  vec3 sky = mix(skyLow, skyMid, smoothstep(0.0, 0.55, h));',
+    '  sky = mix(sky, skyTop, smoothstep(0.42, 1.05, h));',
+    '  vec3 seaTop = vec3(0.24, 0.55, 0.60);',
+    '  vec3 seaLow = vec3(0.01, 0.07, 0.13);',
+    '  vec3 sea = mix(seaLow, seaTop, smoothstep(-0.15, 1.0, h));',
+    '  sea += vec3(0.10, 0.16, 0.16) * pow(max(noise(vec2(uv.x * 3.0, u_t * 0.05)), 0.0), 2.0)',
+    '       * smoothstep(-0.1, 0.9, h);',
+    '  vec3 bg = mix(sky, sea, u_sea);',
+
+    // Birds are a silhouette. Fish are the same silhouette catching light
+    // where the sheet turns face-on — one term, spent the other way.
+    '  vec3 birdCol = vec3(0.045, 0.05, 0.075);',
+    '  float flash = smoothstep(0.55, 1.8, g) * grain * band;',
+    '  vec3 fishCol = mix(vec3(0.03, 0.07, 0.09), vec3(0.80, 0.91, 0.96), flash * 0.9);',
+    '  vec3 flock = mix(birdCol, fishCol, u_sea);',
+
+    '  vec3 col = mix(bg, flock, dens * 0.96);',
+    '  col += (hash(gl_FragCoord.xy) - 0.5) / 255.0;',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}'
+  ].join('\n');
+
+  function compile(type, src) {
+    var sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      console.error(gl.getShaderInfoLog(sh));
+      return null;
+    }
+    return sh;
+  }
+
+  var vs = compile(gl.VERTEX_SHADER, VERT);
+  var fs = compile(gl.FRAGMENT_SHADER, FRAG);
+  if (!vs || !fs) { stage.dataset.failed = '1'; return; }
+
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { stage.dataset.failed = '1'; return; }
+  gl.useProgram(prog);
+
+  var buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  var loc = gl.getAttribLocation(prog, 'a');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  var U = {};
+  ['u_res','u_t','u_churn','u_agile','u_grain','u_clench','u_wave','u_sea']
+    .forEach(function (n) { U[n] = gl.getUniformLocation(prog, n); });
+
+  // Adapts downwards if frames start costing too much. The tracing got
+  // expensive enough that a phone can fall behind, and a dropped frame in this
+  // is not a dropped frame — the whole flock is a function of time, so a late
+  // frame arrives showing a moment that has already moved on. It reads as a
+  // stutter into a different shape.
+  var dprCap = Math.min(window.devicePixelRatio || 1, 1.6);
+  var quality = 1.0;
+
+  function resize() {
+    var dpr = Math.max(0.55, dprCap * quality);
+    var w = Math.round(canvas.clientWidth * dpr);
+    var h = Math.round(canvas.clientHeight * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w; canvas.height = h;
+      gl.viewport(0, 0, w, h);
+    }
+  }
+  window.addEventListener('resize', resize);
+
+  var churn = document.getElementById('churn');
+  var agile = document.getElementById('agile');
+  var grain = document.getElementById('grain');
+  var vChurn = document.getElementById('vChurn');
+  var vAgile = document.getElementById('vAgile');
+  var vGrain = document.getElementById('vGrain');
+  var bSky = document.getElementById('mSky');
+  var bSea = document.getElementById('mSea');
+  var bStrike = document.getElementById('strike');
+
+  var sea = 0, seaTarget = 0;
+  var clench = 0, clenchTo = 0;
+  var wave = 0;      // 0 = no wave; runs 0 -> 1 as the ripple crosses
+  var waveOn = false;
+
+  function readOut() {
+    vChurn.textContent = (churn.value / 100).toFixed(2);
+    vAgile.textContent = (agile.value / 100).toFixed(2);
+    vGrain.textContent = grain.value;
+  }
+  churn.addEventListener('input', readOut);
+  agile.addEventListener('input', readOut);
+  grain.addEventListener('input', readOut);
+  readOut();
+
+  function setMode(isSea) {
+    seaTarget = isSea ? 1 : 0;
+    bSky.setAttribute('aria-pressed', String(!isSea));
+    bSea.setAttribute('aria-pressed', String(isSea));
+  }
+  bSky.addEventListener('click', function () { setMode(false); });
+  bSea.addEventListener('click', function () { setMode(true); });
+
+  // The startle sets a TARGET, which the body then chases. It used to set the
+  // contraction itself to 1 in a single frame — harmless when clench only
+  // scaled the outline, but it now sits inside the body frame, so a strike was
+  // instantaneously remapping the texture and the boundary together. Every few
+  // seconds the whole flock jumped to a different shape between one frame and
+  // the next. Birds are quick; they are not discontinuous.
+  function strike() { clenchTo = 1; wave = 0; waveOn = true; }
+  bStrike.addEventListener('click', strike);
+  // Irregularly, not on a metronome. A contraction that arrives every 6.5
+  // seconds on the dot stops reading as a startle and starts reading as a
+  // mechanism breathing, which is its own kind of growing and shrinking.
+  (function again() {
+    setTimeout(function () { strike(); again(); }, 7000 + Math.random() * 13000);
+  })();
+
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var t = 0;
+  var last = performance.now();
+
+  var ftAvg = 1 / 60;
+
+  function frame(now) {
+    var raw = Math.min(0.2, (now - last) / 1000);
+    var dt = Math.min(0.05, raw);
+    last = now;
+
+    // Hold the frame rate rather than the pixel count. Falls off slowly and
+    // climbs back slowly, so it settles instead of hunting.
+    ftAvg += (raw - ftAvg) * 0.06;
+    if (ftAvg > 0.028 && quality > 0.5) quality -= 0.02;
+    else if (ftAvg < 0.019 && quality < 1.0) quality += 0.008;
+    resize();
+
+    var ag = Number(agile.value) / 100;
+    // The one clock. Every rate in the shader — folding, banking, the lifetime
+    // of a generation — is measured against it, so slowing it here slows
+    // everything in exact proportion. Halving the flow instead would have to
+    // double the material's lifetime to keep the same amount of folding, and
+    // that doubles the tracing; this is free and preserves the look exactly.
+    t += dt * (reduce ? 0.25 : 1) * ag * 0.40;
+    // Fast attack, slow release — but an attack, not a step.
+    clenchTo *= Math.exp(-dt / 1.6);
+    clench += (clenchTo - clench) * (1 - Math.exp(-dt / 0.22));
+    sea += (seaTarget - sea) * (1 - Math.exp(-dt / 0.45));
+    if (waveOn) {
+      // The ripple crosses far faster than the body moves — that speed
+      // difference is what makes it read as alarm rather than as motion.
+      wave += dt * (0.5 + ag * 0.5);
+      if (wave >= 1) { wave = 0; waveOn = false; }
+    }
+
+    gl.uniform2f(U.u_res, canvas.width, canvas.height);
+    gl.uniform1f(U.u_t, t);
+    gl.uniform1f(U.u_churn, Number(churn.value) / 100);
+    gl.uniform1f(U.u_agile, ag);
+    gl.uniform1f(U.u_grain, Number(grain.value));
+    gl.uniform1f(U.u_clench, clench);
+    gl.uniform1f(U.u_wave, waveOn ? wave : 0);
+    gl.uniform1f(U.u_sea, sea);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>

@@ -37,7 +37,12 @@ leave commits stranded on a session branch.
   both before calling it done.
 - `server/` — Icecast / Liquidsoap / Caddy templates for the website's stream
 - `tools/` — validation and headless checks (`npm test`)
+- `tools/prototypes/` — exploratory, **loaded by neither build**. Read its
+  README before touching anything in it.
 - `PLAN.md` — the standing work list
+- `HANDOFF.md` — start here in a fresh session: where the work stands, what is
+  carried over, and the traps that have already cost time
+- `MOODS.md` — per-mood reference notes and how to read the owner's references
 - `RUNNING.md` / `TESTING.md` — how to run and how to check
 
 No build step: the portal is static files, so changes need a hard reload

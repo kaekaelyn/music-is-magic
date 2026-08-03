@@ -10,6 +10,7 @@
     "shots": "node shots.mjs",
     "perf": "node perf.mjs",
     "field": "node field.mjs",
+    "proto": "node prototypes/check-murmuration.mjs",
     "test": "npm run validate && npm run smoke && npm run smoke:broadcast"
   },
   "devDependencies": {
