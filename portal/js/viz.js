@@ -850,10 +850,15 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
 // back toward us. So 0.64 is safe and 0.66 would clip a crystal along a
 // straight line, which is the one artifact frost must not have.
 //
-// The spacing then goes up to keep the crystals the size they want to be, and
-// at 0.60 with a 0.384 reach the discs still overlap by about a third — which
-// is what makes them collide and interlock rather than sit in a polka dot.
-const float FROST_S = 0.95;
+// THE SPACING HAS TO STAY UNDER TWICE THE REACH, or the crystals never touch.
+// At 0.95 with a 0.61 reach — and arms that are usually well short of the reach,
+// because their lengths are squared — the render came out as isolated sprigs
+// scattered on clear glass: recognisably frost-shaped, and not a frosted pane.
+// Interlocking is not decoration, it is the subject. The bound is arithmetic:
+// a crystal can reach 0.64 spacings, so at a spacing of 0.50 two neighbours
+// overlap by about a third of their diameters and their arms run through each
+// other, which is what the references are made of.
+const float FROST_S = 0.50;
 const float FROST_R = FROST_S * 0.64;
 
 float mFrost(vec2 q, float grow) {
@@ -893,14 +898,19 @@ float mFrost(vec2 q, float grow) {
   // so it is gated on the same clock and lags it.
   float rimeAge = clamp((grow - 34.0) / 46.0, 0.0, 1.0);
   if (rimeAge > 0.0) {
-    float rime = noise(q * 34.0 + 41.0) * 0.60 + noise(q * 76.0 + 7.0) * 0.40;
+    // A HAZE WITH DUST IN IT, not a mask. Two octaves of raw value noise put
+    // through a hard threshold drew flat-topped blobs about a dozen pixels
+    // across, and a thresholded lattice at that scale reads as compression
+    // blocks — the same fault the cave's druzy crust had once, from the same
+    // cause. Rime is thousands of crystals too small to have shapes: it wants a
+    // soft mottling for where it lies, and a fine grain for what it is made of,
+    // multiplied rather than added so the grain never appears outside a patch.
+    float mottle = fbm(q * 7.0 + 41.0);
+    float dust = noise(q * 120.0 + 7.0);
     float patch = fbm(q * 0.55 + 17.0);
-    // Denser and softer than the first cut, which drew separated white dots —
-    // rime is a frozen fog, so it wants to be nearly continuous inside its own
-    // regions and absent outside them, not a scatter of speckle over everything.
-    v = max(v, smoothstep(0.44, 0.72, rime)
+    v = max(v, smoothstep(0.44, 0.70, mottle) * (0.52 + 0.48 * dust)
              * smoothstep(0.38, 0.60, patch)
-             * rimeAge * 0.80);
+             * rimeAge * 0.72);
   }
   return clamp(v, 0.0, 1.0);
 }
