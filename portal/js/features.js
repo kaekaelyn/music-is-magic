@@ -150,6 +150,19 @@ export function syntheticFeatures(t, gain = 1) {
     treble: clamp01(0.3 + 0.2 * Math.sin(t * 1.13 + 0.6) + 0.12 * Math.sin(t * 3.1)) * gain,
     rms: clamp01(0.42 + 0.25 * Math.sin(t * 0.61 + 1.1)) * gain,
     flux: clamp01(Math.pow(Math.max(0, Math.sin(t * 0.83)), 12)) * gain,
-    centroid: clamp01(0.42 + 0.18 * Math.sin(t * 0.13)),
+    // THE STAND-IN HAS TO REACH BOTH ENDS. This used to run 0.24-0.60, which is
+    // the middle of the register and nothing else — so any motif gated on bright
+    // playing (the aurora is the whole reason this matters) could never fire
+    // under mock:auto, and the operator watching it had no way to tell a motif
+    // that was too subtle from one that was switched off. A stand-in that
+    // cannot visit a range cannot stand in for it.
+    //
+    // Two slow terms with incommensurable periods (48s and 134s), so the sweep
+    // does not repeat on a short cycle: it spends most of its time mid-register
+    // and takes an excursion to the very top, and to the very bottom, every
+    // couple of minutes. That is roughly how a piece behaves, and it means the
+    // high-register moods can be watched arriving without touching a slider.
+    centroid: clamp01(0.45 + 0.34 * Math.sin(t * 0.13)
+                           + 0.16 * Math.sin(t * 0.047 + 1.3)),
   };
 }

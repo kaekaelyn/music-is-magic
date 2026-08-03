@@ -148,8 +148,25 @@ let firstTheme = true;
 // where you actually are.
 let currentName = null;
 
-function applyTheme(token) {
-  if (token === currentToken) return;
+// `restart` is for a DELIBERATE re-selection of the mood already showing.
+//
+// Normally re-applying the current token is a no-op, and it has to stay one:
+// the relay and the poller both hand this the same name several times a
+// minute, and re-entering the mood each time would restart the travel clock
+// constantly.
+//
+// But an operator pressing the mood they are already looking at means
+// something, and the owner named what: "to clear it, I would have to press ice
+// again from the control panel, or switch back to it after another mood."
+// Those two gestures should do the same thing, and now they do — the clock
+// resets, so the frost clears and starts growing again, the cave's lamp swings
+// back to the top, the sea's current begins from nothing.
+function applyTheme(token, restart) {
+  // A restart only means anything for the mood ALREADY showing. Applied to a
+  // different one it would force the lid onto kin transitions — and rain into
+  // sunshower morphing in the open is the whole point of kinship.
+  const again = token === currentToken;
+  if (again && !restart) return;
   currentToken = token;
   const seq = ++themeSeq;
   themes.load(token).then((theme) => {
@@ -172,8 +189,10 @@ function applyTheme(token) {
     // shutting the eye on it would break the continuity that makes the passage
     // from rain through sunshower to sunshine worth having. The first mood is
     // not a change either; there is nothing to blink away from.
+    // Re-entering the mood on screen is a fresh visit: it takes the lid and the
+    // clock reset, which is what clears the frost. Everything else is unchanged.
     if (firstTheme) { firstTheme = false; swap(false); }
-    else if (isKin(currentName, theme.name)) swap(true);
+    else if (!again && isKin(currentName, theme.name)) swap(true);
     else eye.transition(() => swap(false));
   });
 }
@@ -205,7 +224,9 @@ function markMood(name) {
 }
 
 function chooseTheme(name) {
-  applyTheme(name);
+  // Pressing a mood is always deliberate, including when it is the mood
+  // already showing.
+  applyTheme(name, true);
   if (relay.active) relay.publish({ theme: name });
 }
 

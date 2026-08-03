@@ -263,6 +263,31 @@ at deliberately instead of waited for. Moods are `1`–`9`, sub-moods
   boundary: the lane that returned early never wrote the register the
   difference reads. `mFlock` initialises its value in every lane, takes the
   derivative unconditionally, and gates afterwards.
+- **A live feature is not a state, and a threshold cannot turn one into the
+  other.** The aurora was gated three times — wide open, then too high, then
+  split in two — and every version tracked the register note for note, which the
+  owner reads as bouncing. What it wanted was an ENVELOPE: fast attack, very slow
+  release, integrated CPU-side beside the other smoothers, so the register
+  charges the thing and the charge decides what is drawn. Reach for this whenever
+  a motif should "linger" or "come on and stay on"; a threshold on a smoothed
+  feature is still a threshold.
+- **A periodic structure reads as a repeating motif, and jitter does not save
+  it.** Three passes at frost built a lattice of ferns with the spacing, lean and
+  length all randomised, and the owner named the result every time (a comb, then
+  arrowheads, then centipedes). A grid has a period; the eye finds a period
+  before it finds anything else. If the real thing nucleates at scattered points
+  — frost, crystals, cracks, lichen — enumerate seeds and grow outward from them.
+- **When a mood comes back a THIRD time, question the model, not the constants.**
+  The seventh pass fixed three of these, and in every case the earlier fix had
+  been the smallest change that could explain the complaint: another generation
+  of branching where the lattice itself was wrong, a moved gate where reading the
+  feature at all was wrong, a frequency knob where the trunks were never trunks.
+  The smallest sufficient change is usually right, and it is exactly wrong here.
+- **Early-outs in a fragment loop do not save what they look like they save.**
+  The renderer runs a dynamic loop over a whole SIMD group, and lanes that
+  disagree about when to leave execute the body under masking. Nine iterations
+  with a cheap reject cost nine iterations. Shrink the worst case (a smaller
+  neighbourhood, a cheaper body) rather than adding another guard.
 - **A gate is only a gate if the feature can reach it.** The aurora was moved
   to `smoothstep(0.54, 0.76, centroid)` on the owner's own instruction that it
   belongs to the high register — and the synthetic stand-in's centroid never
@@ -422,6 +447,51 @@ motif does — night's aurora is unjudgeable without it. Cost on the mood set is
 unchanged or better: ice 1.10x → 1.08x and desert 1.08x → 1.05x, because
 skipping unselected habit regions more than paid for the third generation.
 
+#### 2026-08-03, seventh pass — nine notes, and one redirection
+
+`MOODS.md` "Seventh pass" carries the reasoning. What changed:
+
+- **the engine** — no blink for 7.5s after a mood lid; re-selecting the mood
+  already showing restarts it (which is how the frost is cleared); the synthetic
+  stand-in's centroid now reaches both ends of the register; flock lost its
+  shooting stars behind a new `meteors` param.
+- **ice** — rebuilt a third time, and the first time the MODEL changed: scattered
+  nuclei each growing a crystal radially outward, no lattice anywhere, with the
+  growth front measured as a path length along the crystal. Saturates over
+  several minutes rather than seconds.
+- **night** — the register charges an envelope (2.2s up, 26s down) and the
+  envelope draws the curtain. Nothing in the shader reads the centroid.
+- **the forest seasons** — the air moves instead of the motes: both lattice
+  coordinates are warped by a wind field, so petals and leaves travel and swirl
+  rather than swinging about a fixed x. Petal outline rebuilt (it was a cusped
+  lens, which is a shard); blooming's palette lifted out of shadow; whole
+  blossoms among the fall.
+- **forest-barren** — `mColumns` is discrete trunks now rather than a threshold
+  on a 1-D noise field, which is what the "VHS bands" were. Bare branches at high
+  `bark`.
+- **cave** — a faceted massif at each cluster's root swallows the spear
+  crossings; the register's range went from about 3:1 to better than 20:1 across
+  three levers, including the light on the ROCK.
+- **sunshower** — the rainbow is thin-film iridescence now: a fringe on the
+  cloud's own edge and an oil film on the puddles, with a REPEATING spectrum.
+
+**Not verified by the owner's eye, and only partly by render** — the container
+this was built in is degraded (see the note below), so fewer stills were taken
+than the pattern warrants. Expect first-cut faults; the last two passes found
+seven and three respectively, all of them failures of the fix rather than of the
+diagnosis.
+
+**The test suite is flaky in a loaded container, and it is not this branch.**
+Measured, three runs each: HEAD failed `npm run smoke` 3/3; this work passed 2/3.
+The failures are `waitForFunction` timeouts that move around between runs. If you
+see one, run the three suites separately (`node validate-assets.mjs`,
+`npm run smoke`, `npm run smoke:broadcast`) before believing it, and check HEAD
+in the same conditions before believing it is yours.
+
+`tools/shader-errors.mjs` was added in this pass and will save you an hour. When
+the shader fails to compile, `npm test` says only "FAIL viz renderer selected
+(none) — none"; this prints the actual GLSL log, with line numbers.
+
 #### Open, in the order it probably wants doing
 
 1. **The flock is faint at the website's aperture** (~180px tall). The specks
@@ -434,26 +504,32 @@ skipping unselected habit regions more than paid for the third generation.
    already talks to the relay; the cheap route is to render the same viz small
    there, driven by features the broadcast pushes over the relay, rather than
    streaming pixels.
-3. **Centroid rescale** — still blocked on two more readings, and now it is the
-   most load-bearing open item. Night's two gates (0.30-0.46 and 0.44-0.68) were
-   placed against the scale as it currently reads, and the sixth pass had to
-   place them by measuring what the stand-in actually spans rather than by
-   trusting the scale. Rescaling will move them. Take the bass and mid readings,
-   rescale, then retune night's gates, `mCrystals`' lamp and main's aurora
-   `band` term in the same commit.
+3. **Centroid rescale** — still blocked on two more readings, and it is the most
+   load-bearing open item in the file. Four things now read the register as if
+   the scale under it were calibrated: the aurora's wake envelope (0.66-0.86),
+   `mCrystals`' lamp gain and nomination window, the cave pool's light on the
+   rock, and main's aurora `band`. All of them were placed by measuring what the
+   feature actually spans rather than by trusting the scale, so a rescale moves
+   every one. Take the bass and mid readings, rescale, then retune all four in
+   the same commit — and re-check `syntheticFeatures` while you are there, since
+   its sweep was widened to match the current scale too.
 4. **viz.js's shared `hash()` ends in `fract(p.x * p.y)`**, which correlates
    along both axes and draws a grid into whatever is built on it. That is the
    flock's fault #4, and the flock carries a fixed hash privately rather
    than disturb sixteen tuned moods. Worth investigating whether it is quietly
    banding other motifs — but it is a change that touches everything, so do it
    deliberately and re-render the whole set.
-5. Blooming wants *bursting* blossoms; petals only approximates it. The fifth
-   pass gave petals their own shape and flight but did not open a flower.
-6. **Barren could go further.** The owner said *"there have to be more
-   interesting ways to convey the idea of a barren, dry forest"*, and what was
-   built answers the specific half of that (pale brown trunks among the white,
-   varying trunk to trunk, shaded round). The open half is structural: bare
-   branches overhead, or standing deadfall. Both want a motif.
+5. **Fire and volcano are owed a pass.** The owner: *"I do have some beefs with
+   fire and volcano, but we'll tackle that later."* Nothing has been said yet;
+   do not guess at it.
+6. **Blossoms fall but nothing BURSTS.** The seventh pass put whole five-lobed
+   flowers among the falling petals, which is closer, but the owner's phrase is
+   "flowers bursting" and that reads as blossom opening on the tree — a cluster
+   in the canopy that pops and then sheds. It wants a site system (the rays
+   block already nominates sites) rather than another falling mote.
+7. **Standing deadfall, for barren.** Bare branches landed in `mColumns`; a
+   fallen or leaning trunk did not, and it is the other half of what makes a
+   dead wood read as dead rather than as a wood in winter.
 
 ---
 

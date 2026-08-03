@@ -290,7 +290,7 @@ export const BUILTIN = {
     // puts the same rate at speed 0.20. Every rate in the flock — folding,
     // banking, a generation's lifetime — is measured against that one clock,
     // so this number alone decides whether it looks like what was approved.
-    params: { scale: 1.3, speed: 0.2, warp: 0.35, sparkle: 0.35, gloss: 0.08, base: 0.3, drift: 0.1, travel: 0.16, travelX: 0.05 },
+    params: { scale: 1.3, speed: 0.2, warp: 0.35, sparkle: 0.35, gloss: 0.08, base: 0.3, drift: 0.1, travel: 0.16, travelX: 0.05, meteors: 0 },
     motifs: { flock: 1.0, moon: 0.9, stars: 0.3 },
     mappings: { warpBass: 0.12, sparkleTreble: 0.7, pulseFlux: 1.35, shiftCentroid: 0.18 },
   },
@@ -327,10 +327,18 @@ export const BUILTIN = {
   //
   // petals down from 0.8: "I'd like to see petals be more sparse". Weight is
   // density here as well as presence, so this is the ask directly.
+  // SUNNY, not merely green. The old ramp began at #0b1a0d and #2f3a22 — a
+  // near-black green and a dark olive — so four fifths of the field sat in
+  // shadow and the blossom read as pink confetti in a gloomy wood. The owner's
+  // words are the specification: "sunny, soft-petaled joy, flowers bursting,
+  // petals fluttering breezily". A spring wood in sunlight has light in its
+  // SHADOWS: the darkest thing in it is a lit green, not a black one. So the
+  // bottom two steps come up and warm, the mid step goes to sunlit leaf, and
+  // the top stays a warm white rather than the old cool pink-white.
   'forest-blooming': {
-    palette: ['#0b1a0d', '#2f3a22', '#3f8a52', '#e78fb8', '#fff2f6'],
-    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.5, drift: 0.35, travel: 0.5, travelX: 0.26, leaf: 0 },
-    motifs: { columns: 0.75, dapple: 0.75, rays: 0.8, petals: 0.5, wisps: 0.25 },
+    palette: ['#17250f', '#41632a', '#8cc25a', '#f4b3d0', '#fff8f0'],
+    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.62, drift: 0.35, travel: 0.5, travelX: 0.26, leaf: 0 },
+    motifs: { columns: 0.75, dapple: 0.82, rays: 0.86, petals: 0.62, wisps: 0.25 },
     mappings: { warpBass: 0.4, sparkleTreble: 1.2, pulseFlux: 1.1, shiftCentroid: 0.35 },
   },
 
@@ -525,6 +533,11 @@ export const DEFAULT_PARAMS = Object.freeze({
   bark: 0,    // how far the trunks take a wood colour of their own instead of
               // standing as silhouettes. A wood with light still in it wants 0;
               // a barren one is nothing but its trunks and wants them legible
+  meteors: 1, // whether the stars motif throws a shooting star on a strong
+              // onset. On wherever there is a night sky to cross; off for
+              // flock, whose subject is the birds — the owner's call, and the
+              // right one: a meteor is an event, and a mood that already has
+              // one does not want a second competing with it
   slant: 0,   // how far falling things lean from vertical — wind, basically
   base: 1,    // how much the shared fog field contributes; 0 leaves a dark floor
   drift: 1,   // how fast that field evolves; 0 freezes it into something solid

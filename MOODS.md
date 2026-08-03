@@ -101,6 +101,197 @@ things sample it, weather keeps the smooth one.
   (site nomination in the rays block); wisps carry a triangular zigzag over
   the orbit — corners, per the reference.
 
+## Seventh pass — 2026-08-03, stills, limited testing, and a redirection
+
+Nine notes. Three of them (ice, night, the forest seasons) are the third or
+fourth visit to the same mood, and the pattern in why is worth naming before the
+list: **each earlier fix was a smaller idea than the fault required.** Frost got
+another generation when it needed to stop being a lattice. The aurora got its
+gate moved when it needed to stop reading a live feature. The trunks got a
+frequency knob when they were never trunks at all. Reaching for the smallest
+change that could explain the complaint is usually right and was wrong three
+times running here — when a mood comes back a third time, the thing to question
+is the model, not the constants.
+
+### The engine
+
+- **Blinking through a mood change.** A blink was already impossible while the
+  lid was down, but nothing pushed the schedule back, so one could land the
+  instant it lifted — and often did, because 1.45s of not-blinking brings the
+  due time closer. `MOOD_SETTLE` is 7.5s past the end of the lid, longer than a
+  normal blink interval, so the first look at a new mood is uninterrupted. The
+  owner's reasoning is the right one and is now in the code: nobody needs to
+  blink straight after holding their eyes shut for a second and a half.
+
+- **Re-selecting the mood already showing now restarts it.** It used to be a
+  no-op (`if (token === currentToken) return`), which is correct for the relay
+  and the poller — both hand the same name over several times a minute — but
+  wrong for an operator pressing a button. The owner named the gesture while
+  describing frost: "to clear it, I would have to press ice again from the
+  control panel, or switch back to it after another mood." Those two now do the
+  same thing. Note the trap this immediately created and the test caught: the
+  restart must apply ONLY to the mood on screen, or it forces the lid onto kin
+  transitions and rain-into-sunshower stops morphing in the open.
+
+- **`syntheticFeatures`' centroid ran 0.24-0.60** — the middle of the register
+  and nothing else. A stand-in that cannot visit a range cannot stand in for it,
+  and every "is this motif too subtle or is it off?" question about the top of
+  the keyboard was unanswerable under `mock:auto` for that reason. Two slow
+  terms with incommensurable periods now take it to both ends.
+
+- **Flock's shooting stars are gone**, per the owner: "the flock is interesting
+  enough." A `meteors` param rather than dropping the stars, because the sky
+  should keep its stars.
+
+### The moods
+
+- **ice — "a bunch of centipedes or fish bones".** The third rebuild, and the
+  first one that changes the model. Every previous version was a periodic
+  LATTICE of trunks with branches hung off it, and a lattice repeats: no amount
+  of jittering the spacing, the lean or the length removes a period, and the eye
+  finds a period faster than it finds anything else in a picture.
+
+  It is now scattered nuclei, each growing its own crystal radially outward:
+  jittered seeds, per-seed orientation, six arms of six different lengths, and
+  its own start time and rate. Nothing about it is periodic and the crystals
+  collide at every angle. The six-fold fold costs no trigonometry — the arm a
+  point belongs to is whichever of three axes has the largest projection, and
+  the sign says which end — so (along, across) in the arm's own frame comes out
+  of six dot products, and the sheared branch lattice from the sixth pass then
+  works inside it unchanged.
+
+  **Growth is geometry now, not a threshold.** The old version swept a level set
+  down through a static field, which fades a picture in — that is why it "forms
+  quickly and then stays stable" however slowly the level moves. Here the front
+  is a PATH LENGTH from the seed: an arm is drawn as far as the front has
+  reached, a branch does not exist until the front passes its root and then
+  extends from that moment, a sub-branch waits for its branch. So it grows
+  outward, forks as it goes, and feathers at the ends, in the order a crystal
+  actually does.
+
+  **Minutes, not seconds**, and the arithmetic rather than a feel: the flow
+  clock runs at roughly 0.2/s under moderate playing, seeds nucleate over the
+  first two minutes, and the earliest are near their final size at three to
+  four. It saturates rather than creeping forever. Clearing it is the mood
+  restart above.
+
+- **night — still bouncing.** The sixth pass's two gates were still reading a
+  live feature, so the curtain tracked the register note for note: "it sort
+  of... bounced? And then disappeared entirely, only to reappear (and fade in
+  and out) later." Three attempts at this have now failed the same way, and the
+  common factor is not where the threshold sat, it is that a threshold was the
+  answer at all.
+
+  An aurora is a STATE. It takes time to rise and it outlasts what woke it. So
+  the register no longer sets the curtain's brightness — it charges an envelope
+  (2.2s up, 26s down, CPU-side beside the other smoothers) and the envelope sets
+  the brightness. One gate, at the top of the register where the owner has
+  always said it belongs, and nothing in the shader reads the centroid directly.
+  The curtain's own structure moved too: the folds and rays are anchored to
+  height inside the curtain rather than to the frame's vertical, so the sheet
+  hangs and shears as one body instead of sliding across a fixed pattern.
+
+- **forest-blooming — "hard shards", and gloomy.** Two separate faults.
+
+  The shape was a lens closed at both ends by `sqrt(4s(1-s))`, which comes to a
+  CUSP at each end; a cusped ellipse at that size is a shard. A blossom petal
+  leaves the stem narrow, widens fast and finishes in a semicircular cap —
+  `pow(s, 0.42)` for the widening and `sqrt(1 - s²)` for the cap, whose vertical
+  tangent at the tip is what makes the end read as round. The edge is softer for
+  petals than for leaves, because a blossom petal passes light and a dead leaf
+  does not.
+
+  The palette began at #0b1a0d and #2f3a22 — a near-black green and a dark
+  olive — so four fifths of the field sat in shadow. A sunlit wood has light in
+  its SHADOWS; the darkest thing in it is a lit green.
+
+- **forest-autumn — "they just fall straight down. I was thinking gusty
+  swirls."** Diagnosed exactly. Every version gave each mote a sway about its own
+  seat: a bounded oscillation around a fixed x, so the net horizontal travel over
+  a whole fall was zero. Tuning the swing cannot fix a displacement of zero.
+
+  The cure is to stop moving the motes and move the AIR. Both lattice
+  coordinates are warped before they are floored — the lane by a wind that
+  varies with height, so a mote sweeps sideways as it descends and motes at
+  different heights go different ways at once; the row by an updraft that varies
+  with x, so a mote slows and hangs as it crosses a thermal. A mote's identity is
+  its cell in the warped grid, so it is carried by the field rather than
+  displaced within its cell, and the travel is unbounded at no extra cost.
+
+  Both fields take the flow clock in their PHASE and never in their amplitude.
+  An amplitude on a live feature is the retreat fault in its purest form.
+
+- **forest-barren — "banded stripes… not quite unlike old VHS tape bands".**
+  `mColumns` was `fbm(vec2(x, 4.7))` — a threshold on a ONE-DIMENSIONAL function
+  of x. Every "trunk" was therefore a uniform vertical band running the full
+  height of the frame with hard parallel edges and no top, bottom or middle.
+  That is not a trunk that needs tuning, it is a stripe. A dark green wood hides
+  it; barren picks the bands out in their own colour and it collapses.
+
+  The owner's call — "maybe all forest trunks should be fixed and be done with
+  it" — taken. Discrete trunks at hashed positions now, each with its own width,
+  lean, sinuosity, taper, root flare and colour, in three depth layers with the
+  far ones eaten from the canopy down by mist. The shading is a real normal:
+  distance from the centreline over the half-width IS the cylinder's normal,
+  where the old term differenced the noise field and could only say where an
+  edge was. Bare branches where `bark` says the trunks are the subject, which is
+  the structural half of the barren note from two passes ago.
+
+- **cave — still detached, and not dramatic enough.** Depth ordering fixed which
+  spear owns a pixel and the owner still read the clusters as detached, which is
+  correct: ordering the crossings does not remove them. Six prisms radiating
+  from one point cross near that point no matter which wins.
+
+  Real quartz does not do that — spears rise out of a mass that has grown
+  together at the root. There is a faceted MASSIF at each seat now, drawn nearer
+  than any spear in its own cluster, so it swallows every join at once. Faceted
+  rather than domed by using `lnoise` for the normal perturbation: it is
+  piecewise linear, so its gradient is constant inside a cell and kinks at the
+  boundaries, which is a crystal face for free.
+
+  For "dark, dank cavern vs. crystal grotto": the register was worth about 3:1
+  and is now better than 20:1, because it was asked to make a difference in KIND.
+  Three levers instead of one — the lamp gain cubes the register, the nomination
+  window widens with it (one seam guttering at the bottom of the keyboard, every
+  cluster alight at the top), and the pool's light on the ROCK rides it too. That
+  last one matters most: brightening the crystals alone gives a lit seam in an
+  equally lit passage.
+
+- **sunshower — "a kind of marbling… not even rainbowy or iridescent at all",
+  plus a redirection.** Both previous attempts had the wrong physics, which is
+  why neither could be tuned into the right picture. An arc is one fixed piece of
+  geometry and can only get brighter and dimmer. Caustic filaments coloured by
+  distance across each ridge give each thread its own independent colour, and a
+  set of independently coloured threads is veined stone — marbling, exactly as
+  reported.
+
+  Interference is neither. Its structure is CONTOURS OF A THICKNESS FIELD and its
+  colour is a periodic function of that thickness, and the pictures the owner
+  sent are all one or the other of two subjects: a fringe following a cloud's
+  outline, and an oil film on standing water. The film in the sky is the cloud's
+  own density field, so the colour belongs to the cloud you can see; it lives in
+  a band around the cloud's edge threshold, because that is where the layer is
+  thin and the droplets are one size. The puddles are in the ground plane's own
+  perspective. The spectrum REPEATS (three cosines a third of a turn apart)
+  rather than sweeping once, which is what nests the bands, and it is pastel by
+  construction rather than by being faded.
+
+### What it cost
+
+Measured against HEAD in the same container, `tools/perf.mjs`. The set is wider
+than it was: cave and forest-blooming are each about 10% dearer for what they
+gained, and ice — a completely new motif — went from 1.10x the cheapest mood to
+1.22x.
+
+Ice was briefly 1.60x, and the reason is worth keeping. The seeded construction
+wants a 3x3 neighbourhood so crystals can overlap generously, and the early-outs
+that appear to pay for it **do not**: a software rasteriser runs a dynamic loop
+over a whole SIMD group, and lanes in neighbouring cells disagree about when to
+leave, so the body executes under masking rather than being skipped. Nine
+iterations means nine iterations. The four bracketing cells cost less than half
+and bound the reach at 0.65 spacings — a cell outside that set has its centre at
+least one spacing away and the jitter can carry its seed at most 0.35 back.
+
 ## Sixth pass — 2026-08-03, three notes from stills and limited testing
 
 Three of the fifth pass's ten came back. Each one is a different way of getting

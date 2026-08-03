@@ -115,20 +115,38 @@ export function createEye(canvas, { reducedMotion = false, field = null, radius 
   // depth is 1, not 0.94. At 0.94 the "closed" eye still showed 6% of the
   // field, which is exactly the sliver a dissolve is most visible through, and
   // it made the hold cosmetic. The blink has always closed fully; so does this.
-  const MOOD_LID = { dur: 1.45, closeF: 0.22, holdF: 0.42, depth: 1 };
+  // How long after a mood changeover the eye is left alone. A blink was
+  // already impossible DURING a lid (the `!lid` guard below), but nothing
+  // pushed the schedule back, so one could land the instant the lid finished —
+  // and often did, because the lid is 1.45s of not-blinking that brings the due
+  // time closer. Arriving on a new mood and immediately blinking at it is the
+  // opposite of what the gesture is for.
+  //
+  // The number is the human one: nobody needs to blink straight after holding
+  // their eyes shut for a second and a half. It is deliberately longer than a
+  // normal blink interval (5.5-13s) so the first look at a new mood is
+  // uninterrupted, and it is a floor rather than a replacement — a blink
+  // already scheduled further out is left where it is.
+  const MOOD_SETTLE = 7.5;
+
+  const MOOD_LID = { dur: 1.45, closeF: 0.22, holdF: 0.42, depth: 1,
+                     settle: MOOD_SETTLE };
 
   let lid = null;
   let lidT = 0;
+  let clock = 0;   // the frame clock, kept so transition() can push the schedule
   let lidAtClosed = null; // fired once, at the instant the hold begins
 
   // Blinks are scheduled on the frame clock rather than a timer, so a
   // backgrounded tab (which stops rAF) does not wake to a queue of them.
   let nextBlink = 0;
-
-  function startLid(shape, atClosed) {
+  function startLid(shape, atClosed, now) {
     lid = shape;
     lidT = 0;
     lidAtClosed = atClosed || null;
+    if (shape.settle) {
+      nextBlink = Math.max(nextBlink, (now || 0) + shape.dur + shape.settle);
+    }
   }
 
   function lidAmount(dt) {
@@ -432,6 +450,7 @@ export function createEye(canvas, { reducedMotion = false, field = null, radius 
   // --- frame -------------------------------------------------------------
 
   function frame(dt, t) {
+    clock = t;
     p.open = approach(p.open, p.openTarget, dt, p.openSpeed);
 
     let glowTarget = p.glowTarget;
@@ -645,7 +664,7 @@ export function createEye(canvas, { reducedMotion = false, field = null, radius 
   function transition(swap) {
     const shut = state === EyeState.SEALED || state === EyeState.STIRRING;
     if (reducedMotion || shut) { if (swap) swap(); return; }
-    startLid(MOOD_LID, swap);
+    startLid(MOOD_LID, swap, clock);
   }
 
   return {

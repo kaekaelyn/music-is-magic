@@ -1729,6 +1729,27 @@ deep ("let's just go full on crafting our own visualization engine"):
   returned early never wrote the register the difference reads, and the artifact
   is a bright seam exactly along the early-out's boundary. Initialise the value
   in every lane, take the derivative unconditionally, gate afterwards.
+- **A motif that should LINGER wants an envelope, not a threshold.** A gate on a
+  smoothed feature still tracks the feature; smoothing changes how fast it
+  tracks, not that it does. Charge a value CPU-side with a fast attack and a slow
+  release, and let the charge draw the thing. The aurora took three passes to
+  learn this and the owner called every one of them the same way: it bounces.
+- **A periodic structure reads as a repeating motif however hard it is
+  jittered.** Randomising the spacing, angle and length of a lattice's members
+  does not remove the lattice's period, and the eye finds a period first. When
+  the real thing nucleates at scattered points, enumerate seeds and grow outward
+  from each; when it grows from a boundary, march from the boundary. Frost cost
+  three rebuilds to arrive at this.
+- **Growth has to be geometric to read as growth.** Sweeping a level set down
+  through a static field fades a picture in — the structure was always there and
+  is merely becoming visible, which is what "it forms quickly and then stays
+  stable" describes. Make the front a distance ALONG the thing: an arm drawn as
+  far as the front has reached, a branch that does not exist until the front
+  passes its root and then extends from that moment.
+- **Early-outs inside a fragment loop are not a performance fix.** The renderer
+  executes a dynamic loop across a SIMD group; lanes that disagree about when to
+  break run the body under masking. Nine iterations with a cheap reject cost
+  nine iterations. Shrink the worst case instead.
 - **A threshold on a feature must sit inside what that feature can reach.**
   Night's aurora was gated to centroid 0.54-0.76 and the synthetic stand-in's
   centroid never leaves 0.24-0.60, so the motif was simply off — a mood that

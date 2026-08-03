@@ -198,13 +198,20 @@ real art in (M5).
 | `npm run validate` | Every `theme.json` parses, every declared texture exists, the eye manifest is well-formed. Zero dependencies — runs even without Playwright |
 | `npm run smoke` | The website: full ceremony sealed → stirring → open → communing, theme morph, drowse-and-resume, WebGL context loss recovery, reduced motion, control page. **This is your regression guard — if it drops below 34 the website broke** |
 | `npm run smoke:broadcast` | The broadcast build: relay-driven ceremony, auto-commune with no visitor, junk-message rejection, control page → broadcast page end to end, 16:9 scaling, mic-denied fallback |
+| `node shader-errors.mjs` | The GLSL actually compiled, and the compile log if it did not. Run this FIRST when a smoke check says `viz renderer selected (none)` — that message is the only thing the suite can tell you, and this prints the error with line numbers |
 
 **If it fails:**
 
 - `playwright is not installed` → you skipped `npm install` in Stage 0.
 - A browser launch error → run `npx playwright install chromium`.
 - One or two timeouts on a slow or loaded machine → run it again before
-  believing it. The ceremony has real 2.6-second waits in it.
+  believing it. The ceremony has real 2.6-second waits in it, and on a machine
+  with no GPU the whole page slows down enough to push them over. If it keeps
+  happening, run the three suites separately rather than through `npm test`, and
+  check whether the branch you came from fails the same way before believing the
+  failure is yours.
+- `FAIL viz renderer selected (none)` → the shader did not compile. Run
+  `node shader-errors.mjs` for the actual error; the suite cannot show it.
 - Anything reproducible → the failing line names the check. That name is the
   behavior that broke.
 

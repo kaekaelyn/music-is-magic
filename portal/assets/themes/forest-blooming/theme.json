@@ -1,11 +1,11 @@
 {
   "name": "forest-blooming",
   "palette": [
-    "#0b1a0d",
-    "#2f3a22",
-    "#3f8a52",
-    "#e78fb8",
-    "#fff2f6"
+    "#17250f",
+    "#41632a",
+    "#8cc25a",
+    "#f4b3d0",
+    "#fff8f0"
   ],
   "params": {
     "scale": 1.8,
@@ -16,7 +16,7 @@
     "glint": 0.14,
     "canopy": 0.9,
     "slant": 0,
-    "base": 0.5,
+    "base": 0.62,
     "drift": 0.35,
     "travel": 0.5,
     "travelX": 0.26,
@@ -31,9 +31,9 @@
     "shiftCentroid": 0.35
   },
   "motifs": {
-    "rays": 0.8,
+    "rays": 0.86,
     "columns": 0.75,
-    "dapple": 0.75,
+    "dapple": 0.82,
     "drips": 0,
     "facets": 0,
     "caustics": 0,
@@ -55,7 +55,7 @@
     "smoke": 0,
     "lava": 0,
     "ripples": 0,
-    "petals": 0.5
+    "petals": 0.62
   },
   "textures": []
 }
