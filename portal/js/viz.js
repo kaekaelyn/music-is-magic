@@ -265,7 +265,7 @@ float mColumns(vec2 uv, float t, float flow, float bark,
     float fl = float(L);                        // 0 farthest, 2 nearest
     // Nearer stands are fewer and wider on screen, and travel faster. That
     // difference IS the parallax.
-    float fx = (10.5 - fl * 3.1) * mix(0.85, 1.30, bark);
+    float fx = (8.5 - fl * 2.6) * mix(0.85, 1.30, bark);
     float xs = uv.x * fx + fl * 17.3 + t * 0.010 * (1.0 + fl)
              + flow * (0.10 + fl * 0.26);
     float cell = floor(xs);
@@ -1620,7 +1620,7 @@ float mPetals(vec2 uv, float t, float w, float leaf, float drive, float kick,
   // How hard the air works. Dead leaves in autumn are thrown about; blossom
   // drifts. Fixed per season, for the reason above.
   float ampX = mix(1.05, 2.30, leaf);   // in cell widths
-  float ampY = mix(0.62, 0.34, leaf);   // in row heights: petals hang, leaves drop
+  float ampY = mix(0.52, 0.30, leaf);   // in row heights: petals hang, leaves drop
   for (int i = 0; i < 3; i++) {
     float fi = float(i);
     float rows = 2.0 + fi * 0.7;
@@ -1628,11 +1628,19 @@ float mPetals(vec2 uv, float t, float w, float leaf, float drive, float kick,
     // Each layer sits in its own part of the wind, so the three do not gust in
     // unison — which would be a curtain again, at a larger scale.
     float wph = ph + fi * 2.7;
-    float gust = sin(uv.y * 2.2 + wph * 0.51) * 0.58
-               + sin(uv.y * 5.3 - wph * 0.33 + 2.1) * 0.27
+    // BROAD, and the frequencies matter more than the amplitudes. Warping the
+    // lattice shears whatever is drawn in it, and the shear over one mote is
+    // (the field's gradient) x (the mote's size). At a vertical wavenumber of
+    // 2.2 the lane displacement changes by about a fifth of a cell across a
+    // single mote — which is most of its own width, so every leaf comes out a
+    // smeared parallelogram. Halving the wavenumbers costs nothing that matters
+    // (a gust is broad; that is what a gust IS) and takes the skew to something
+    // that reads as motion rather than as distortion.
+    float gust = sin(uv.y * 1.1 + wph * 0.51) * 0.58
+               + sin(uv.y * 2.4 - wph * 0.33 + 2.1) * 0.27
                + sin(wph * 0.19 + 4.4) * 0.55;
-    float updraft = sin(uv.x * 3.1 + wph * 0.37) * 0.62
-                  + sin(uv.x * 6.9 - wph * 0.23 + 1.7) * 0.30;
+    float updraft = sin(uv.x * 1.1 + wph * 0.37) * 0.62
+                  + sin(uv.x * 2.2 - wph * 0.23 + 1.7) * 0.30;
     // Petals fall more slowly than leaves — more of them is air resistance and
     // less of it is mass.
     float y = uv.y * rows + fall * (0.75 + fi * 0.42) * mix(0.66, 1.0, leaf)
@@ -1941,7 +1949,7 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
              + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 2.2;
   // The fringe: present where the cloud is arriving and gone where it is solid.
   float fringe = smoothstep(0.03, 0.34, body) * smoothstep(0.95, 0.52, body);
-  float skyAmt = fringe * (0.28 + nearSun * 1.35);
+  float skyAmt = fringe * (0.18 + nearSun * 0.70);
 
   // --- the puddles ---------------------------------------------------------
   // The ground line the drips already land on, and the same perspective divide
@@ -1958,7 +1966,7 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
   // Foreshortened out near the horizon, like every other ground texture: the
   // swirls fall below resolving distance long before the puddle does.
   wet *= smoothstep(0.0, 0.09, dep);
-  float pudAmt = wet * (0.55 + nearSun * 0.75);
+  float pudAmt = wet * (0.30 + nearSun * 0.45);
 
   // The register tilts which orders are showing — playing higher slides the
   // whole film thinner, so the colour sequence walks. It is the one thing here
@@ -1968,7 +1976,11 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
   vec3 skyCol = filmSpectrum(fract(film + shift));
   vec3 pudCol = filmSpectrum(fract(pfilm + shift));
 
-  amt = (skyAmt + pudAmt) * (0.30 + drive * 0.85 + kick * 0.55);
+  // Kept where a light in the air belongs. The fringe is a BROAD band, unlike
+  // the thin filament field this replaced, so the same gains would have run it
+  // to better than 2.0 additive over a dark blue sky and blown the whole cloud
+  // edge to white — losing the colour, which is the entire motif.
+  amt = (skyAmt + pudAmt) * (0.16 + drive * 0.48 + kick * 0.34);
   // Weighted so whichever one is actually present decides the colour, rather
   // than the two averaging into grey where they overlap.
   return (skyCol * skyAmt + pudCol * pudAmt) / max(skyAmt + pudAmt, 1e-4);
