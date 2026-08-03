@@ -276,6 +276,43 @@ is the model, not the constants.
   rather than sweeping once, which is what nests the bands, and it is pastel by
   construction rather than by being faded.
 
+### What the renders caught, after the seventh pass was written
+
+The pattern held for a third time: the faults the stills found were all failures
+of the FIX rather than of the diagnosis.
+
+- **ice came out as snowflakes.** The growth machinery worked exactly as
+  designed and drew the wrong object: six arms of comparable length about a
+  common centre is a snowflake DIAGRAM — six-fold, mirror-symmetric, repeated
+  across the pane on a visible grid. Window frost is none of those things.
+
+  Four symmetries had to go. A seed sends out two to four arms rather than six
+  (the empty sectors are where the clear glass comes from); their reaches are
+  squared, so a long arm is an event rather than the rule; the arms wander
+  instead of running straight, with the displacement applied to the across
+  coordinate before anything else uses it so the branches ride the curve; and
+  the side goes into the branch-length hash, so an arm's two flanks stop being
+  mirror images. The crystals are also fewer and larger, with arms long enough
+  to run into their neighbours — the crossing is most of what a frosted pane
+  looks like, and it cannot happen while a crystal fits inside its own cell.
+
+  Separately: every filament was 0.8 to 3.3 pixels wide. That draws frost as
+  wire, and frost is a deposit.
+
+- **the mote wind was pitched too high to be wind.** Warping a lattice shears
+  whatever is drawn in it, and the shear across one mote is the field's gradient
+  times the mote's size. At a vertical wavenumber of 2.2 the lane displacement
+  changed by about a fifth of a cell over a single leaf — most of its own width —
+  so every one would have arrived as a smeared parallelogram. Halving the
+  wavenumbers costs nothing: a gust is broad, which is what a gust IS.
+
+- **`mColumns` put twenty trunks across the far layer**, which is a picket fence.
+
+- **the iridescence inherited its gains from the filament field it replaced.** A
+  filament field is nearly all zero; a fringe following a cloud's edge is a broad
+  band near one. The same numbers ran to better than 2.0 additive and would have
+  blown the cloud edge to white — losing the colour, which is the whole motif.
+
 ### What it cost
 
 Measured against HEAD in the same container, `tools/perf.mjs`. The set is wider
