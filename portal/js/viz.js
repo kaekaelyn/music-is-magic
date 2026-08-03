@@ -1156,7 +1156,19 @@ float mFlame(vec2 uv, float t, float drive, float kick, out float core) {
   // A lobe: broad at the seat, drawn to a point. Squaring the taper keeps the
   // base wide instead of making a cone, which is the difference between a fire
   // and a party hat.
-  float taper = (1.0 - h) * (1.0 - h * 0.55);
+  // A DROP, not a triangle. (1-h)(1-0.55h) falls away from the seat from the
+  // very first step, so the widest part of the flame is the part you cannot
+  // see — everything in frame is the straight-sided run up to the tip, which
+  // is a cone. Blending a full profile against a pointed one, weighted by
+  // height, keeps the lower body bulbous and still draws the tip to a point:
+  // low down the shallow exponent wins and the flame swells, high up the steep
+  // one does and it closes.
+  // The exponents are a pair and they trade off. At 0.70/2.20 the belly
+  // arrived but the tip pinched out around four fifths of the way up, so the
+  // fire came out stubby — a drop is FULL at the bottom and still reaches, and
+  // the second number is what governs the reaching. 0.65/1.35 is fuller than
+  // the old profile everywhere below the last tenth and matches it at the tip.
+  float taper = mix(pow(1.0 - h, 0.65), pow(1.0 - h, 1.35), h);
   // Narrower at the seat than the first cut. A wide base that the erosion
   // could not reach came out as a solid bright rectangle sitting on the
   // bottom of the aperture — a box, not a fire.
@@ -1236,13 +1248,14 @@ float mEmbers(vec2 uv, float t, float w, float drive, float kick) {
 
 // The plume. Widens and thins as it climbs, and drifts on its own slow sway,
 // so the smoke is never directly above the fire for long.
-float mSmoke(vec2 uv, float t, float w, float drive, out float lit) {
-  // Anchored ABOVE the flame, not at its old seat. The origin was -0.22, which
-  // was just above a fire seated at -0.34; with the seat moved off the bottom
-  // of the frame and the reach grown to match, that puts the plume's root well
-  // inside the burning part, where it can only muddy it. Smoke starts where
-  // the flame stops being bright.
-  vec2 p = uv - vec2(0.0, 0.04);
+float mSmoke(vec2 uv, float t, float w, float drive, float srcY, out float lit) {
+  // THE SOURCE IS THE CALLER'S. It cannot be a constant here: two moods use
+  // this motif and their fires are in completely different places — a seated
+  // flame whose body fills the lower frame, and a vent at the top of a
+  // mountain. Anchored at one height to suit fire, volcano's plume was drawn
+  // down the cone's FACE, where it read as a dark rectangular block sitting on
+  // the rock. Smoke starts where the thing burning it is.
+  vec2 p = uv - vec2(0.0, srcY);
   // Same trick the flame uses: the phase depends on height, so a bend climbs
   // the plume instead of the whole column swinging as one.
   float sway = sin(p.y * 2.4 + t * (0.34 + drive * 0.30)) * 0.15
@@ -1551,8 +1564,19 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   // The summit is a crater, not a plateau: it dips between two rim shoulders.
   // Without the dip a flat top reads as a mesa, and lava sitting on it looks
   // painted onto a table rather than welling out of a hole.
-  crater = 1.0 - smoothstep(0.14, 0.28, ax);
-  coneH -= crater * 0.06;
+  crater = 1.0 - smoothstep(0.15, 0.29, ax);
+  // BARELY A DIP, and this is the correction that matters. Lowering the
+  // profile across the crater does not carve a basin — the silhouette is
+  // filled below its own line, so everything the dip removes becomes SKY. The
+  // deeper it went the bigger the bite out of the summit, which is exactly the
+  // "big scoop out of it" the owner saw, and no amount of lava painted below
+  // the dip fills it, because the dip is above that lava, not around it.
+  //
+  // A crater full to the brim has almost no notch in its skyline. What says
+  // crater here is that the summit is MOLTEN, not that it is scooped: the
+  // profile stays nearly flat and the surface across it is the pool. This much
+  // dip is a lip of stone for the light to catch, and nothing more.
+  coneH -= crater * 0.018;
   // The cone stands on a plain. Without one its flanks run off the bottom
   // corners of the frame, and at any aperture wider than the one this was
   // tuned at you see SKY underneath the mountain — the aperture's aspect
@@ -1572,9 +1596,20 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   // cooling with it puts the glow where the flow actually is.
   descent = CONE_RIM - uv.y;
   sky = smoothstep(-0.004, 0.004, -down);
-  // The pool: a band just under the crater floor, not everything below it.
-  vent = crater * smoothstep(-0.005, 0.03, down)
-       * (1.0 - smoothstep(0.05, 0.17, down));
+  // THE POOL, and it FILLS the crater rather than skimming it. This was a
+  // narrow band just under the surface, so the basin was dark below its own
+  // rim — the owner's "big scoop out of it", correctly: a hollow with a bright
+  // edge is a hole, and what makes a hollow read as full is seeing molten rock
+  // all the way down to where the rock closes over it.
+  //
+  // Held clear of the rim by a hair so there is a lip of stone around it, and
+  // brought up close under the lip so it looks brim-full and about to go over.
+  // The pool's visible SURFACE, seen at a shallow angle from outside: a
+  // shallow molten cap lying across the flat summit. Deep is wrong — at 0.34
+  // it drew a slab a third of the frame tall down the middle of the mountain,
+  // because depth below the local skyline is not depth into a bowl.
+  vent = crater * smoothstep(-0.004, 0.014, down)
+       * (1.0 - smoothstep(0.05, 0.115, down));
   return 1.0 - sky;
 }
 
@@ -1591,10 +1626,12 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
 // that answers the playing is a lamp, and the whole point of this mood is that
 // the sky is indifferent and the flock is not.
 float mMoon(vec2 uv, out float glow) {
-  // Out toward the corner: the flock's centre wanders about the origin, and a
-  // moon near it is permanently behind birds. Off to one side it is a presence
-  // the body crosses now and then, which is the moment worth having.
-  vec2 c = vec2(0.66, 0.28);
+  // Off to one side, but inside the lens. The flock's centre wanders about the
+  // origin, so a moon sitting on top of it is permanently behind birds — but
+  // pushed out to the corner it fell where the aperture is at its narrowest and
+  // was barely in shot. Down and left of that: still clear of the body's usual
+  // seat, still crossed now and then, and actually visible through the eye.
+  vec2 c = vec2(0.44, 0.15);
   float r = length(uv - c);
   // A soft limb rather than a hard circle: at this size a crisp edge reads as
   // a sticker, and the aperture is small enough that one pixel of falloff is
@@ -2270,6 +2307,7 @@ void main() {
   float coneDescent = 0.0; // how far below the crater rim — how far the lava has run
   float coneOn = 0.0;     // on the cone proper, as opposed to the plain it stands on
   float coneVent = 0.0;   // the crater pool
+  float ccrater = 0.0;    // how far inside the crater's mouth this pixel is
   float flockDens = 0.0;  // the murmuration's coverage
   float moonDisc = 0.0;
   float moonGlow = 0.0;
@@ -2407,8 +2445,9 @@ void main() {
     cloudRim *= skyMask;
   }
   if (W_cone > 0.0) {
-    float csky, cdown, cdesc, cvent, ccrater, con, ccrag;
-    float rock = mCone(uv, csky, cdown, cdesc, cvent, ccrater, con, ccrag);
+    float csky, cdown, cdesc, cvent, ccrat, con, ccrag;
+    float rock = mCone(uv, csky, cdown, cdesc, cvent, ccrat, con, ccrag);
+    ccrater = ccrat;
     coneCrag = ccrag;
     coneDown = cdown;
     coneDescent = cdesc;
@@ -2637,24 +2676,46 @@ void main() {
     float h;
     lava = mLava(uv, u_t, u_flow, u_rms, u_pulse, coneDescent, coneCrag, h) * W_lava;
     lavaHot = h * W_lava;
-    // Never above the skyline, and — where there is a cone — kept on the cone
-    // rather than spilling out across the plain it stands on. Unfenced, this
-    // pooled in a band across the bottom of the frame with the mountain
-    // floating above it, which is a lake of fire, not an eruption.
+    // THE VENT. A flow is what you see; the crater is where it comes from, and
+    // without a source the streams read as fires that started halfway down.
+    if (W_cone > 0.0) {
+      // Two churns crossed, so the surface boils rather than scrolling: one
+      // travelling across the pool and one up it, at rates that do not divide.
+      // A single scrolling field reads as a conveyor of lava, not a pool.
+      float churn = fbm(vec2(uv.x * 9.0 - u_t * 0.30, coneDescent * 7.0 - u_t * 0.44))
+                  * 0.6
+                  + fbm(vec2(uv.x * 15.0 + u_t * 0.21, coneDescent * 4.0 + u_flow * 0.5))
+                  * 0.4;
+      // Brim-full and bright. A pool is molten all the way across — no
+      // threshold, unlike the flows, which are what is left of it downhill.
+      float pool = coneVent * (0.46 + 0.42 * churn)
+                 * (0.62 + u_rms * 0.30 + u_pulse * 0.45);
+      lava = max(lava, pool * W_lava);
+      lavaHot = max(lavaHot, pool * W_lava * 0.55);
+      // THE OVERFLOW: the pool seen going somewhere, or it is a lit bowl with
+      // unrelated fires burning below it. Just outside the crater lip the
+      // flows are pulled up hard, so streams leave from the brim itself.
+      //
+      // coneDown, not coneDescent, is what says "below the surface here".
+      // Descent is measured from the rim's HEIGHT, so it is negative
+      // everywhere in the sky above the summit — gated on that alone this
+      // painted a column of lava straight up out of the crater into the night.
+      float lip = smoothstep(0.22, 0.80, ccrater) * (1.0 - smoothstep(0.86, 1.0, ccrater));
+      float spill = lip
+                  * smoothstep(0.34, 0.02, coneDescent)
+                  * smoothstep(-0.002, 0.02, coneDown);
+      lava = max(lava, spill * (0.55 + 0.45 * churn) * W_lava);
+      lavaHot = max(lavaHot, spill * 0.5 * W_lava);
+    }
+    // FENCED LAST, so that everything above — flows, pool and overflow alike —
+    // is subject to it. Applied before the vent was added, it fenced only the
+    // flows and let the pool paint wherever its own terms happened to be
+    // non-zero. Never above the skyline, and where there is a cone, kept on
+    // the cone rather than running out across the plain it stands on.
     float onRock = 1.0 - clamp(skyMask, 0.0, 1.0);
     onRock *= mix(1.0, 0.12 + 0.88 * coneOn, step(0.001, W_cone));
     lava *= onRock;
     lavaHot *= onRock;
-    // THE VENT. A flow is what you see; the crater is where it comes from, and
-    // without a source the streams read as fires that started halfway down.
-    // It bubbles rather than sits: a slow churn, plus a surge on an onset that
-    // pushes the pool up over its rim and feeds the flows below.
-    if (W_cone > 0.0) {
-      float churn = fbm(vec2(uv.x * 7.0, coneDescent * 6.0 - u_t * 0.5 - u_flow * 0.6));
-      float pool = coneVent * (0.5 + 0.5 * churn) * (0.5 + u_rms * 0.4 + u_pulse * 0.6);
-      lava = max(lava, pool * W_lava);
-      lavaHot = max(lavaHot, pool * W_lava * 0.75);
-    }
     // Molten rock lights the slope it is running down.
     lift += lava * 0.22;
   }
@@ -2692,7 +2753,9 @@ void main() {
     embers = mEmbers(uv, u_t, W_embers, u_rms, u_pulse);
   }
   if (W_smoke > 0.0) {
-    smoke = mSmoke(uv, u_t, W_smoke, u_rms, smokeLit);
+    // Fire's plume starts just above its flame; volcano's leaves the crater.
+    float smokeSrc = W_cone > 0.0 ? CONE_RIM : 0.04;
+    smoke = mSmoke(uv, u_t, W_smoke, u_rms, smokeSrc, smokeLit);
     // Never in front of the flame. The plume's root and the fire's tip share
     // the same space, and smoke composited as a darkening over that overlap
     // takes a dark bite out of the middle of the flame — which is the one

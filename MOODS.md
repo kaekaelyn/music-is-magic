@@ -101,6 +101,35 @@ things sample it, weather keeps the smooth one.
   (site nomination in the rays block); wisps carry a triangular zigzag over
   the orbit — corners, per the reference.
 
+## Fourth pass — 2026-08-03, three notes from stills
+
+- **volcano's crater** — "a big scoop out of it… which makes perfect sense IF
+  we fill it". The scoop *was sky*: lowering the profile across the crater does
+  not carve a basin, because the silhouette is filled below its own line, so
+  everything the dip removes becomes sky and no lava painted below the dip can
+  reach it. Deepening it (the first attempt) made the bite bigger. A crater
+  full to the brim has almost no notch in its skyline — the profile is nearly
+  flat now and what says "crater" is that the summit is molten. The pool
+  overflows at the lip, which is what joins it to the rivulets.
+  - Two bugs on the way: the overflow keyed on descent-from-the-rim, which is
+    negative everywhere in the sky above the summit, so it painted a column of
+    lava straight up into the night; and the sky fence was applied before the
+    pool was added, so it fenced only the flows.
+- **fire's profile** — `(1-h)(1-0.55h)` falls away from the seat from the first
+  step, so the widest part of the flame is the part below the frame and
+  everything visible is the straight run to the tip: a cone. Two exponents
+  blended by height give a belly low and a point high. They trade off — at
+  0.70/2.20 the belly arrived but the tip pinched out four fifths of the way up
+  and the fire came out stubby. A drop is full at the bottom *and* reaches.
+- **the moon** — pushed out to the corner to keep it clear of the flock, it
+  landed where the aperture is narrowest and was barely in shot. Moved down and
+  left: still clear of the body's usual seat, still crossed now and then, and
+  actually visible through the eye.
+- **mSmoke's source could not be a constant.** Anchored to suit fire, volcano's
+  plume was drawn down the cone's FACE as a dark rectangular block on the rock.
+  Two moods, two fires, two completely different heights — the caller supplies
+  it now. The `js/` shared-code hazard applies to motifs, not just files.
+
 ## Third pass — 2026-08-03, nine notes watched in motion
 
 The owner's rule held again: every "it looks like…" named a mechanism, and in
