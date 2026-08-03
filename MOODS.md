@@ -101,6 +101,54 @@ things sample it, weather keeps the smooth one.
   (site nomination in the rays block); wisps carry a triangular zigzag over
   the orbit — corners, per the reference.
 
+## Third pass — 2026-08-03, nine notes watched in motion
+
+The owner's rule held again: every "it looks like…" named a mechanism, and in
+no case was the answer a constant. Recorded by what was actually wrong, because
+the faults keep rhyming.
+
+- **volcano** — was `ridge` (three parallax ranges) under mountain's *daylight*
+  sky, with lava sampled as `uv.y - t*0.1`: a coordinate that carries a feature
+  toward larger uv.y as the clock advances, so the streams ran uphill. New
+  `cone` motif: one truncated cone, straight flanks, cratered summit, night sky
+  lit from the vent. Flows are drawn in the cone's frame, so downhill is a
+  property of the coordinate rather than a sign to keep getting right.
+  - Three sub-faults found only by rendering: cooling keyed on
+    depth-below-the-local-skyline lit the **outline** (on a steep flank, the
+    local skyline *is* the silhouette edge); the crag term derived as
+    `down - descent` carried the cone's whole gross shape and went degenerate
+    along the edge; and the channel field varied faster down-slope than across
+    it, so at a narrowing threshold its crests closed into **rings**. Ridged
+    crests run where the field varies least — the rule `frond()` already works
+    by.
+- **ice** — `reach = 0.5 + 0.5 * sin(grow…)`. A sine: crazed over, then
+  uncrazed. That is the whole of "blotchy, and the blotches thicken and
+  shrink", and it also meant the mood never started plain. Frost accretes now.
+  **This reverses the old "silence lets it clear" intent, deliberately.**
+- **forest motes** — three faults at once: fall was `t * (0.7 + drive*0.7)`, a
+  clock *multiplied* by loudness (the snow's fault exactly — it slides back up
+  when the room quietens); each mote was drawn from `fract()` of a single cell,
+  so anything crossing a boundary was cut, which is the seams; and the sway was
+  `sin(y)`, a function of height alone, so a layer swung in unison.
+- **barren** — `petals: 0.12` never reaches zero. Barren is bare.
+- **transitions** — one constant served two changes. Kin: nothing closes, slow
+  is the point. Cut: the crossfade is to be *hidden*, and 71% of it played with
+  the eye fully open, which never fully shut anyway (`depth: 0.94`).
+- **sunshower** — was a top-level mood because families are derived from names
+  and a name encodes a tree. It has two parents; `SHARED_CHILDREN` says so.
+- **the rainbow** — an arc is one circle at one centre: gating it can only
+  change its brightness, never make it play. Replaced by drifting patches of
+  separated spectrum. Dispersion *across* each patch is what reads as
+  refraction rather than coloured fog.
+- **desert ripples** — a pure function of `uv`, so one comb across all three
+  dune layers. Same fault the crag map had on mountain, same cure.
+- **stars** — never fenced by `skyMask`, so they lay on the sand. `night` has
+  no silhouette, which is why it was never noticed.
+- **aurora** — hem, folds and rays all scrolled along x at 0.05/0.08/0.07, and
+  two sampled `fbm` with a *constant* second argument. A fixed shape sliding
+  rigidly. Rates now differ, folds run against the hem, and every field drifts
+  in its second axis so the structure reforms instead of being carried.
+
 ## Second pass — the owner's shape notes, and the reference backlog
 
 Judged against screenshots this time (`npm run shots`), not reasoning.

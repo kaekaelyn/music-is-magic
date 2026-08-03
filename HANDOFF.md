@@ -6,6 +6,32 @@ this, then `MOODS.md` when mood work starts.
 
 ---
 
+## 0. Two things a fresh session will get wrong
+
+**Your working branch is probably cut from the wrong base.** The repo's GitHub
+*default branch* is `claude/discussion-next-steps-cshpet` — the frozen
+website-only reference. A web session clones the default, so it starts on a
+tree with no `broadcast.html`, no `MOODS.md`, no `murmuration.html`, and no
+CLAUDE.md to say so. Check before you work:
+
+```
+git rev-parse HEAD
+git rev-parse origin/claude/youtube-desktop-eye-streaming-go1do0
+```
+
+If they differ and you have no commits of your own, `git reset --hard` onto the
+broadcast branch. Changing the GitHub default to the broadcast branch would fix
+this permanently and does not touch the reference; it is the owner's call and
+has been raised.
+
+**There is a `main` on the remote.** One commit (`3a6e24f`, 2026-08-02,
+"Make main the trunk and write it down"), branched off a point 26 commits
+behind the broadcast branch, carrying a CLAUDE.md that the current one
+reverses. It is vestigial — a pull from it would look like the portal lost a
+day. Do not land anything on it. Deleting it was requested but the session's
+git relay refuses ref deletions (403), so it needs doing from the owner's
+machine or the GitHub branches page.
+
 ## 1. Branches — read before running any git command
 
 `CLAUDE.md` is the authority. The short version:
@@ -178,8 +204,40 @@ at deliberately instead of waited for. Moods are `1`–`9`, sub-moods
   built and waiting, and shows live values only — never the synthetic stand-in,
   or the sound-check would lie.
 - Rough edges the owner has not seen yet: blooming wants *bursting* blossoms
-  (petals only approximates it); volcano's summit vent wants its own term; cave
-  is better but the owner has not called it natural yet.
+  (petals only approximates it).
+
+### The 2026-08-03 feedback round — what was done and what was not
+
+Nine notes, all mechanism-level. See `MOODS.md` "Third pass" for the faults.
+Done: volcano rebuilt on a new `cone` motif, frost made monotonic, forest motes
+fixed (fall direction, seams, per-mote flutter), barren emptied, the mood
+crossfade split into kin/cut and hidden behind a real hold, sunshower made a
+shared sub-mood with the arc replaced by refracted patches, desert ripples made
+per-layer, stars fenced to the sky, aurora given internal motion.
+
+**Verified by render:** volcano (several rounds — it took four passes to stop
+the flows lighting the outline, then the rings). **Verified only by test and by
+reasoning:** everything else. `npm test` is green at 85/85 but a still frame
+proves little here; the frost and the motes in particular need eyes in motion.
+
+**Not done, and deliberately:**
+
+- **Cave.** The owner is happy with it and their note was a question, not an
+  instruction ("I wonder if…"). But the overlap fault has a found mechanism:
+  `mCrystals` accumulates spears with `if (v > best)` — a per-fragment max on
+  BRIGHTNESS with no depth at all. Where two spears cross, the boundary between
+  them follows the lighting rather than the geometry, so there is no silhouette
+  edge of a near spear against a far one, and the eye reads flat decals stacked
+  in a plane. That is "not really attached to the wall". The fix is to select by
+  the spear's depth instead of its brightness — the cluster seat already knows
+  its depth into the passage. Their proposed mitigation (light the crystals only
+  on high-register playing, ambient drip for the low end) is a mood decision
+  with an unresolved half, and was left for them.
+- **Seeing the eye from the remote.** Asked for, not built: "it's hard to see my
+  desktop from the piano in order to test responsiveness". `control.html` is a
+  phone page that already talks to the relay; the cheap version is to render
+  the same viz at a small size there, driven by features the broadcast pushes
+  over the relay, rather than streaming pixels.
 - Raised as veil-dance candidates, never chosen: aurora as its own mood, kelp,
   virga, incense.
 
