@@ -288,7 +288,12 @@ float mColumns(vec2 uv, float t, float flow, float bark,
       float taper = 1.0 - hgt * 0.26 + smoothstep(0.085, 0.0, hgt) * 0.20;
       float hw = max(wid * taper, 1e-4);
       float d = f - cx - bendx;
-      float cover = 1.0 - smoothstep(hw * 0.78, hw, abs(d));
+      // The edge is only hard where the trunks are the SUBJECT. A wood with
+      // light in it (bark 0) wants dark shapes in a mist, and a crisp silhouette
+      // at a low motif weight reads as a hard-edged vertical band laid over the
+      // weather — which is what the discrete trunks did to rain, whose columns
+      // are meant to be a suggestion of a landscape behind the downpour.
+      float cover = 1.0 - smoothstep(hw * mix(0.14, 0.78, bark), hw, abs(d));
       // Mist swallows the far stands from the canopy down.
       cover *= mix(smoothstep(0.95, 0.50, hgt), 1.0, min(fl * 0.5, 1.0));
       // The normal across the cylinder: -1 at the left silhouette, +1 at the
@@ -2912,9 +2917,17 @@ float mClouds(vec2 uv, float t, float flow, float drive, float horizon,
   // the horizon (many small clouds receding) and opens it out overhead (few
   // large ones), which is the perspective that makes a sky feel deep — and it
   // is also what leaves room in the upper frame for the iridescence to be seen.
+  // The scale has to be set at the TOP of the frame, not the bottom. A
+  // perspective divide compresses everything, so choosing a frequency that
+  // looks right near the horizon leaves the whole upper sky inside a patch of
+  // noise a fraction of a cell wide — one shape, and if it happens to sit under
+  // the threshold, no cloud at all. The first render of this was an empty sky
+  // with a smear along the bottom for exactly that reason. Pick the numbers so
+  // there are two or three billows across the frame OVERHEAD, and let the divide
+  // crowd them toward the horizon by itself.
   float above = max(uv.y - horizon, 0.0);
   float dz = 1.0 / (above + 0.16);
-  vec2 q = vec2(uv.x * dz * 0.62 + flow * 0.35 + t * 0.01, dz * 0.85);
+  vec2 q = vec2(uv.x * dz * 1.70 + flow * 0.35 + t * 0.01, dz * 1.25);
   float cl = fbm(q);
   // The raw density, handed out for the iridescence: interference colours are a
   // function of how much water the light came through, so the film's thickness
