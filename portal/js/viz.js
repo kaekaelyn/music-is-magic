@@ -573,6 +573,15 @@ float frond(vec2 q, vec2 a, vec2 b, float ph) {
   // A third generation on the barbs themselves: dendrites have dendrites, and
   // it is that recursion the eye reads as frost rather than as a feather.
   float tw = 1.0 - abs(2.0 * lnoise(vec2(dot(q, a) * 41.0, dot(q, b) * 37.0)) - 1.0);
+  // NOT YET THE REFERENCES. The barbs brighten the spine instead of sticking
+  // OUT of it: bb multiplies a value along the spine's own level set, so what
+  // comes out is a line of varying brightness rather than a feather with
+  // shoots. Rendered, that reads as angular splinters — cracks in the glass —
+  // where the owner's references are unmistakably ferns, a spine with barbs
+  // protruding at a fixed angle and sub-barbs on those. Fixing it means the
+  // barbs have to EXTEND the level set perpendicular to the spine rather than
+  // modulate it. Left as the next mechanism on this motif.
+  //
   // The spine keeps most of its own value; the barbs BRIGHTEN it rather than
   // gating it. At a floor of 0.30 the product of three ridged fields survived
   // only at isolated peaks, so the fronds broke into disconnected white
@@ -625,7 +634,13 @@ float mFrost(vec2 q, float t, float grow, float strike) {
   // floor. Falling across a static frond field, the level set expands out of
   // the spines and runs ALONG them as it goes, which is a dendrite extending.
   // A front that is one number applied everywhere can only fade in.
-  float front = mix(1.35, 0.34, reach * (0.55 + 0.45 * patch));
+  //
+  // The floor is 0.58 and not 0.34. Taken far enough down, the level set stops
+  // being filaments and floods: the fronds merge into solid white areas with
+  // frost-shaped edges, which against the references — dense with fine, fully
+  // separate ferns — reads as spilt paint. Frost is mostly the dark between
+  // the filaments, and the growth has to stop while there is still some.
+  float front = mix(1.35, 0.58, reach * (0.55 + 0.45 * patch));
   // Tips reach ahead of the bulk. The references are a dense granular rime
   // with individual ferns standing out into clear glass in front of it, and
   // that is a looser threshold where the spine field leads the patch field.
@@ -2220,7 +2235,12 @@ void main() {
     iceFlash = max(iceFlash, flare * W_facets);
     // Frost crawls over the shards, patch by patch, and every onset cracks
     // it further out. It seeds from the seams, where real frost starts.
-    float frost = mFrost(p * 0.55, u_t, u_flow, u_pulse) * W_facets;
+    // Scale, judged against the references and nothing else. 0.55 put about
+    // two spine cycles across the frame — a handful of enormous ferns, where
+    // both references are dense with small ones. 1.7 overshot into dust, which
+    // is the failure frond() already warns about: below a certain size the
+    // filaments stop being continuous and read as scratches on the glass.
+    float frost = mFrost(p * 1.05, u_t, u_flow, u_pulse) * W_facets;
     frost = clamp(frost + seam * 0.25 * frost, 0.0, 1.0);
     // Frost used to ride the snow channel at 0.45 weight, and snow blends at
     // 0.88 — a ceiling of ~40% of the way to the pale step however hard the

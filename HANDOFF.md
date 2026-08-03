@@ -215,9 +215,20 @@ crossfade split into kin/cut and hidden behind a real hold, sunshower made a
 shared sub-mood with the arc replaced by refracted patches, desert ripples made
 per-layer, stars fenced to the sky, aurora given internal motion.
 
-**Verified by render:** volcano (several rounds — it took four passes to stop
-the flows lighting the outline, then the rings). **Verified only by test and by
-reasoning:** everything else. `npm test` is green at 85/85 but a still frame
+**Verified by render:** volcano (four passes — the flows lit the outline, then
+closed into rings), and ice's frost across three scales. **Verified only by
+test and by reasoning:** everything else.
+
+**Ice is half done and should be judged as such.** The reported fault — "the
+blotches thicken and shrink" — was a sine in the growth front and is gone: it
+starts plain, only ever advances, and spreads slowly. The scale was retuned
+against the references (0.55 was a few enormous ferns, 1.7 was dust, 1.05 is
+filaments). But it still does not look like the references. It reads as angular
+splinters, near enough to cracks in the glass, because in `frond()` the barbs
+brighten the spine rather than protruding from it — a line of varying
+brightness is not a feather. The barbs have to extend the level set
+perpendicular to the spine. That is the next mechanism, and it is written into
+the function. `npm test` is green at 85/85 but a still frame
 proves little here; the frost and the motes in particular need eyes in motion.
 
 **Not done, and deliberately:**
