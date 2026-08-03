@@ -173,9 +173,11 @@ available in `portal/js/viz.js`:
 
 ---
 
-## 3. The moods — expect a lot of feedback next
+## 3. The moods
 
-The owner has said they have a lot of mood feedback coming. Orientation:
+Four rounds of feedback have landed and a fifth is coming — the owner has been
+testing on their own machine. The open list is at the end of this section;
+everything before it is orientation you will want first.
 
 ### The standing rule, recorded at the top of `MOODS.md`
 
@@ -190,14 +192,18 @@ that part *is* specification.
 ### How the engine is shaped
 
 - One fragment shader, `portal/js/viz.js`. Themes are **pure data**: palette,
-  params, motif weights, feature mappings. 16 themes, 24 motifs.
+  params, motif weights, feature mappings. 17 themes, 27 motifs.
 - `portal/js/themes.js` carries a **built-in copy of every theme** so a failed
   `theme.json` fetch can never blank the site. Edit one, edit the other;
   `node tools/validate-assets.mjs` fails loudly when they drift and has caught
   it twice.
 - **Sub-moods** are derived from names: `x-y` is a sub-mood of `x` when `x` is
-  itself a theme (`familiesOf()`). `KIN` says which moods morph without the
-  eye closing.
+  itself a theme (`familiesOf()`). One exception, declared in `SHARED_CHILDREN`
+  because a name encodes a tree and cannot say it: sunshower belongs to BOTH
+  rain and sunshine, so it has a button under each. Anything that walks the
+  families must cope with one mood owning two buttons — `moodButtons` in
+  broadcast.js and control.html are name→[button] maps for that reason.
+  `KIN` says which moods morph without the eye closing.
 - `lnoise` is the linear-interpolation twin of `noise()`. Straight segments
   meeting at corners. Every angular material uses it — rock, lightning, frost.
   Smooth `noise()` is for weather. Three separate "bent/lumpy" complaints all
@@ -229,9 +235,30 @@ at deliberately instead of waited for. Moods are `1`–`9`, sub-moods
   around a circle (on the direction vector), not by feeding `atan` to `fbm`.
 - **Smooth what moves geometry; leave what moves light alone.** A 40 ms attack
   on a colour ramp is right; on a coordinate it is a twitch.
+- **A motif shared by two moods cannot hardcode where its subject is.**
+  `mSmoke`'s source height was a constant; retuned to suit fire, volcano's
+  plume was drawn down the cone's FACE as a dark rectangular block on the rock.
+  The caller passes it now. CLAUDE.md's warning that `js/` is shared by both
+  builds applies just as hard to a motif shared by two moods.
+- **`smoothstep(a, a, x)` with equal edges is a divide by zero,** and it
+  returns coverage rather than nothing. `mFlame`'s width went to exactly 0
+  above the flame's reach, and the garbage that came back got textured by the
+  erosion and drew torn flame-coloured tongues along the top of the frame.
+  Keep any width that feeds a smoothstep strictly positive.
+- **Fence motifs LAST, after every contribution is summed.** The lava block
+  applied its "never above the skyline" mask before the crater pool was added,
+  so it fenced the flows only and the pool painted wherever its own terms were
+  non-zero. Ordering, not masking, was the bug.
+- **`skyMask` is not automatic.** `mStars` was never fenced by it, so stars lay
+  on the sand in desert-night. Any motif that belongs to the sky needs the
+  fence written in, and moods with no silhouette leave `skyMask` at 0 and are
+  unaffected — which is why night never showed the fault.
 - Everything else that will bite: `PLAN.md` §14.5.
 
-### Carried over, not done
+### Detail on two carried-over items
+
+Both appear in the open list below; the background is here so the list stays
+readable.
 
 - **Centroid rescale.** The owner reported the top of the piano reads ~2500 Hz,
   which is 0.76 on a scale that runs to 8 kHz — so the whole usable range is
@@ -242,54 +269,63 @@ at deliberately instead of waited for. Moods are `1`–`9`, sub-moods
 - **Sound testing** was deferred ("pretty late"). The `pitch` row in the HUD is
   built and waiting, and shows live values only — never the synthetic stand-in,
   or the sound-check would lie.
-- Rough edges the owner has not seen yet: blooming wants *bursting* blossoms
-  (petals only approximates it).
 
-### The 2026-08-03 feedback round — what was done and what was not
+### 2026-08-03 — four rounds of feedback, and what is still open
 
-Nine notes, all mechanism-level. See `MOODS.md` "Third pass" for the faults.
-Done: volcano rebuilt on a new `cone` motif, frost made monotonic, forest motes
-fixed (fall direction, seams, per-mote flutter), barren emptied, the mood
-crossfade split into kin/cut and hidden behind a real hold, sunshower made a
-shared sub-mood with the arc replaced by refracted patches, desert ripples made
-per-layer, stars fenced to the sky, aurora given internal motion.
+Twelve notes across four rounds, all mechanism-level. `MOODS.md` "Third pass"
+and "Fourth pass" record the faults; the commit messages carry the reasoning.
 
-**Verified by render:** volcano (four passes — the flows lit the outline, then
-closed into rings), and ice's frost across three scales. **Verified only by
-test and by reasoning:** everything else.
+**Done and verified by render:** volcano (rebuilt on a new `cone` motif, then
+four more passes — the flows lit the outline, then closed into rings, then the
+crater turned out to be sky, then the overflow painted a column into the night);
+fire (seated below the frame, a travelling wave instead of a rigid lean, lit
+smoke, a drop-shaped body); the murmuration as its own mood.
 
-**Ice is half done and should be judged as such.** The reported fault — "the
-blotches thicken and shrink" — was a sine in the growth front and is gone: it
-starts plain, only ever advances, and spreads slowly. The scale was retuned
-against the references (0.55 was a few enormous ferns, 1.7 was dust, 1.05 is
-filaments). But it still does not look like the references. It reads as angular
-splinters, near enough to cracks in the glass, because in `frond()` the barbs
-brighten the spine rather than protruding from it — a line of varying
-brightness is not a feather. The barbs have to extend the level set
-perpendicular to the spine. That is the next mechanism, and it is written into
-the function. `npm test` is green at 85/85 but a still frame
-proves little here; the frost and the motes in particular need eyes in motion.
+**Done, verified only by test and by reasoning:** frost made monotonic; forest
+motes (fall direction, seams, per-mote flutter); barren emptied; the mood
+crossfade split into kin/cut and hidden behind a real hold; sunshower made a
+shared sub-mood with its arc replaced by refracted patches; desert ripples made
+per-layer; stars fenced to the sky; the aurora given internal motion.
 
-**Not done, and deliberately:**
+**The owner has now tested on their own machine and has a list.** Expect it, and
+expect it to be good — every single "it looks like…" so far has named a real
+structural fault. Read §4 before answering any of it.
 
-- **Cave.** The owner is happy with it and their note was a question, not an
-  instruction ("I wonder if…"). But the overlap fault has a found mechanism:
-  `mCrystals` accumulates spears with `if (v > best)` — a per-fragment max on
-  BRIGHTNESS with no depth at all. Where two spears cross, the boundary between
-  them follows the lighting rather than the geometry, so there is no silhouette
-  edge of a near spear against a far one, and the eye reads flat decals stacked
-  in a plane. That is "not really attached to the wall". The fix is to select by
-  the spear's depth instead of its brightness — the cluster seat already knows
-  its depth into the passage. Their proposed mitigation (light the crystals only
-  on high-register playing, ambient drip for the low end) is a mood decision
-  with an unresolved half, and was left for them.
-- **Seeing the eye from the remote.** Asked for, not built: "it's hard to see my
-  desktop from the piano in order to test responsiveness". `control.html` is a
-  phone page that already talks to the relay; the cheap version is to render
-  the same viz at a small size there, driven by features the broadcast pushes
-  over the relay, rather than streaming pixels.
-- Raised as veil-dance candidates, never chosen: aurora as its own mood, kelp,
-  virga, incense.
+#### Open, in the order it probably wants doing
+
+1. **Ice still is not the references.** The reported fault (blotches thickening
+   and shrinking) is fixed and the scale is retuned, but it renders as angular
+   splinters — near enough to cracks in glass. Mechanism, written into
+   `frond()`: the barbs BRIGHTEN the spine rather than protruding from it, so
+   what draws is a line of varying brightness, not a feather. The barbs have to
+   extend the level set perpendicular to the spine.
+2. **Cave's crystals are not attached to the wall.** `mCrystals` accumulates
+   spears with `if (v > best)` — a per-fragment max on BRIGHTNESS with no depth.
+   Where two spears cross, the boundary between them follows the lighting
+   rather than the geometry, so there is no silhouette edge of a near spear
+   against a far one and the eye reads flat decals stacked in a plane. Select by
+   the spear's depth instead; the cluster seat already knows its depth into the
+   passage. The owner also floated lighting the crystals only on high-register
+   playing with an ambient drip for the low end — that half is a mood decision
+   they framed as a question, so ask before building it.
+3. **The murmuration is faint at the website's aperture** (~180px tall). The
+   specks are sized in the body's frame and fall under a pixel there. Correct at
+   broadcast resolution. Making the grain resolution-aware without disturbing
+   the look the owner approved over ten rounds is the work.
+4. **Seeing the eye from the phone.** Asked for and not built: "it's hard to see
+   my desktop from the piano in order to test responsiveness". `control.html`
+   already talks to the relay; the cheap route is to render the same viz small
+   there, driven by features the broadcast pushes over the relay, rather than
+   streaming pixels.
+5. **Centroid rescale** — still blocked on two more readings. See above; do not
+   move the aurora's `wake` gate first.
+6. **viz.js's shared `hash()` ends in `fract(p.x * p.y)`**, which correlates
+   along both axes and draws a grid into whatever is built on it. That is the
+   murmuration's fault #4, and the flock carries a fixed hash privately rather
+   than disturb sixteen tuned moods. Worth investigating whether it is quietly
+   banding other motifs — but it is a change that touches everything, so do it
+   deliberately and re-render the whole set.
+7. Blooming wants *bursting* blossoms; petals only approximates it.
 
 ---
 
