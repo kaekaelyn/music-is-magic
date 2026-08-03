@@ -13,9 +13,17 @@ one HTML file, no build, no dependencies. Open it directly, or publish it as an
 Artifact for phone viewing (see HANDOFF.md for the live URL and how to update
 it in place rather than minting a new one).
 
-The question it exists to answer has not been answered yet: whether this wants
-to be its own mood (dusk sky, one flock, nothing else) or a motif that rides
-over the existing ones. Do not merge it into `portal/` without asking.
+**The question it existed to answer has been answered.** 2026-08-03, the owner:
+*"I always wanted it to be its own mood. it's way too costly to be a mere
+motif."* It now ships as the `murmuration` theme in `portal/`, built on the
+`flock` motif in `portal/js/viz.js`.
+
+This file stays, and is still worth having. It is far cheaper to iterate on the
+look here — one HTML file, sliders for every knob, no engine, no theme data, no
+test suite — than in the shader that sixteen other moods share. Changes proved
+here get ported; see HANDOFF.md for the three things the port had to get right.
+The two copies WILL drift, and that is fine as long as it is deliberate: the
+engine's is the one that ships.
 
 ### How it works, in one paragraph
 

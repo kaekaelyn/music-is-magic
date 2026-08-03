@@ -158,6 +158,12 @@ available in `portal/js/viz.js`:
   became noise, and since both the band width and the sheet thickness derive
   from it the flock washed out to a smudge at one size while looking right at
   another.
+- **Cost, measured** (`npm run perf`, software rendering — only the ratios
+  mean anything): murmuration is the dearest mood at **1.68x** the cheapest,
+  against cave's 1.43x, which already ships. The nearFlock early-out is what
+  keeps it there — most of the frame is open sky and never traces. Every other
+  mood is unchanged, so the uniform branch costs the rest of the library
+  nothing.
 - **Known limitation, not yet solved:** at the *website's* aperture (~180px
   tall) the flock is faint. The specks are sized in the body's frame, so below
   a certain resolution they fall under a pixel and the thinning threshold
