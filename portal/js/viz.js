@@ -724,17 +724,38 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
   float across = acr * sgn;
   float armId = arm * 2.0 + (sgn < 0.0 ? 1.0 : 0.0);   // 0..5
 
-  // Each arm its own reach. Six arms of one length is a snowflake diagram; the
-  // references are lopsided, because an arm stops where it meets something.
+  // MOST OF THE ARMS ARE NOT THERE, and that is the difference between window
+  // frost and a snowflake. Six arms of comparable length about a common centre
+  // is a snowflake DIAGRAM — perfectly six-fold, mirror-symmetric, the same
+  // object repeated across the pane. The first render of this construction came
+  // out as exactly that, and it is not what the references show: window frost is
+  // long lopsided ferns sweeping at every angle, crossing each other, with as
+  // much clear glass as crystal.
+  //
+  // So a seed sends out two to four arms rather than six, of wildly unequal
+  // reach (squared, so short ones are common and a long one is an event). The
+  // sectors of the missing arms are simply empty, which is where the clear glass
+  // comes from, and the arms that do exist are long enough to run well into the
+  // neighbouring crystals — that crossing is most of what the pane looks like.
   vec2 ha = ch2(id * 1.7 + armId * 5.3 + 2.0);
-  // Never past armCap: the 3x3 neighbourhood is sized for exactly that reach,
-  // and a crystal that overruns it is clipped along a straight line.
-  float armMax = armCap * (0.50 + ha.x * 0.50);
+  if (ha.y < 0.42) return 0.0;
+  // Never past armCap: the neighbourhood is sized for exactly that reach, and a
+  // crystal that overruns it is clipped along a straight line.
+  float armMax = armCap * (0.26 + ha.x * ha.x * 0.86);
   float lim = min(front, armMax);
   if (along > lim + 0.01) return 0.0;
 
-  // THE ARM. Thinner as it goes out, as a dendrite is.
-  float tw = 0.0018 + 0.0060 * (1.0 - along / max(armMax, 1e-4));
+  // AND THE ARM IS NOT STRAIGHT. A dendrite grows into whatever concentration
+  // gradient it finds, so it wanders; a straight one reads as drawn. The
+  // displacement goes on across before anything else uses it, so the branches
+  // and their sub-branches ride the curve with it.
+  across += (lnoise(vec2(along * 2.6 + armId * 9.1 + id.x * 3.0, 17.0)) - 0.5) * 0.055
+          + (lnoise(vec2(along * 7.0 + armId * 4.3, 29.0)) - 0.5) * 0.017;
+
+  // THE ARM. Thinner as it goes out, as a dendrite is. Twice the width the first
+  // cut had: at 0.8 to 3.3 pixels the whole crystal came out as wire, and frost
+  // is a deposit rather than a line drawing.
+  float tw = 0.0035 + 0.0110 * (1.0 - along / max(armMax, 1e-4));
   float trunk = (1.0 - smoothstep(tw * 0.40, tw, abs(across)))
               * smoothstep(lim, lim - 0.012, along);
 
@@ -747,7 +768,7 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
   float sq = abs(across);
   float branch = 0.0;
   float sub = 0.0;
-  const float REACH1 = 0.086;   // the most want1 can ever be
+  const float REACH1 = 0.130;   // the most want1 can ever be
   if (sq < REACH1) {
     // The lean is a slow field rather than a constant, so the branch angle
     // drifts along the arm and differs between crystals — a fixed lean is what
@@ -760,12 +781,15 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
     float bx = bu * P1 + armId * 1.7 + side;
     float bi = floor(bx);
     float bf = fract(bx) - 0.5;
-    float r1 = ch1(vec2(bi, armId * 2.9 + id.x * 7.0 + 1.0));
+    // The side goes into the hash, so the two flanks of one arm get DIFFERENT
+    // branch lengths. Without it the fold makes every arm its own mirror image,
+    // which is the other half of what made this read as a snowflake.
+    float r1 = ch1(vec2(bi, armId * 2.9 + id.x * 7.0 + 1.0 + side * 13.0));
     // How long it WANTS to be, and how long it has had time to become. The
     // front is a path length from the seed, so a branch whose root the front
     // passed a moment ago is a stub, and one it passed a while back is full
     // length.
-    float want1 = 0.016 + 0.070 * r1;
+    float want1 = 0.024 + 0.105 * r1;
     float have1 = max(0.0, front - bu) * 0.80;
     float len1 = min(want1, have1)
                // ...and nothing grows off the arm behind the seed, or past its end.
@@ -774,7 +798,7 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
     // the arm's own centreline and paint a blob at the root of every branch that
     // has not started yet.
     float tap1 = len1 > 1e-5 ? max(0.0, 1.0 - sq / len1) : 0.0;
-    float bw1 = 0.0014 + 0.0055 * tap1;
+    float bw1 = 0.0025 + 0.0085 * tap1;
     float toBranch = abs(bf) / P1;
     branch = (1.0 - smoothstep(bw1 * 0.35, bw1, toBranch))
            * smoothstep(0.0, 0.30, tap1);
@@ -799,7 +823,7 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
       float have2 = max(0.0, front - (bu + cu)) * 0.62;
       float len2 = min(want2, have2) * step(0.0, cu);
       float tap2 = len2 > 1e-5 ? max(0.0, 1.0 - sp / len2) : 0.0;
-      float bw2 = 0.0010 + 0.0034 * tap2;
+      float bw2 = 0.0018 + 0.0050 * tap2;
       float toSub = abs(cf) / P2;
       sub = (1.0 - smoothstep(bw2 * 0.35, bw2, toSub))
           * smoothstep(0.0, 0.30, tap2);
@@ -829,7 +853,7 @@ float crystal(vec2 rel, vec2 id, float front, float armCap) {
 // The spacing then goes up to keep the crystals the size they want to be, and
 // at 0.60 with a 0.384 reach the discs still overlap by about a third — which
 // is what makes them collide and interlock rather than sit in a polka dot.
-const float FROST_S = 0.60;
+const float FROST_S = 0.95;
 const float FROST_R = FROST_S * 0.64;
 
 float mFrost(vec2 q, float grow) {
@@ -869,11 +893,14 @@ float mFrost(vec2 q, float grow) {
   // so it is gated on the same clock and lags it.
   float rimeAge = clamp((grow - 34.0) / 46.0, 0.0, 1.0);
   if (rimeAge > 0.0) {
-    float rime = noise(q * 40.0 + 41.0) * 0.62 + noise(q * 88.0 + 7.0) * 0.38;
-    float patch = fbm(q * 0.7 + 17.0);
-    v = max(v, smoothstep(0.52, 0.86, rime)
-             * smoothstep(0.42, 0.66, patch)
-             * rimeAge * 0.85);
+    float rime = noise(q * 34.0 + 41.0) * 0.60 + noise(q * 76.0 + 7.0) * 0.40;
+    float patch = fbm(q * 0.55 + 17.0);
+    // Denser and softer than the first cut, which drew separated white dots —
+    // rime is a frozen fog, so it wants to be nearly continuous inside its own
+    // regions and absent outside them, not a scatter of speckle over everything.
+    v = max(v, smoothstep(0.44, 0.72, rime)
+             * smoothstep(0.38, 0.60, patch)
+             * rimeAge * 0.80);
   }
   return clamp(v, 0.0, 1.0);
 }
