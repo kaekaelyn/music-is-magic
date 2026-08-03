@@ -282,7 +282,10 @@ float mColumns(vec2 uv, float t, float flow, float bark,
       float lean = (h2.x - 0.5) * 0.40;
       float bendx = lean * (hgt - 0.35)
                   + (lnoise(vec2(hgt * 2.1 + ci * 5.7, fl * 3.3)) - 0.5) * 0.24;
-      float taper = 1.0 - hgt * 0.28 + smoothstep(0.20, 0.0, hgt) * 0.50;
+      // The flare belongs to the last few inches of a trunk, not the bottom fifth
+      // of the picture. At 0.50 over 0.20 the render gave every trunk a bulb —
+      // wine bottles standing in a wood.
+      float taper = 1.0 - hgt * 0.26 + smoothstep(0.085, 0.0, hgt) * 0.20;
       float hw = max(wid * taper, 1e-4);
       float d = f - cx - bendx;
       float cover = 1.0 - smoothstep(hw * 0.78, hw, abs(d));
@@ -301,7 +304,7 @@ float mColumns(vec2 uv, float t, float flow, float bark,
         for (int b = 0; b < 2; b++) {
           vec2 hb = ch2(vec2(ci * 1.7 + float(b) * 9.1, fl + 5.0));
           float y0 = 0.10 + hb.x * 0.30;        // in uv, well up the trunk
-          float blen = 0.10 + fract(hb.y * 7.31) * 0.16;
+          float blen = 0.065 + fract(hb.y * 7.31) * 0.105;
           // Three fixed slopes, hashed between, so the direction costs no
           // normalize: out-and-up at roughly 30, 45 and 58 degrees.
           float sy = hb.y < 0.34 ? 0.500 : (hb.y < 0.67 ? 0.707 : 0.848);
@@ -311,7 +314,9 @@ float mColumns(vec2 uv, float t, float flow, float bark,
           float along = bp.x * sx + bp.y * sy;
           float ta = clamp(along / blen, 0.0, 1.0);
           float dd = length(bp - vec2(sx, sy) * (ta * blen));
-          float bw = (0.0045 + 0.0055 * (1.0 - ta)) * (0.7 + fl * 0.25);
+          // Tapering harder, so a limb thins to nothing instead of ending as a
+          // stick of even width laid across the wood.
+          float bw = (0.0012 + 0.0068 * (1.0 - ta) * (1.0 - ta)) * (0.7 + fl * 0.25);
           br = max(br, (1.0 - smoothstep(bw * 0.55, bw, dd))
                      * step(0.0, along) * bark);
         }
@@ -1093,20 +1098,30 @@ float mCrystals(vec2 uv, vec2 vp, float t, float selClock, vec2 lightDir,
     // the boundaries. A normal perturbed by it is FLAT over patches with hard
     // creases between them, which is a crystal face for free — smooth noise
     // would give a pebble.
+    // SMALL, and the first cut was not. At 0.30 of the cluster's own scale the
+    // mound was wider than the spears were long, so it swallowed them whole and
+    // the render came out as three enormous smooth bubbles. It is the ROOT
+    // region and nothing more: enough to hide where the prisms meet.
     vec2 dm = d0 / persp;
     float mr = length(dm);
-    float mRad = 0.30 + 0.10 * lnoise(vec2(dm.x * 2.2 + fj, dm.y * 2.2 + e));
+    float mRad = 0.115 + 0.035 * lnoise(vec2(dm.x * 9.0 + fj, dm.y * 9.0 + e));
     float mound = 1.0 - smoothstep(mRad * 0.88, mRad, mr);
     if (mound > 0.003) {
       vec2 nd = dm / max(mr, 1e-4);
+      // The frequency has to put SEVERAL lattice cells across the mound or the
+      // perturbation is one constant offset and what draws is a tilted sphere.
+      // At 2.6 against a radius of 0.3 the whole mound sat inside a single cell,
+      // which is exactly the bubble the render showed.
       vec2 mn = normalize(nd + vec2(
-        lnoise(vec2(dm.x * 2.6 + fj * 3.0, dm.y * 2.6 + e)) - 0.5,
-        lnoise(vec2(dm.y * 2.6 - fj, dm.x * 2.6 + 5.0)) - 0.5) * 1.3);
+        lnoise(vec2(dm.x * 26.0 + fj * 3.0, dm.y * 26.0 + e)) - 0.5,
+        lnoise(vec2(dm.y * 26.0 - fj, dm.x * 26.0 + 5.0)) - 0.5) * 1.5);
       float ml = max(dot(mn, lightDir), 0.0);
       float m2 = ml * ml;
       float mglint = m2 * m2;
-      float mrim = smoothstep(0.72, 1.0, mr / max(mRad, 1e-4));
-      mglint = clamp(mglint + mrim * (0.20 + 0.45 * ml), 0.0, 1.5);
+      // A thin bright edge, not a halo. The wide version drew the silhouette of
+      // a sphere, which is half of why it read as a bubble.
+      float mrim = smoothstep(0.86, 1.0, mr / max(mRad, 1e-4));
+      mglint = clamp(mglint + mrim * (0.10 + 0.28 * ml), 0.0, 1.5);
       float mbody = 0.05 + 0.24 * ml + 0.15 * m2;
       float mgain = 0.10 + drive * 0.40 + pitch * pitch * pitch * 2.4;
       float mv = env * mound * (mbody + mglint * mgain + mglint * strike * 0.85);
@@ -1703,7 +1718,7 @@ float mPetals(vec2 uv, float t, float w, float leaf, float drive, float kick,
       vec2 delta = vec2(lane, y) - centre;
       vec2 ds = vec2(delta.x / cols, delta.y / rows);
       // Flowers are bigger than the petals they shed.
-      float sz = (0.013 + fi * 0.008) * (0.72 + hash(c * 2.3 + fi) * 0.62)
+      float sz = (0.019 + fi * 0.010) * (0.72 + hash(c * 2.3 + fi) * 0.62)
                * mix(1.0, 1.85, flower);
       // A flower turns slowly — it has weight and it is nearly symmetric, so a
       // fast spin on one reads as a wheel.
@@ -1714,8 +1729,13 @@ float mPetals(vec2 uv, float t, float w, float leaf, float drive, float kick,
       vec2 q = vec2(ds.x * cs - ds.y * sn, ds.x * sn + ds.y * cs) / sz;
       // Aspect and edge-on squash belong to petals and leaves; a blossom seen
       // from any angle is round enough to leave alone.
-      q.x *= mix(mix(2.0, 2.9, leaf), 1.0, flower);
-      q.x /= mix(0.44 + abs(tumble) * 0.56, 0.80 + abs(tumble) * 0.20, flower);
+      // THE TUMBLE MULTIPLIES THE ASPECT, and this is the second time it has had
+      // to be pulled back. At 2.9:1 divided by a floor of 0.44 a leaf spends much
+      // of its life at nearly 7:1, which is a needle — and the render showed
+      // exactly that, slivers rather than leaves. The base aspect comes down and
+      // the floor goes up, so the worst case is about 3.4:1.
+      q.x *= mix(mix(2.0, 2.1, leaf), 1.0, flower);
+      q.x /= mix(0.62 + abs(tumble) * 0.38, 0.84 + abs(tumble) * 0.16, flower);
       float rib, eye;
       float shape = moteShape(q, leaf, flower, rib, eye);
       float hit = on * shape * (1.0 - rib * 0.5) * (1.0 + eye * 0.55)
@@ -1932,7 +1952,11 @@ float mSmoke(vec2 uv, float t, float flow, float w, float drive, float srcY, out
 // under a 0.45 swing is what keeps it from going to saturated primaries, which
 // would read as the confetti this motif has already been accused of being.
 vec3 filmSpectrum(float x) {
-  return 0.55 + 0.45 * cos(6.2831853 * x + vec3(0.0, 2.094, 4.188));
+  // 0.72 over 0.28, not 0.55 over 0.45. The wider swing reaches fully saturated
+  // hues, and the first render came out as vivid rainbow contours — which is
+  // oil on a puddle seen close up, not the chalky pastel of the sky references.
+  // Iridescence is white light with a little taken out of it.
+  return 0.72 + 0.28 * cos(6.2831853 * x + vec3(0.0, 2.094, 4.188));
 }
 
 // IRIDESCENCE — cloud iridescence in the sky, an oil sheen on the wet ground.
@@ -1982,8 +2006,12 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
   // that edge currently is — which keeps the colour on the fringe even as the
   // weather clock moves the threshold), plus the raw density for finer
   // structure, plus a slow drift so the orders creep rather than sitting still.
-  float film = body * 4.2 + dens * 3.6
-             + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 2.2;
+  // TWO ORDERS ACROSS THE FRINGE, not ten. The references show two or three
+  // broad bands hugging an outline; ten thin ones is a topographic map, and that
+  // is what the first render drew. Thickness is the whole geometry of this
+  // motif, so its scale IS the picture.
+  float film = body * 1.5 + dens * 1.0
+             + fbm(vec2(uv.x * 2.2 + flow * 0.22, uv.y * 2.2 - t * 0.030)) * 0.8;
   // The fringe: present where the cloud is arriving and gone where it is solid.
   float fringe = smoothstep(0.03, 0.34, body) * smoothstep(0.95, 0.52, body);
   float skyAmt = fringe * (0.18 + nearSun * 0.70);
@@ -1996,14 +2024,14 @@ vec3 mIridescence(vec2 uv, float t, float flow, float dens, float body,
   float below = smoothstep(0.0, 0.035, dep);
   float z = 1.0 / (dep + 0.11);
   vec2 gp = vec2(uv.x * z * 0.60, z * 0.75);
-  float pfilm = fbm(gp * 1.5 + vec2(flow * 0.08, t * 0.02)) * 5.5
-              + fbm(gp * 4.2 + 9.0) * 2.4;
+  float pfilm = fbm(gp * 1.5 + vec2(flow * 0.08, t * 0.02)) * 2.4
+              + fbm(gp * 4.2 + 9.0) * 1.1;
   // Not all of it is wet, and the film sits in the standing water.
   float wet = smoothstep(0.44, 0.68, fbm(gp * 0.85 + 21.0)) * below;
   // Foreshortened out near the horizon, like every other ground texture: the
   // swirls fall below resolving distance long before the puddle does.
   wet *= smoothstep(0.0, 0.09, dep);
-  float pudAmt = wet * (0.30 + nearSun * 0.45);
+  float pudAmt = wet * (0.18 + nearSun * 0.30);
 
   // The register tilts which orders are showing — playing higher slides the
   // whole film thinner, so the colour sequence walks. It is the one thing here
@@ -3227,11 +3255,15 @@ void main() {
     trunks = mColumns(uv, u_t, u_flow, u_bark, ctint, clit) * W_columns;
     trunkTint = ctint;
     trunkLit = clit;
-    mass += trunks * 0.78;
+    // A wood with light in it wants LIGHTER trunks. The mass is what makes a
+    // trunk opaque, and at a flat 0.78 the new discrete trunks came out as
+    // near-black bands across a mood whose whole subject is sunlight. Only the
+    // mood that says its trunks are the subject gets them at full weight.
+    mass += trunks * mix(0.56, 0.80, u_bark);
     // Round, not flat: the lit flank climbs the ramp and the shadowed one adds
     // to the mass. Small on purpose — a trunk is a dark shape in a mist, and
     // this is the difference between a cut-out and a cylinder, not a spotlight.
-    lift += max(clit, 0.0) * W_columns * 0.17;
+    lift += max(clit, 0.0) * W_columns * 0.26;
     mass += max(-clit, 0.0) * W_columns * 0.13;
   }
   float skyward = 0.0; // where snow can lie, filled in by crags or ridge
