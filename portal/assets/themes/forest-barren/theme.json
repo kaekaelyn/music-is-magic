@@ -16,13 +16,13 @@
     "glint": 0,
     "canopy": 0,
     "slant": 0,
-    "base": 0.82,
+    "base": 0.68,
     "drift": 0.3,
     "travel": 0.6,
     "travelX": 0.3,
     "travelY": 0,
     "angular": 1,
-    "bark": 0.62
+    "bark": 0.8
   },
   "mappings": {
     "warpBass": 0.5,

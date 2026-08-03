@@ -230,17 +230,27 @@ float mRays(vec2 uv, float t, float flow, float drive, float kick, float pitch,
 // only a theme that sets params.bark spends it (see main), because a stand of
 // individually coloured trunks is the whole ask for barren and would be noise
 // in a wood that already has light in it.
-float mColumns(vec2 uv, float t, float flow, out float tint, out float lit) {
-  float xn = uv.x * 2.2 + uv.y * 0.14 + t * 0.014 + flow * 0.55;
+//
+// A MOOD WHOSE SUBJECT IS THE TRUNKS WANTS MORE OF THEM. At 2.2 the field puts
+// about four masses across the aperture, so a single "trunk" is a third of the
+// frame wide — which passes as a dim vertical mass in a wood full of light and
+// mist, and reads as a wall the moment anything picks it out in its own colour.
+// The knob that already says "the trunks are the subject here" is bark, so it
+// carries the frequency too: every other wood is untouched at 0.
+float mColumns(vec2 uv, float t, float flow, float bark,
+               out float tint, out float lit) {
+  float fx = mix(2.2, 5.6, bark);
+  float xn = uv.x * fx + uv.y * 0.14 + t * 0.014 + flow * 0.55;
   float vn = fbm(vec2(xn, 4.7));
   float near = smoothstep(0.47, 0.56, vn);
-  float vl = fbm(vec2(xn - 0.16, 4.7));
+  float vl = fbm(vec2(xn - 0.16 * mix(1.0, 2.2, bark), 4.7));
   // Positive on the left flank (where the mass is still rising with x) and
   // negative on the right — the light in this engine comes from the upper left,
   // as mRays and mCrags both already assume.
   lit = clamp((vn - vl) * 5.5, -1.0, 1.0) * near;
   float far = smoothstep(0.44, 0.58,
-      fbm(vec2(uv.x * 3.6 + uv.y * 0.1 + t * 0.01 + flow * 0.22, 9.3))) * 0.55;
+      fbm(vec2(uv.x * mix(3.6, 8.4, bark) + uv.y * 0.1 + t * 0.01 + flow * 0.22,
+               9.3))) * 0.55;
   tint = fbm(vec2(xn * 0.40, 27.0));
   return max(near, far);
 }
@@ -1019,7 +1029,13 @@ float mCrystals(vec2 uv, vec2 vp, float t, float selClock, vec2 lightDir,
       // it is the faces that happen to be turned toward the lamp. A flat
       // ambient made every spear a bright slab pasted over the stone, which
       // is the opposite of being revealed by a light.
-      float body = 0.02 + 0.15 * lam * lam;
+      // A DIFFUSE TERM, not just a glint. With the depth test in place the
+      // nearest spear owns its pixels outright, so at an ambient of 0.02 an
+      // unlit face is simply absent and a cluster reads as folded paper: bright
+      // rims around holes. A prism inside the lamp's pool is a solid with a lit
+      // side and a dim side, and it needs a body for the depth ordering to be
+      // ordering anything.
+      float body = 0.05 + 0.26 * lam + 0.16 * lam * lam;
 
       // FULLER ILLUMINATION IN THE HIGH REGISTER. drive is the treble already,
       // but only as a widening term on a floor that gave the same reveal to the
@@ -1433,7 +1449,10 @@ float mPetals(vec2 uv, float t, float w, float leaf, float drive, float kick,
       vec2 q = vec2(ds.x * cs - ds.y * sn, ds.x * sn + ds.y * cs) / sz;
       // Long axis, then the roll narrowing it.
       q.x *= mix(2.0, 2.9, leaf);
-      q.x /= 0.30 + abs(tumble) * 0.70;
+      // The roll narrows it, but never to a sliver. At a floor of 0.30 the
+      // tumble multiplied the aspect out to nearly ten to one and a leaf spent
+      // much of its time as a needle — which is a shape, but not this one.
+      q.x /= 0.44 + abs(tumble) * 0.56;
       float rib;
       float hit = on * moteShape(q, leaf, rib) * (1.0 - rib * 0.5)
                 * (0.62 + fi * 0.19);
@@ -1721,21 +1740,36 @@ vec3 mRainbow(vec2 uv, float t, float drive, float kick, float pitch,
   float ridge = 1.0 - abs(acrossFold);
   float r2 = ridge * ridge;
   float fil = r2 * r2 * ridge;                 // thin — pow(ridge, 5)
-  // It happens in patches. Sunlight through rain is not evenly bright across a
-  // sky, and a thing that is always on everywhere is not playing.
-  fil *= smoothstep(0.34, 0.70,
+  // It happens in PATCHES, and the gate has to be tight or the web covers the
+  // whole sky at once — which is a luminous net rather than light being thrown
+  // about, and no more playful than the arc it replaced.
+  fil *= smoothstep(0.42, 0.78,
            fbm(uv * 1.1 + vec2(-t * 0.07, t * 0.05) + 31.0));
   // Dispersion across the filament. The visible width of a fifth-power ridge is
   // about |acrossFold| < 0.37, so 1.35 spreads the full spectrum over exactly
   // the part that is lit; bright playing walks the colours along it.
   float k = clamp(acrossFold * 1.35 + 0.5 + (pitch - 0.45) * 0.4, 0.0, 1.0);
-  vec3 col = bowSpectrum(k) * fil;
+  // A WHITE CORE WITH SPECTRAL FRINGES, which is what dispersion actually looks
+  // like and what the first cut got backwards. A filament is brightest at its
+  // centre and the spectrum is sampled by distance FROM that centre, so the
+  // brightest part of every filament was the middle of the spectrum and the
+  // whole web came out green. Light that has been split is white where it is
+  // dense and coloured at its edges; fringed that way it reads as refraction
+  // rather than as glowing lichen.
+  vec3 col = mix(vec3(1.0, 0.97, 0.92), bowSpectrum(k),
+                 smoothstep(0.04, 0.26, abs(acrossFold))) * fil;
   float total = fil;
 
   // The drops. Sheared by the rain's own slant so a flash lies along the fall,
   // elongated, and carrying the spectrum down its length — a lens, not a bead.
+  // Falling at the rain's own pace, not drifting. mDrips advances its lanes at
+  // roughly t * 2.9 over a 0.85-unit phase, which is about 3.4 uv per unit of
+  // clock; at 15 cells to the uv this lattice needs ~40 to keep step. Left at
+  // 2.6 the flashes crawled downward at a seventeenth of the speed of the water
+  // they are supposed to be caught in, which is the difference between light on
+  // the rain and glitter hanging in front of it.
   vec2 gp = vec2(uv.x + uv.y * slant, uv.y) * vec2(27.0, 15.0)
-          + vec2(t * 0.35, -t * 2.6);
+          + vec2(t * 0.35, -t * 40.0);
   vec2 gi = floor(gp);
   vec2 gf = fract(gp) - hash2(gi);
   float gl = step(0.90, hash(gi * 1.37))
@@ -1746,7 +1780,10 @@ vec3 mRainbow(vec2 uv, float t, float drive, float kick, float pitch,
 
   // A low floor rather than 0.5: it should be a thing that happens, not a
   // thing that is there.
-  amt = total * (0.20 + drive * 1.10 + kick * 0.70);
+  // Between the two cuts that were rendered: at 0.20/1.10 the web covered the
+  // whole sky and read as glowing lichen; at 0.14/0.85 with the tight patch gate
+  // it had almost nothing left. It has to be a thing that HAPPENS.
+  amt = total * (0.17 + drive * 1.05 + kick * 0.75);
   return col;
 }
 
@@ -2907,7 +2944,7 @@ void main() {
   }
   if (W_columns > 0.0) {
     float ctint, clit;
-    trunks = mColumns(uv, u_t, u_flow, ctint, clit) * W_columns;
+    trunks = mColumns(uv, u_t, u_flow, u_bark, ctint, clit) * W_columns;
     trunkTint = ctint;
     trunkLit = clit;
     mass += trunks * 0.78;
@@ -3466,9 +3503,14 @@ void main() {
   // leaves in it does not want its trunks picked out — there the columns are
   // silhouettes and should stay that way.
   if (u_bark > 0.0) {
-    vec3 bone = vec3(0.84, 0.83, 0.80);
-    vec3 wood = vec3(0.52, 0.42, 0.33);
-    vec3 bark = mix(bone, wood, smoothstep(0.34, 0.66, trunkTint));
+    // Warm enough to SEE. Pale bark against a pale mist is the mood's whole
+    // difficulty: at bone 0.84 / wood 0.52 both ends sat inside the range the
+    // fog was already occupying and the trunks vanished into it. The brown end
+    // has to go down and warm — still dusty and unsaturated, still "pale, pale
+    // brown", but a step away from the grey rather than a shade of it.
+    vec3 bone = vec3(0.80, 0.78, 0.73);
+    vec3 wood = vec3(0.44, 0.33, 0.24);
+    vec3 bark = mix(bone, wood, smoothstep(0.30, 0.70, trunkTint));
     // Shaded by the same cylinder term the mass uses, so the colour lies on a
     // round surface instead of filling a flat cut-out.
     bark *= 0.60 + 0.55 * (0.5 + trunkLit * 0.5);

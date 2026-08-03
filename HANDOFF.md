@@ -160,13 +160,23 @@ available in `portal/js/viz.js`:
   from it the flock washed out to a smudge at one size while looking right at
   another.
 - **Cost, measured** (`npm run perf`, software rendering — only the ratios
-  mean anything). It was the dearest mood in the set, and the reason was not the
-  trace but the GRADIENT: `fkField` was evaluated three times per fragment, twice
-  of them purely to take a forward difference. It now uses `dFdx`/`dFdy`, which
-  read the neighbouring fragments' already-computed values out of the quad, so
-  two of the three traces are gone. The `fkNear` early-out still does the rest of
-  the work — most of the frame is open sky and never traces at all. See the trap
-  in §3 about derivatives and early returns.
+  mean anything). It was the dearest mood in the set at **1.53x** the cheapest,
+  and the reason was not the trace but the GRADIENT: `fkField` was evaluated
+  three times per fragment, twice of them purely to take a forward difference.
+  It now uses `dFdx`/`dFdy`, which read the neighbouring fragments'
+  already-computed values out of the quad, so two of the three traces are gone.
+
+  **After: 1.13x, and it is no longer the dearest mood — cave is, at 1.39x.**
+  The `fkNear` early-out still does the rest of the work; most of the frame is
+  open sky and never traces at all. See the trap in §3 about derivatives and
+  early returns.
+
+  Two things moved the other way in the same measurement and are worth watching:
+  forest-blooming went 1.25x -> 1.31x and forest-autumn 1.18x -> 1.30x, which is
+  the petals rewrite (a per-mote rotation costs two transcendentals, and
+  `mColumns` gained an fbm for its cylinder shading). Both are still well under
+  cave. If the forest ever needs the budget back, the mote's rotation is the
+  place to look — a cheaper turn than sin/cos would buy most of it.
 - **Known limitation, not yet solved:** at the *website's* aperture (~180px
   tall) the flock is faint. The specks are sized in the body's frame, so below
   a certain resolution they fall under a pixel and the thinning threshold
@@ -334,11 +344,19 @@ faults; the commit message carries the reasoning. Summary of what changed:
 - cave: crystals resolved by DEPTH, and lit harder in the high register
 - desert: ripples fenced by `skyMask` and confined to the near range
 
-**Not verified by the owner's eye.** Renders were taken of fire, volcano, ice,
-night and desert and used to correct three faults the first cut introduced (a
-blown-out flame base, a triangular net instead of frost ferns, a summit of
-white icing on the volcano). Everything else is verified by test and by
-reasoning only — see §4 on what that distinction is worth here.
+**Not verified by the owner's eye.** Every mood that changed was rendered
+(`npm run field`) and the renders caught SEVEN faults in the first cut of these
+fixes — all of them failures of the fix rather than of the diagnosis, which is
+a shape worth expecting. They are listed in `MOODS.md` under "What the renders
+caught". Everything is verified by render and by test; nothing is verified by
+the owner — see §4 on what that distinction is worth here.
+
+`tools/field.mjs` gained a `--fps` flag in the same pass. Several moods only
+become themselves after a while (frost growing, the cave's lamp swinging), and
+reaching 30s of mood at 60fps is 1800 full-size draws on a renderer with no GPU
+— minutes per mood. Every clock in the engine integrates dt properly, so
+`--fps 15` lands in the same state for a quarter of the work. That is the
+difference between two render iterations in a session and eight.
 
 #### Open, in the order it probably wants doing
 

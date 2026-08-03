@@ -365,7 +365,7 @@ export const BUILTIN = {
   // is a warmth found among the white rather than a recolour of it.
   'forest-barren': {
     palette: ['#171a1f', '#3d3f44', '#71757c', '#a8adb5', '#e9edf2'],
-    params: { scale: 1.7, speed: 0.16, warp: 1.0, sparkle: 0.4, gloss: 0.1, base: 0.82, drift: 0.3, travel: 0.6, travelX: 0.3, bark: 0.62 },
+    params: { scale: 1.7, speed: 0.16, warp: 1.0, sparkle: 0.4, gloss: 0.1, base: 0.68, drift: 0.3, travel: 0.6, travelX: 0.3, bark: 0.8 },
     motifs: { columns: 0.95, rays: 0.5, petals: 0 },
     mappings: { warpBass: 0.5, sparkleTreble: 0.9, pulseFlux: 1.0, shiftCentroid: 0.25 },
   },

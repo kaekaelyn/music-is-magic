@@ -200,10 +200,48 @@ case was the answer a constant. Recorded by what was actually wrong.
   near cluster's invisible crust would black out a bright spear behind it.)
 - **the flock cost three traces per fragment to draw one,** purely to obtain a
   forward difference for its gradient. `dFdx`/`dFdy` read the neighbouring
-  fragments' already-computed values out of the quad instead. Note the trap: a
-  hardware derivative in non-uniform control flow reads a register the
-  early-returning lane never wrote, so the early-out had to become an
-  initialise-then-gate.
+  fragments' already-computed values out of the quad instead. Measured: **1.53x
+  the cheapest mood before, 1.13x after**, and it is no longer the dearest —
+  cave is. Note the trap: a hardware derivative in non-uniform control flow reads
+  a register the early-returning lane never wrote, so the early-out had to become
+  an initialise-then-gate.
+
+### What the renders caught, after the fifth pass was written
+
+Seven faults that only appeared once each mood was photographed. Recorded
+separately because they are all failures of the FIRST attempt at a fix rather
+than of the thing being fixed, and that is a distinct and repeating shape.
+
+- **fire**: raising the seat put the white heart in frame. `core` was reached
+  over the bottom quarter of the flame's height, which was off screen before and
+  became the bottom fifth of the PICTURE after — the belly arrived as a blown
+  lump. A gesture keyed to a coordinate has to move when the coordinate does.
+- **volcano**: the crater pool took the white-hot step across its whole surface
+  and the mountain wore a pale band, which is icing on a cake. The heat rides
+  the churn now, so a pool is orange with hotter cracks in it.
+- **ice, twice**. Three habits maxed together draw three lattices over each
+  other, which is a triangular NET, not frost — a slow field gives each region
+  one habit. And barbs valued well under spines leave the growth front hitting
+  the floor of its ramp while the barbs are a sixth of the way out, which draws
+  bare spines: straight scratches on glass. A barb's value has to sit JUST under
+  its spine's.
+- **sunshower**: the filament is brightest at its centre and the spectrum was
+  sampled by distance FROM that centre, so the brightest part of every filament
+  was the middle of the spectrum and the whole web came out green — glowing
+  lichen over the sky. Split light is white where it is dense and coloured at
+  its edges. The patch gate then had to be tuned twice, because the first
+  correction took nearly all of it away.
+- **cave**: with the depth test in place the nearest spear owns its pixels
+  outright, so an ambient of 0.02 on an unlit face means the face is simply
+  absent — clusters read as folded paper, bright rims around holes. Depth
+  ordering needs something to order: the prism wants a diffuse body.
+- **the leaves**: the tumble multiplies the aspect, so a 2.9:1 leaf at a tumble
+  floor of 0.30 spends much of its time near ten to one. That is a needle.
+- **barren**: the bark colour was invisible because `mColumns` puts about four
+  masses across the aperture — a "trunk" a third of the frame wide. It passes as
+  a dim vertical mass in a wood full of mist and reads as a WALL the moment
+  anything picks it out in its own colour. The frequency rides `bark` now, so
+  only the mood whose subject is the trunks gets more of them.
 
 ## Fourth pass — 2026-08-03, three notes from stills
 
