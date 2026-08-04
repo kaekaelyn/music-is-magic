@@ -2104,3 +2104,77 @@ a third of its range at full effort. Now 120–4000 Hz.
   birds, and a zoom is the one motion in this mood with no bird in it.** The
   startle moved into density: the silhouette holds and the mass packs and darkens.
 
+## Ninth pass — 2026-08-04, extended testing, and one law with a hole in it
+
+Nine notes. The headline is that **§13 had a hole nobody had looked through**:
+the rule against multiplying a clock by a live value has always been quoted
+about audio features, and a morphing THEME PARAMETER is a live value too — one
+that travels its whole range during a crossfade, where a feature only wanders.
+
+- **"Switching to these, even from each other, sometimes causes the rain to fall
+  briefly upward."** `mDrips` set its fall rate to `mix(3.2, 2.9, W_drips)` and
+  multiplied `t` by it. `t` is tens of units by the time anyone changes mood, so
+  a swing of 0.09 in the rate slides the accumulated phase by three whole
+  cycles — down if the weight rises, UP if it falls, and sunshower's 0.66 sits
+  below rain's 0.95. The owner's guess that it was the moods "with other motes"
+  was right too: `mPetals` had the same fault three times over, keyed on `leaf`,
+  which is exactly what a blooming-to-autumn morph sweeps. The lane count had it
+  as well, plus a second artifact of its own — `col` seeds every lane's
+  identity, so morphing the count slid the lane boundaries across the screen
+  while re-rolling what was inside them.
+- **The lid line, long before the lids meet.** The sealed seam is a curve
+  bulging to `hFull * 0.18` and it was drawn from `open < 0.4`. Between those
+  two numbers it is stroked straight across an aperture that is still open, over
+  a visualization that is still playing. Nothing was subtle about it; the
+  threshold had simply been picked by eye next to a constraint that could have
+  been computed.
+- **"Forest looks really weird now. Like...grass blades in Honey I Shrunk the
+  Kids?"** My regression, and worse than it looked. Fourteen columns across the
+  far layer at ten to twenty-five pixels wide, snaking over more than their own
+  width on the way up, tapering a quarter away — and a mist term whose ramp
+  reached ZERO inside the frame, so far trunks were erased rather than hazed.
+  "The tops of some of these non-trees in the back taper off into nothing (or
+  are shrouded in mist, impossible to tell which)" — neither; they were being
+  deleted. Then the fix over-corrected into a palisade with no gaps at all, and
+  the render caught that too. The quantity that matters is COVERAGE: about a
+  third of the frame per layer, and count and width traded to hold it.
+- **"The petals STILL look rigid... Do you know how petals look and move?"**
+  Fair, and no, evidently not: they were a propeller. `t * rate` is constant
+  angular velocity. A petal glides on one face, stalls, tips over and glides
+  back, so its attitude dwells at two values and passes quickly between them —
+  `sign(sin) * |sin|^0.4`. The glide, the stall-and-drop and the edge-on
+  foreshortening are all derived from that one attitude now; before, they were
+  three clocks running at similar rates, which is what a mechanism looks like.
+- **Cave, and the owner's diagnosis beat mine.** "Some of the crystals are
+  really close to each other and it makes no sense that one cluster would be
+  illuminated while another one that literally overlaps it would be invisible.
+  So the effect is not one of revealing, but of poofing in and out." Exactly:
+  brightness was a function of which slot a cluster held in a round-robin, and a
+  slot is not a place. The lamp is a position now; it wanders the passage and
+  lights whatever is near it, so overlapping clusters cannot disagree. The
+  register sets its reach, which gives "dank cavern vs. crystal grotto" for one
+  radius.
+- **"I said I wanted Volcano to have 'more of' a peak, not to make it super
+  pointy!"** `pow(flank, 0.88)` — and the derivative of `x^p` at zero is
+  infinite for every p below one, so the summit was a cusp BY CONSTRUCTION and
+  no exponent in that family could have helped. A hyperbola has straight flanks
+  and a blunt top and one constant that means the thing being judged. The narrow
+  crater then rendered as a black rectangle standing on the peak, which is "a
+  chunk is off the top" arriving for a third time from the opposite direction;
+  a peak does not need a notch, it needs an incandescent top.
+- **"Fire kind of looks like a tail now?"** Two causes. The travelling wave's
+  amplitude went as h², peaking exactly where the profile had drawn the flame
+  down to a thread — a thread displaced hard sideways is a whip. And the body
+  was about five times as tall as it was broad; nothing that thin is a fire
+  whatever its tip does.
+- **The wisps.** Told twice that they were there, the owner said: "I do see some
+  faintly glowing blobs that mostly blend in with the green fog, but surely
+  that's not it?" It was. A wide soft halo with a barely brighter middle is
+  indistinguishable from lit mist, and half of them were green in a green wood.
+  A light needs a small fierce CORE, and a colour that is not the colour of the
+  room.
+- **The mock panel said "auto — sliders idle"**, which was read as "auto sweeps
+  within the slider settings" and cost a whole testing session's worth of false
+  reports. That is a label failing. It now names what is in control and shows
+  the register the sweep is actually producing.
+

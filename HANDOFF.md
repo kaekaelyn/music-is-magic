@@ -632,6 +632,37 @@ thing that is still true and is the likeliest remaining cause.
    hardware or software rendering, the second says whether the GPU process is
    actually what died.
 
+#### 2026-08-04, ninth pass — the §13 hole, and a forest overshot twice
+
+`MOODS.md` "Ninth pass" carries the reasoning. Two things a fresh session
+should take from it before touching anything:
+
+1. **§13 applies to morphing theme parameters, and that had never been checked.**
+   Everyone reads the rule as being about audio features. `mDrips` was computing
+   `t * mix(3.2, 2.9, W_drips)`, `mPetals` was doing it three times over with
+   `leaf`, and the symptom was rain falling upward on a mood change. A weight
+   moves its whole range in a crossfade where a feature only wanders, so this
+   variant is WORSE than the one the rule was written for. If you add anything
+   that multiplies a clock, the multiplier must be a constant or a per-cell
+   hash. Grep for `t *` and `flow *` before believing a motif is lawful.
+2. **The forest was overshot in both directions in one session** — fourteen thin
+   trunks (a reed bed) then nine fat ones with no gaps (a palisade) — because
+   each pass adjusted one number. The quantity to hold is COVERAGE, roughly a
+   third of the frame per layer over three layers; count and width trade against
+   each other underneath it. It is now at the third setting and has been
+   rendered but not yet seen by the owner, so it is the first thing to check.
+
+**Unverified at the time of writing:** the retuned trunks, the volcano's summit
+(the notch was removed after the render showed it as a black rectangle standing
+on the peak), fire's width, and the tightened wisps. All four were changed after
+the last render I was able to read, so the next session should render
+`forest,forest-blooming,forest-barren,volcano,fire` first and look before doing
+anything else.
+
+**Still owed to the owner:** a still of a wisp with the slider settings to
+reproduce it. They asked directly — "Can you show me a still of one and tell me
+how I should set the sliders to see it?" — and it has not been delivered.
+
 ---
 
 ## 4. How this owner works, and what it is worth

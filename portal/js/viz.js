@@ -260,7 +260,7 @@ float mRays(vec2 uv, float t, float flow, float drive, float kick, float pitch,
 // alone), because they cost a segment distance each and a wood with leaves on
 // it hides them anyway. They are the answer to the other half of the owner's
 // note — a bare, dry wood is bare BRANCHES, not merely pale trunks.
-float mColumns(vec2 uv, float t, float flow, float bark,
+float mColumns(vec2 uv, float t, float flow, float bark, float solid,
                out float tint, out float lit) {
   tint = 0.5;
   lit = 0.0;
@@ -284,7 +284,15 @@ float mColumns(vec2 uv, float t, float flow, float bark,
     // the outline of any one of them, it is the RATIO: a trunk is a
     // substantial column with air around it, so the count has to come down
     // before the width can go up. Nine across the far stand, four in front.
-    float fx = (4.6 - fl * 1.3) * mix(0.92, 1.12, bark);
+    // ...AND NOT SO FAR THE OTHER WAY. Nine across at a half-width of up to
+    // 0.29 of a cell put roughly seventy per cent of the frame under trunk once
+    // three layers were stacked, and the render came back as corduroy: barren
+    // was a wall of fat columns with no gaps at all, blooming a curtain. The
+    // first version was a reed bed and this was a palisade; what a wood looks
+    // like is trunks WITH AIR BETWEEN THEM, which is a statement about coverage
+    // rather than about either number on its own. Fourteen across the far stand
+    // at a quarter to a half of a cell lands at about a third covered per layer.
+    float fx = (6.2 - fl * 1.9) * mix(0.90, 1.15, bark);
     float xs = uv.x * fx + fl * 17.3 + t * 0.010 * (1.0 + fl)
              + flow * (0.10 + fl * 0.26);
     float cell = floor(xs);
@@ -297,7 +305,7 @@ float mColumns(vec2 uv, float t, float flow, float bark,
       vec2 h2 = ch2(vec2(ci + 0.5, fl * 7.0 + 4.0));
 
       float cx = (h1.x - 0.5) * 0.46;           // where it stands in its cell
-      float wid = 0.14 + h1.y * 0.15;           // half-width, in cell units
+      float wid = 0.105 + h1.y * 0.125;         // half-width, in cell units
       // LESS WANDER. A trunk leans, and it is not perfectly straight, but at
       // 0.40 of lean plus 0.24 of noise these snaked across more than their own
       // width on the way up — and a thin thing that snakes is a blade of grass.
@@ -323,7 +331,15 @@ float mColumns(vec2 uv, float t, float flow, float bark,
       // at a low motif weight reads as a hard-edged vertical band laid over the
       // weather — which is what the discrete trunks did to rain, whose columns
       // are meant to be a suggestion of a landscape behind the downpour.
-      float cover = 1.0 - smoothstep(hw * mix(0.14, 0.78, bark), hw, abs(d));
+      // EDGE HARDNESS FOLLOWS THE MOTIF'S WEIGHT, not bark. The soft edge was
+      // added for rain, whose columns are a suggestion of a landscape behind
+      // the downpour — and rain has bark 0, so every wood inherited it and got
+      // trunks with a gradient running most of their own width. Wide plus very
+      // soft is a smudge, and three layers of smudge is fog with stripes in it.
+      // The weight is the right discriminator: rain asks for 0.15 of this motif
+      // and a wood asks for 0.85, which is exactly the difference between a
+      // hint and a subject.
+      float cover = 1.0 - smoothstep(hw * mix(0.16, 0.60, solid), hw, abs(d));
       // Mist THINS the far stand; it does not delete its top half.
       //
       // This was smoothstep(0.95, 0.50, hgt) on the farthest layer, which
@@ -337,6 +353,11 @@ float mColumns(vec2 uv, float t, float flow, float bark,
       // shape all the way up and simply stands paler in the haze.
       cover *= mix(mix(1.0, 0.46, smoothstep(0.35, 1.0, hgt)), 1.0,
                    min(fl * 0.5, 1.0));
+      // AERIAL PERSPECTIVE BETWEEN THE LAYERS, which is what was missing when
+      // all three stacked into one wall. Three ranks of trunks at the same
+      // strength is three ranks with no depth between them; the far stand has
+      // to sit back, and standing back means less contrast with the air.
+      cover *= 0.44 + 0.28 * fl;
       // The normal across the cylinder: -1 at the left silhouette, +1 at the
       // right. Light comes from the upper left, as mRays and mCrags assume.
       float shade = clamp(-d / hw, -1.0, 1.0) * cover;
@@ -2148,7 +2169,13 @@ float mFlame(vec2 uv, float t, float flow, float drive, float kick, out float co
   // Fuller as well as lower. With the belly back in shot the flame is being
   // judged on its width for the first time, and at 0.14 it was a taper rather
   // than a body.
-  float wid = (0.17 + drive * 0.06) * taper + 1e-4;
+  // WIDER, because the render still reads as "a tail... with a long whip at
+  // the end" even with the whip pulled in. At 0.17 the flame is about five
+  // times as tall as it is broad, and nothing that thin is a fire — a ribbon
+  // that leans is a tail whatever its tip does. A campfire flame is nearer two
+  // to three to one through the body, and at that proportion the same wander
+  // reads as the flame leaning rather than as something whipping.
+  float wid = (0.30 + drive * 0.10) * taper + 1e-4;
   // THE DANCE.
   //
   // This was lean = (slow - 0.5) * 0.20 * h: one displacement scaled by height,
@@ -2230,7 +2257,7 @@ float mFlame(vec2 uv, float t, float flow, float drive, float kick, out float co
   // it fades in and lets the field cut the tip into separate tongues. That is
   // the other half of the tail: a flame that stays joined all the way to a
   // point has to end in something, and a point is a tail. Real ones shed.
-  body *= mix(1.0, smoothstep(0.24, 0.66, fast), smoothstep(0.60, 1.0, h));
+  body *= mix(1.0, smoothstep(0.20, 0.62, fast), smoothstep(0.48, 1.0, h));
   // The white heart, low and small, and no longer the whole base.
   //
   // It has to move down with the seat. At smoothstep(0.34, 0.10, h) the heart
@@ -2797,7 +2824,17 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   // crater here is that the summit is MOLTEN, not that it is scooped: the
   // profile stays nearly flat and the surface across it is the pool. This much
   // dip is a lip of stone for the light to catch, and nothing more.
-  coneH -= crater * 0.018;
+  // NO NOTCH. With the summit narrowed to a proper vent this dip stopped being
+  // "a lip of stone for the light to catch" and became a rectangular bite out
+  // of the peak: crater now runs from 0.035 to 0.105, so its shoulders are
+  // nearly vertical, and the strip it lowers is too narrow for the pool to
+  // fill and too steep to read as anything but damage. The render shows it as
+  // a black rectangle standing on the summit — the third incarnation of "a
+  // chunk is off the top", arrived at from the opposite direction.
+  //
+  // A peak does not need a notch to be a crater. What says crater is that the
+  // top is INCANDESCENT, which the vent below already draws.
+  coneH -= crater * 0.0;
   // The cone stands on a plain. Without one its flanks run off the bottom
   // corners of the frame, and at any aperture wider than the one this was
   // tuned at you see SKY underneath the mountain — the aperture's aspect
@@ -2829,8 +2866,11 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   // shallow molten cap lying across the flat summit. Deep is wrong — at 0.34
   // it drew a slab a third of the frame tall down the middle of the mountain,
   // because depth below the local skyline is not depth into a bowl.
+  // Deeper, so the vent is a molten summit rather than a sliver with unlit
+  // rock under it — which is what left a dark gap between the glow and the
+  // flanks.
   vent = crater * smoothstep(-0.004, 0.014, down)
-       * (1.0 - smoothstep(0.03, 0.075, down));
+       * (1.0 - smoothstep(0.06, 0.155, down));
   return 1.0 - sky;
 }
 
@@ -3342,10 +3382,15 @@ vec3 mWisps(vec2 uv, float t, float w, float flow, float drive) {
       // mood already has plenty of. What separates a light from a glow is a
       // CORE: something small and much brighter than its surroundings, with the
       // halo as evidence of it rather than as the whole object.
+      // SMALLER AS WELL AS BRIGHTER. A halo 0.34 of a cell across is 57 pixels
+      // of soft glow at broadcast size, which is the size of a patch of lit
+      // mist and reads as one however bright its middle is. A lantern is small
+      // and fierce; the halo is evidence of it, not the object. Two thirds the
+      // reach, and most of the light now in the middle third of it.
       float body = on * breath
-                 * (smoothstep(0.34, 0.0, r) * 0.34
-                  + smoothstep(0.13, 0.0, r) * 0.55
-                  + smoothstep(0.045, 0.0, r) * 0.85);
+                 * (smoothstep(0.22, 0.0, r) * 0.26
+                  + smoothstep(0.085, 0.0, r) * 0.62
+                  + smoothstep(0.030, 0.0, r) * 1.05);
       // Each wisp keeps its own colour, and they are living colours rather
       // than palette whites: cold green through to a rarer blue-cyan.
       // AND IT HAS TO BE A DIFFERENT COLOUR FROM THE ROOM. Half of these were
@@ -3919,14 +3964,18 @@ void main() {
   }
   if (W_columns > 0.0) {
     float ctint, clit;
-    trunks = mColumns(uv, u_t, u_flow, u_bark, ctint, clit) * W_columns;
+    trunks = mColumns(uv, u_t, u_flow, u_bark, W_columns, ctint, clit) * W_columns;
     trunkTint = ctint;
     trunkLit = clit;
     // A wood with light in it wants LIGHTER trunks. The mass is what makes a
     // trunk opaque, and at a flat 0.78 the new discrete trunks came out as
     // near-black bands across a mood whose whole subject is sunlight. Only the
     // mood that says its trunks are the subject gets them at full weight.
-    mass += trunks * mix(0.56, 0.80, u_bark);
+    // Lighter for a wood with light in it: the trunks cover far more of the
+    // frame than they did when they were blades, so the same opacity now takes
+    // most of the picture to black. A trunk in a sunlit wood is a dark shape,
+    // not a hole.
+    mass += trunks * mix(0.40, 0.78, u_bark);
     // Round, not flat: the lit flank climbs the ramp and the shadowed one adds
     // to the mass. Small on purpose — a trunk is a dark shape in a mist, and
     // this is the difference between a cut-out and a cylinder, not a spotlight.

@@ -1818,6 +1818,48 @@ deep ("let's just go full on crafting our own visualization engine"):
   so the top third of the scale was unreachable and every gate placed against
   observed values was calibrated to a range that did not exist. Fix the scale
   first, then place thresholds — the reverse encodes the error in four places.
+- **§13 covers morphing THEME PARAMETERS, not just audio features — and they
+  travel further.** The rule is always quoted about live features, so nobody
+  looked at `mix(3.2, 2.9, W_drips)` multiplying `t` in the rain. A weight lerps
+  by its full range during a crossfade where a feature wanders a little, and `t`
+  is tens of units by the time anyone changes mood, so the rescaled phase jumps
+  by whole cycles — forward if the weight rises and BACKWARD if it falls. Rain
+  fell upward going to sunshower for exactly this reason, and `mPetals` had the
+  same fault three times keyed on `leaf`. Anything multiplying a clock must be a
+  constant or a per-cell hash. Nothing else.
+- **A threshold that is constrained by geometry must be derived from that
+  geometry.** The eye's sealed seam is a curve bulging to `hFull * 0.18` and it
+  was gated at `open < 0.4`, so for the whole band between it was stroked across
+  an open aperture and over the live visualization. Any number picked by eye
+  that has a hard constraint sitting next to it will eventually be picked wrong;
+  write the constraint down and compute from it.
+- **`pow(x, p)` has infinite slope at the origin for every p below 1.** The
+  volcano's summit was a cusp by construction, and tuning the exponent could
+  only ever trade a cusp (p < 1) for a mesa (p > 1) — no value gives a blunt
+  peak with straight flanks. When no parameter of a family gives the shape you
+  want, change the family: `sqrt(x² + r²)` is asymptotically `|x|` and smoothly
+  rounded within r, and r means the thing being judged ("how broad is the top").
+- **Constant angular velocity is a propeller.** `spin = t * rate` is what every
+  falling mote had, and it is why petals read as rigid through three passes. A
+  fluttering object DWELLS at two glide attitudes and passes quickly between
+  them: `sign(sin) * |sin|^0.4` is that shape for one instruction. Then derive
+  the glide, the stall-and-drop and the foreshortening FROM that attitude —
+  three separate clocks that merely run at similar rates read as a mechanism.
+- **Illumination must be a function of position, never of slot.** The cave lit
+  clusters by which turn they held in a round-robin, so two clusters that
+  overlapped on screen could sit at opposite ends of their windows — the picture
+  asserting that light falls on one and not on the other an inch away. A lamp is
+  a place. Light whatever is near it and overlapping things cannot disagree.
+- **A fade whose ramp ends inside the frame deletes the object.** The far trunks
+  used `smoothstep(0.95, 0.50, hgt)`, which reaches zero at the top of the
+  picture, so they were erased rather than hazed and nobody could tell which.
+  Aerial perspective is a loss of CONTRAST, not of existence: things far away
+  still have edges, they just stand closer in value to the air.
+- **With repeated elements, reason about COVERAGE, not count or width.** Trunks
+  went from fourteen thin ones (a reed bed) to nine fat ones (a palisade with no
+  gaps) because each pass fixed one number. What a wood looks like is a fraction
+  of the frame under trunk — about a third per layer, with three layers — and
+  that quantity is the one to hold fixed while trading the other two.
 - **The aperture must never open past 1.0.** The field is drawn at the fixed
   full aperture box on purpose (D17), so anything beyond it shows the plane's
   edge as a black band.
