@@ -2155,7 +2155,10 @@ float mFlame(vec2 uv, float t, float flow, float drive, float kick, out float co
   // fire came out stubby — a drop is FULL at the bottom and still reaches, and
   // the second number is what governs the reaching. 0.65/1.35 is fuller than
   // the old profile everywhere below the last tenth and matches it at the tip.
-  float taper = mix(pow(1.0 - h, 0.65), pow(1.0 - h, 1.35), h);
+  // The second exponent eased back: at 1.35 the flame is down to a couple of
+  // per cent of its width by nine tenths of its height, and something that fine
+  // has nowhere to shed from — it can only draw out into a filament.
+  float taper = mix(pow(1.0 - h, 0.65), pow(1.0 - h, 1.10), h);
   // Narrower at the seat than the first cut. A wide base that the erosion
   // could not reach came out as a solid bright rectangle sitting on the
   // bottom of the aperture — a box, not a fire.
@@ -2175,7 +2178,7 @@ float mFlame(vec2 uv, float t, float flow, float drive, float kick, out float co
   // that leans is a tail whatever its tip does. A campfire flame is nearer two
   // to three to one through the body, and at that proportion the same wander
   // reads as the flame leaning rather than as something whipping.
-  float wid = (0.30 + drive * 0.10) * taper + 1e-4;
+  float wid = (0.26 + drive * 0.09) * taper + 1e-4;
   // THE DANCE.
   //
   // This was lean = (slow - 0.5) * 0.20 * h: one displacement scaled by height,
@@ -2257,7 +2260,19 @@ float mFlame(vec2 uv, float t, float flow, float drive, float kick, out float co
   // it fades in and lets the field cut the tip into separate tongues. That is
   // the other half of the tail: a flame that stays joined all the way to a
   // point has to end in something, and a point is a tail. Real ones shed.
-  body *= mix(1.0, smoothstep(0.20, 0.62, fast), smoothstep(0.48, 1.0, h));
+  // HARDER, AND STARTING LOWER. At smoothstep(0.20, 0.62) over a field that
+  // mostly sits between 0.25 and 0.75 the tip only ever dimmed; it never came
+  // apart, so it stayed continuous and curled into the thin hook the render
+  // shows. A tongue has to be able to detach outright, which means the
+  // threshold has to sit inside the field's own range rather than under it.
+  body *= mix(1.0, smoothstep(0.36, 0.58, fast), smoothstep(0.42, 0.95, h));
+  // AND IT HAS TO END. The taper narrows the flame toward zero width but never
+  // reaches it inside the frame, so wherever the tear happened to leave the
+  // field high, a single hairline survived all the way out of the top — the
+  // last of the whip, one pixel wide. Tearing cannot fix that on its own: a
+  // filament is what a taper draws by definition. The top of the flame's reach
+  // is where the flame stops, so it fades out there.
+  body *= smoothstep(1.0, 0.84, h);
   // The white heart, low and small, and no longer the whole base.
   //
   // It has to move down with the seat. At smoothstep(0.34, 0.10, h) the heart
@@ -2812,7 +2827,9 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   // SMALL. With a plateau there had to be a wide crater to fill it; with a peak
   // the vent is a notch at the apex, which is what the references show — a
   // point of fierce light at the top of a black cone, not a lit tabletop.
-  crater = 1.0 - smoothstep(0.035, 0.105, ax);
+  // Softer shoulders, so the lit summit has a rounded edge rather than the
+  // vertical sides that read as a cut.
+  crater = 1.0 - smoothstep(0.030, 0.150, ax);
   // BARELY A DIP, and this is the correction that matters. Lowering the
   // profile across the crater does not carve a basin — the silhouette is
   // filled below its own line, so everything the dip removes becomes SKY. The
@@ -2824,17 +2841,20 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   // crater here is that the summit is MOLTEN, not that it is scooped: the
   // profile stays nearly flat and the surface across it is the pool. This much
   // dip is a lip of stone for the light to catch, and nothing more.
-  // NO NOTCH. With the summit narrowed to a proper vent this dip stopped being
-  // "a lip of stone for the light to catch" and became a rectangular bite out
-  // of the peak: crater now runs from 0.035 to 0.105, so its shoulders are
-  // nearly vertical, and the strip it lowers is too narrow for the pool to
-  // fill and too steep to read as anything but damage. The render shows it as
-  // a black rectangle standing on the summit — the third incarnation of "a
-  // chunk is off the top", arrived at from the opposite direction.
+  // NO NOTCH — AND THIS LINE WAS THE "SCOOP" ALL ALONG.
   //
-  // A peak does not need a notch to be a crater. What says crater is that the
-  // top is INCANDESCENT, which the vent below already draws.
-  coneH -= crater * 0.0;
+  // Three passes read the owner's "big scoop out of it" and "it shouldn't just
+  // look like a chunk is off the top" as complaints about the flat summit, and
+  // went after the profile each time. They were complaints about THIS: a dip
+  // cut into the skyline is concave, and the silhouette is filled below its own
+  // line, so everything the dip removes becomes SKY. That is a bite taken out
+  // of the mountain, precisely as described, and no lava painted underneath can
+  // fill it because the dip is above the lava rather than around it.
+  //
+  // Narrowing the crater to a real vent made it worse rather than better: with
+  // shoulders that steep the render came back with a hard black rectangle
+  // standing on the summit. A crater does not need to be a hole in the outline.
+  // What says crater is that the top is INCANDESCENT, which the vent draws.
   // The cone stands on a plain. Without one its flanks run off the bottom
   // corners of the frame, and at any aperture wider than the one this was
   // tuned at you see SKY underneath the mountain — the aperture's aspect
@@ -2869,8 +2889,17 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   // Deeper, so the vent is a molten summit rather than a sliver with unlit
   // rock under it — which is what left a dark gap between the glow and the
   // flanks.
+  // DEEP ENOUGH TO MEET THE FLOWS, and shaped by crater rather than cut off by
+  // a depth. The dark column left at the summit was not the notch (that had
+  // already gone): the overflow term deliberately excludes the middle of the
+  // crater so streams leave from the brim rather than from the centre, and once
+  // the crater narrowed to a real vent that exclusion became a black throat
+  // with the crater's own near-vertical shoulders for edges. So the pool has to
+  // fill the region the overflow will not draw. Multiplying by crater, which
+  // tapers to nothing at the rim, makes the lit region widest on the axis and
+  // narrow at the edges — a rounded incandescent summit instead of a slab.
   vent = crater * smoothstep(-0.004, 0.014, down)
-       * (1.0 - smoothstep(0.06, 0.155, down));
+       * (1.0 - smoothstep(0.10 + crater * 0.16, 0.30 + crater * 0.22, down));
   return 1.0 - sky;
 }
 
@@ -3341,14 +3370,24 @@ vec3 mWisps(vec2 uv, float t, float w, float flow, float drive) {
       vec2 h = hash2(id);
       // Most cells hold nothing. The first pass lit a third of them and they
       // ran together into exactly the green cloud this motif was added to fix.
-      // RARE, BUT NOT THIS RARE. At 0.2 the gate lit two cells of the
-      // thirty-five on screen in forest and ONE in blooming — and since each
-      // also breathes down to a fifth of its brightness and drifts out of frame
-      // on the travel clock, whole minutes could pass with nothing visible. The
-      // owner's note is that they had not spotted one in a long time; counting
-      // the gate says they were not missing them, there were hardly any.
-      // 0.30 puts six or seven in the frame, which is still an event.
-      float on = step(1.0 - 0.30 * w, hash(id * 1.7));
+      // RARE, BUT NOT THIS RARE — and the arithmetic that set this was wrong
+      // twice, so here is how it was finally measured rather than reasoned.
+      //
+      // Forcing on = 1.0 and rendering shows THIRTEEN cells on screen, not the
+      // thirty-five a reimplementation of the hash in JS had predicted. So the
+      // original gate (0.2, a 12% chance) expected 1.6 wisps in frame and the
+      // first correction (0.3, 18%) expected 2.4 — either of which is routinely
+      // zero once the hash clusters, which is exactly what the owner kept
+      // seeing: "I still don't see any wisps, despite your reassurances."
+      //
+      // The motif was never at fault. That same forced render shows the wisps
+      // drawing beautifully — small fierce points of cyan and gold, quite
+      // unlike the mist. There were just almost never any.
+      //
+      // 0.52 puts about four in frame at forest's weight and under two at
+      // blooming's, which is present-but-an-event. Measure the cell count
+      // before setting a probability against it.
+      float on = step(1.0 - 0.52 * w, hash(id * 1.7));
       // Its own slow orbit, its own period. Wisps that breathe together read
       // as a light rig; the whole illusion is that each one is a separate body.
       vec2 c = g + 0.5 + 0.34 * vec2(sin(t * (0.21 + h.x * 0.19) + h.y * 6.28),

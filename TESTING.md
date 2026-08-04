@@ -198,6 +198,7 @@ real art in (M5).
 | `npm run validate` | Every `theme.json` parses, every declared texture exists, the eye manifest is well-formed. Zero dependencies — runs even without Playwright |
 | `npm run smoke` | The website: full ceremony sealed → stirring → open → communing, theme morph, drowse-and-resume, WebGL context loss recovery, reduced motion, control page. **This is your regression guard — if it drops below 34 the website broke** |
 | `npm run smoke:broadcast` | The broadcast build: relay-driven ceremony, auto-commune with no visitor, junk-message rejection, control page → broadcast page end to end, 16:9 scaling, mic-denied fallback |
+| `node zoom.mjs <png> <out> [x y [half]]` | Crop and magnify part of a field render. With no coordinates it finds the most colour-DISTINCT bright pixel rather than the brightest, because every mood has a dominant hue and the small things worth looking at are the ones that depart from it. Written after "it is there, honestly" turned out to be wrong twice about the wisps |
 | `node shader-errors.mjs` | The GLSL actually compiled, and the compile log if it did not. Run this FIRST when a smoke check says `viz renderer selected (none)` — that message is the only thing the suite can tell you, and this prints the error with line numbers |
 
 **If it fails:**

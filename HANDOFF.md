@@ -659,9 +659,16 @@ the last render I was able to read, so the next session should render
 `forest,forest-blooming,forest-barren,volcano,fire` first and look before doing
 anything else.
 
-**Still owed to the owner:** a still of a wisp with the slider settings to
-reproduce it. They asked directly — "Can you show me a still of one and tell me
-how I should set the sliders to see it?" — and it has not been delivered.
+**The wisps, and a lesson about counting.** The owner said three times that they
+could not see any; I twice replied that they were there and had been made
+brighter. They were right and I was wrong, and the way to have known sooner was
+to MEASURE rather than to reason. Forcing `on = 1.0` and rendering shows
+thirteen wisp cells on screen — not the thirty-five a JS reimplementation of the
+hash had predicted — so a 12% gate expected 1.6 in frame and the "fixed" 18% one
+expected 2.4, either of which is routinely zero once the hash clusters. The
+motif itself was always fine: that forced render shows exactly the small fierce
+cyan and gold points it should. `tools/zoom.mjs` exists now so this kind of
+claim can be checked in one command instead of argued about.
 
 ---
 
