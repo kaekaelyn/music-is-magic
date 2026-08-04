@@ -24,6 +24,9 @@ const audio = createAudioEngine(CONFIG.streamUrl);
 // Which renderer won, for field debugging ("is this phone on the fallback?")
 // and for the smoke test. CSS keys off data-eye; nothing keys off this.
 document.body.dataset.viz = viz.kind;
+// Whether the cheap gradient path is available (see viz.js). Losing it
+// triples the flock's per-fragment cost and nothing else would say so.
+document.body.dataset.vizDeriv = viz.deriv ? '1' : '0';
 
 // §5.7 — the summons. Absent from the DOM unless a topic is configured.
 const summon = document.getElementById('summon');

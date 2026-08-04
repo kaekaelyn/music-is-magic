@@ -601,12 +601,28 @@ export function createEye(canvas, { reducedMotion = false, field = null, radius 
     // The sealed seam: a cut where the stone will part. It has to be clearly
     // deliberate — a closed eye, not a crack — without becoming a feature in
     // its own right.
-    if (open < 0.4) {
-      const a = 1 - open / 0.4;
+    // IT CANNOT BE DRAWN WHILE THE APERTURE IS STILL TALLER THAN IT IS.
+    //
+    // The seam is a curve from (-R, 0) to (R, 0) bulging to hFull * 0.18, and
+    // the aperture's half-height is hFull * open — so for any open above 0.18
+    // the seam is stroked straight ACROSS the opening, over a visualization
+    // that is still playing. It was gated at 0.4, more than twice that, so a
+    // seal spent the whole first half of its closing with a line ruled through
+    // the middle of the picture. The owner: "I am seeing the line where the
+    // lids meet long before the lids actually, well, meet."
+    //
+    // The threshold is now tied to the geometry that constrains it rather than
+    // picked by eye, with a margin, so the seam appears only once the stone has
+    // effectively come together and the curve is on rock either side of the
+    // remaining slit. SEAM_BULGE is the one number both places read.
+    const SEAM_BULGE = 0.18;
+    const SEAM_AT = SEAM_BULGE * 0.78;
+    if (open < SEAM_AT) {
+      const a = 1 - open / SEAM_AT;
       const seam = (c) => {
         c.beginPath();
         c.moveTo(-R, 0);
-        c.quadraticCurveTo(0, hFull * 0.18, R, 0);
+        c.quadraticCurveTo(0, hFull * SEAM_BULGE, R, 0);
       };
       engrave(ctx, seam, lw * 2.2, a);
     }

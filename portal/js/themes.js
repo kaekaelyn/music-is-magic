@@ -350,9 +350,22 @@ export const BUILTIN = {
   // abstractions is what breaks the spell — the petals are the better object
   // precisely because they are "more abstract". The shape stays in the engine
   // behind its own parameter, so this is a data decision and reversible.
+  //
+  // AND NOT SO BRIGHT. "Bloom is WAY too bright, and the green is not working."
+  // Two causes, and base was the bigger one: at 0.62 the shared fog field was
+  // lighting the entire frame, which in a mood that also runs rays at 0.86 and
+  // dapple at 0.82 means the light has nothing to be brighter THAN. Sunlight
+  // reads as sunlight because of what it is next to; wash the shadows out and
+  // it stops being light and becomes exposure. base comes down to forest's own
+  // 0.44 and the two dark steps go deeper.
+  //
+  // The green was acid — #8cc25a is a yellow-green at high saturation, which is
+  // new growth in April sun and reads as artificial over a whole frame. Cooler
+  // and a little duller in the mid step, with the shadows kept green rather
+  // than grey so it is still a wood full of leaves.
   'forest-blooming': {
-    palette: ['#17250f', '#41632a', '#8cc25a', '#f4b3d0', '#fff8f0'],
-    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.62, drift: 0.35, travel: 0.5, travelX: 0.26, leaf: 0, flower: 0 },
+    palette: ['#0d1a0b', '#294a22', '#5e9440', '#eaa9c5', '#fdf1e4'],
+    params: { scale: 1.8, speed: 0.24, warp: 1.2, sparkle: 0.6, gloss: 0.12, glint: 0.14, canopy: 0.9, base: 0.44, drift: 0.35, travel: 0.5, travelX: 0.26, leaf: 0, flower: 0 },
     motifs: { columns: 0.75, dapple: 0.82, rays: 0.86, petals: 0.62, wisps: 0.25 },
     mappings: { warpBass: 0.4, sparkleTreble: 1.2, pulseFlux: 1.1, shiftCentroid: 0.35 },
   },
@@ -362,20 +375,24 @@ export const BUILTIN = {
   // between them lerps this from 0 to 1 and the blossom becomes leaves in the
   // open, without the eye closing.
   //
-  // THE LIGHT IS NOT COPPER. The palette used to run amber and rust through
-  // every step, which tinted the sky, the mist, the shafts and the trunks the
-  // colour of a leaf — the owner's note: "the sky/mist/light/whatever isn't
-  // actually that color during that season. It's the leaves that look like
-  // that." Quite so, and it was a lazy way to say autumn: one flat gesture
-  // doing the work of a season, which is the same fault barren's monochrome had.
+  // BRASSY, BUT NOT A COPPER WASH — and this took overshooting in both
+  // directions to find. The original ran amber and rust through every step,
+  // which tinted the sky, the mist, the shafts and the trunks the colour of a
+  // leaf; the owner called that "a lazy way to convey the colors of autumn",
+  // and they were right that the light is not that colour. So it went cool and
+  // olive, and that was worse: "the gloomy gray look isn't it, either. It just
+  // looks sad. I prefer the brassy light to this."
   //
-  // So the palette is the LIGHT now — a thin, cool, slightly olive daylight,
-  // greyer and lower than forest's living green, which is what late October
-  // actually looks like — and every bit of the copper has moved into the
-  // falling leaves themselves (see the u_leaf ramp in main). The warmth is
-  // still there; it is hanging in the air rather than smeared over the lens.
+  // The mistake in the second attempt was treating "the colour is not in the
+  // light" as "there is no colour in the light". Late autumn light IS warm —
+  // low sun, thin air, everything reflecting off ten thousand yellow leaves —
+  // it simply is not the same saturated copper as the leaves themselves. So the
+  // palette is brass, one notch off the original's saturation in the mid steps,
+  // and it now sits against leaves that carry their own oxblood-to-gold ramp
+  // (see the u_leaf ramp in main) rather than being the only source of warmth.
+  // Two related warms with a gap between them, instead of one flat one.
   'forest-autumn': {
-    palette: ['#12140e', '#2c3327', '#59614c', '#949b83', '#dfe0d1'],
+    palette: ['#150f08', '#3a2a17', '#7d5a2c', '#cfa055', '#ffe6b0'],
     params: { scale: 1.8, speed: 0.22, warp: 1.15, sparkle: 0.55, gloss: 0.14, glint: 0.12, canopy: 0.8, base: 0.46, drift: 0.32, travel: 0.55, travelX: 0.28, leaf: 1 },
     motifs: { columns: 0.8, dapple: 0.7, rays: 0.72, petals: 0.8 },
     mappings: { warpBass: 0.45, sparkleTreble: 1.1, pulseFlux: 1.0, shiftCentroid: 0.3 },

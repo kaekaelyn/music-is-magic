@@ -51,6 +51,9 @@ const mic = createMicEngine({ deviceId: savedDevice });
 let relay = createRelay({ mode: CONFIG.relayMode, topic: CONFIG.relayTopic });
 
 document.body.dataset.viz = viz.kind;
+// Whether the cheap gradient path is available (see viz.js). Losing it
+// triples the flock's per-fragment cost and nothing else would say so.
+document.body.dataset.vizDeriv = viz.deriv ? '1' : '0';
 
 // --- operator HUD ----------------------------------------------------------
 
@@ -341,6 +344,11 @@ let mockAudio = false;
 // reason the panel exists. `auto` returns the animated stand-in for when you
 // want to walk away and watch it move on its own.
 let mockAuto = false;
+// The register the auto sweep is actually producing this frame. The slider's
+// value is meaningless in auto mode, so the readout has to come from what is
+// driving rather than from a control that is being ignored.
+let autoRegister = 0.45;
+let lastAutoHz = -1;
 // The strike envelope, decayed in the loop. 0.12s to match the release the
 // extractor gives flux (features.js), so a mocked onset dies at the same rate
 // a real one does and a motif tuned against this is tuned against the truth.
@@ -368,8 +376,19 @@ const mockRegister = () => (el.mReg ? Number(el.mReg.value) / 100 : 0.45);
 function readMock() {
   if (!el.mRead) return;
   const r = mockRegister();
+  // SAY WHAT IS DRIVING, not what is idle. "auto — sliders idle" was read as
+  // "auto sweeps within the slider settings" rather than "auto ignores the
+  // sliders", and the owner spent a testing session reporting motifs as absent
+  // when they had simply never been driven into range: "I had thought that the
+  // register/level settings were still affecting the mock output... a lot of my
+  // complaints about the aurora and stuff not appearing were probably bunkum."
+  // That is a label failing, not a user failing. The auto line now names the
+  // thing that IS in control and shows the value it is currently producing, so
+  // the panel reads the same way in both modes and a glance says where the
+  // register actually is.
+  const ar = autoRegister;
   el.mRead.textContent = mockAuto
-    ? 'auto — sliders idle'
+    ? `auto sweep (sliders ignored) · register ${ar.toFixed(2)} · ${Math.round(centroidHz(ar))} Hz`
     : `level ${mockLevel().toFixed(2)} · register ${r.toFixed(2)} · ${Math.round(centroidHz(r))} Hz`;
 }
 
@@ -686,6 +705,14 @@ function loop(now) {
   const driving = mockAudio
     ? (mockAuto ? syntheticFeatures(t) : manualFeatures(mockLevel(), mockRegister(), strikeEnv))
     : live;
+  // The sweep moves on its own, so the readout has to follow it — but not at
+  // sixty DOM writes a second in the build that is also encoding video. The
+  // text only changes when the rounded frequency does, so that is the trigger.
+  if (mockAudio && mockAuto && driving) {
+    autoRegister = driving.centroid;
+    const hz = Math.round(centroidHz(autoRegister));
+    if (hz !== lastAutoHz) { lastAutoHz = hz; readMock(); }
+  }
 
   let feats = IDLE;
   if (state === EyeState.COMMUNING || state === EyeState.DROWSING) {

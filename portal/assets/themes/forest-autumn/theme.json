@@ -1,11 +1,11 @@
 {
   "name": "forest-autumn",
   "palette": [
-    "#12140e",
-    "#2c3327",
-    "#59614c",
-    "#949b83",
-    "#dfe0d1"
+    "#150f08",
+    "#3a2a17",
+    "#7d5a2c",
+    "#cfa055",
+    "#ffe6b0"
   ],
   "params": {
     "scale": 1.8,

@@ -1,11 +1,11 @@
 {
   "name": "forest-blooming",
   "palette": [
-    "#17250f",
-    "#41632a",
-    "#8cc25a",
-    "#f4b3d0",
-    "#fff8f0"
+    "#0d1a0b",
+    "#294a22",
+    "#5e9440",
+    "#eaa9c5",
+    "#fdf1e4"
   ],
   "params": {
     "scale": 1.8,
@@ -16,7 +16,7 @@
     "glint": 0.14,
     "canopy": 0.9,
     "slant": 0,
-    "base": 0.62,
+    "base": 0.44,
     "drift": 0.35,
     "travel": 0.5,
     "travelX": 0.26,
