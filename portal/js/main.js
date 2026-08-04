@@ -129,7 +129,19 @@ function resize() {
   const box = eye.apertureSize();
   viz.setSize(box.w, box.h);
 }
-window.addEventListener('resize', resize);
+// COALESCED TO ONE PER FRAME. The browser fires resize continuously while a
+// window is dragged — dozens of events a second — and each one used to rebuild
+// the procedural stone (a five-octave fbm per pixel) and reallocate the WebGL
+// drawing buffer. Both are now guarded against a no-op size, but the guards do
+// not help while the size is genuinely changing every event, which is exactly
+// when the machine is least able to afford it. rAF gives us the last size per
+// frame and drops the rest, which is all the screen could show anyway.
+let resizePending = false;
+window.addEventListener('resize', () => {
+  if (resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(() => { resizePending = false; resize(); });
+});
 
 // Visualization intensity per state; eased so blooms and dims feel breathed.
 const INTENSITY = {

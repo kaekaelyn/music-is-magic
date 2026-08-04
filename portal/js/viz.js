@@ -4777,9 +4777,48 @@ function createGL(canvas, reducedMotion) {
   let uploadedImage = null;
   let lost = false;
 
+  // THE DRIVER DOES NOT NEED THE COMMENTARY, and there is a great deal of it:
+  // this shader is 264,000 characters of which about 198,000 — three quarters —
+  // are comments explaining why each motif is shaped the way it is. That prose
+  // is the most valuable thing in the file and none of it should go, but every
+  // page load was handing a quarter of a megabyte of it to the GPU driver to
+  // tokenise and discard. On a machine with a weak integrated GPU the compile
+  // is already the heaviest moment of the visit; this is a straight 75% cut to
+  // the parse for no change whatever in what gets drawn.
+  //
+  // LINE-PRESERVING, deliberately. Every newline inside a stripped comment is
+  // kept, so a compile error's "ERROR: 0:1234" still names the same line of
+  // viz.js that shader-errors.mjs would print. A stripper that collapsed the
+  // lines would save a few more bytes and make every future compile error a
+  // hunt, which is a bad trade in a file that has cost this project a backtick,
+  // a redefinition and a syntax slip already.
+  //
+  // GLSL has no string literals, so there is nothing a '//' can hide inside and
+  // no quoting case to get wrong.
+  function stripComments(src) {
+    let out = '';
+    for (let i = 0; i < src.length; i++) {
+      const c = src[i], d = src[i + 1];
+      if (c === '/' && d === '/') {
+        while (i < src.length && src[i] !== '\n') i++;
+        out += '\n';
+      } else if (c === '/' && d === '*') {
+        i += 2;
+        while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) {
+          if (src[i] === '\n') out += '\n';
+          i++;
+        }
+        i++; // the loop's i++ consumes the '/'
+      } else {
+        out += c;
+      }
+    }
+    return out;
+  }
+
   function compile(type, src) {
     const sh = gl.createShader(type);
-    gl.shaderSource(sh, src);
+    gl.shaderSource(sh, stripComments(src));
     gl.compileShader(sh);
     if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
       throw new Error(gl.getShaderInfoLog(sh) || 'shader compile failed');
@@ -4863,15 +4902,27 @@ function createGL(canvas, reducedMotion) {
   // aperture — so the caller sizes it to the aperture box, not the screen.
   let lastW = 2;
   let lastH = 2;
-  function setSize(w, h) {
+  function setSize(w, h, force) {
     lastW = Math.max(2, w);
     lastH = Math.max(2, h);
     const cap = Math.min(1, MAX_EDGE / Math.max(lastW, lastH));
-    canvas.width = Math.round(lastW * cap);
-    canvas.height = Math.round(lastH * cap);
+    const cw = Math.round(lastW * cap);
+    const ch = Math.round(lastH * cap);
+    // NOT UNCONDITIONALLY. Assigning to canvas.width REALLOCATES the drawing
+    // buffer even when the value it is given is the one already there — it is
+    // specified to reset the canvas — so a resize handler that runs on every
+    // event was tearing down and rebuilding a GPU framebuffer dozens of times a
+    // second while a window was being dragged. That is a lot of GPU memory
+    // churn to achieve nothing, and it is the kind of thing that takes a driver
+    // down. The guard costs two comparisons.
+    if (!force && cw === canvas.width && ch === canvas.height) return;
+    canvas.width = cw;
+    canvas.height = ch;
     gl.viewport(0, 0, canvas.width, canvas.height);
   }
-  const resize = () => setSize(lastW, lastH); // context restore resets the viewport
+  // Context restore resets the viewport, so that path has to go through even
+  // when the dimensions have not moved.
+  const resize = () => setSize(lastW, lastH, true);
 
   function setTheme(theme, seamless) {
     cur = morph < 1 ? mixTheme(cur, tgt, morph) : tgt;

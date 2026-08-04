@@ -196,8 +196,20 @@ export function createEye(canvas, { reducedMotion = false, field = null, radius 
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = canvas.clientWidth;
     H = canvas.clientHeight;
-    canvas.width = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
+    const cw = Math.round(W * dpr);
+    const ch = Math.round(H * dpr);
+    // NOTHING TO DO IF THE SIZE DID NOT CHANGE, and this matters because
+    // buildPlate() is expensive: it runs a five-octave fbm per pixel over a
+    // field up to 420 wide, which is several million operations, and allocates
+    // three canvases and a Float32Array on the way. The browser fires resize
+    // continuously while a window is dragged and also several times as layout
+    // settles on load — a scrollbar appearing is a resize — so this was
+    // rebuilding the stone dozens of times for one gesture and blocking the
+    // main thread solid while it did. Assigning canvas.width also clears the
+    // canvas, so the early-out has to come before that too.
+    if (cw === canvas.width && ch === canvas.height && plate) return;
+    canvas.width = cw;
+    canvas.height = ch;
     R = Math.min(W, H) * eyeRadius;
     hFull = R * APERTURE_RATIO;
     plate = buildPlate();

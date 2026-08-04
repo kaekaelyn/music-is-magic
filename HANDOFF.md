@@ -591,6 +591,47 @@ without a gesture. The trail on a failing run reads
 that, it is the machine, not the code: re-run. Confirmed by checking that node's
 own timers were drifting only 23ms, i.e. the browser process was the slow one.
 
+#### 2026-08-04 — "loading the page sometimes crashes my Chrome"
+
+Not reproducible here (this container has no GPU — WebGL runs on SwiftShader,
+which is not the owner's driver), so this is what the code was doing wrong
+rather than a confirmed diagnosis. Two real faults, both fixed, and a third
+thing that is still true and is the likeliest remaining cause.
+
+1. **Three quarters of the shader was comments.** `FRAG` is 264,000 characters
+   of which about 198,000 are the commentary that makes this file worth having.
+   All of it was going to `gl.shaderSource` on every page load for the driver to
+   tokenise and throw away. Now stripped at upload — LINE-PRESERVING, so a
+   compile error's `ERROR: 0:1234` still names the same line and
+   `shader-errors.mjs` keeps working. Verified token-identical: 19,836 tokens
+   before and after, zero mismatches, same line count, idempotent. 265,004 to
+   74,656 characters shipped.
+2. **`resize` was not debounced, and neither handler guarded a no-op.** The
+   browser fires resize continuously while a window is dragged, and several
+   times as layout settles on load (a scrollbar appearing is a resize). Each
+   event ran `buildPlate()` — a five-octave fbm per pixel over a field up to
+   420 wide, several million operations plus three canvas allocations — and
+   assigned `canvas.width` on the WebGL canvas, which REALLOCATES the drawing
+   buffer even when given the value it already has. So a single window drag was
+   dozens of full stone rebuilds and dozens of GPU framebuffer teardowns. Now
+   coalesced to one per frame in both builds, with both handlers early-returning
+   on an unchanged size. The context-restore path passes `force` because the
+   viewport really does need resetting there.
+3. **Still true, and not fixed: the engine compiles every motif into one
+   program.** 66,000 characters of actual code, 29 loops, 80 branches, all
+   compiled whatever mood is showing. On Windows, Chrome's ANGLE translates
+   that to HLSL and hands it to the D3D compiler, which is slow on big shaders;
+   if the GPU driver stops responding for two seconds Windows resets it (TDR)
+   and the GPU process goes down with it. That is a good match for "every once
+   in a while" — Chrome caches the compiled program on disk, so it would only
+   bite on a cache miss (first run, after a Chrome update, after a driver
+   update, after clearing browsing data). The fix, if it turns out to be this,
+   is per-theme shader variants, which is a real architectural change and was
+   not undertaken unasked. **Ask the owner for `chrome://gpu` and
+   `chrome://crashes` before building it** — the first says whether they are on
+   hardware or software rendering, the second says whether the GPU process is
+   actually what died.
+
 ---
 
 ## 4. How this owner works, and what it is worth

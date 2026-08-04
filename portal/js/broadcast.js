@@ -588,7 +588,15 @@ function resize() {
   const box = eye.apertureSize();
   viz.setSize(box.w, box.h);
 }
-window.addEventListener('resize', resize);
+// One per frame, not one per event — see the same guard in main.js. It matters
+// more here: OBS resizes a Browser Source when the scene is edited, and the
+// broadcast is the build running on the machine that is also encoding video.
+let resizePending = false;
+window.addEventListener('resize', () => {
+  if (resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(() => { resizePending = false; resize(); });
+});
 
 const INTENSITY = {
   [EyeState.SEALED]: 0,
