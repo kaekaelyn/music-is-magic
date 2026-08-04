@@ -361,53 +361,175 @@ float mColumns(vec2 uv, float t, float flow, float bark, float solid,
       // The normal across the cylinder: -1 at the left silhouette, +1 at the
       // right. Light comes from the upper left, as mRays and mCrags assume.
       float shade = clamp(-d / hw, -1.0, 1.0) * cover;
-
-      // A CROWN, not two twigs. The owner: "if we're showing branches we're
-      // going to need a lot more variety in them instead of just a couple of
-      // short pointy sticks towards the top... it reminds me of those close-ups
-      // of skin with hair growing on them."
+      // BARK, and this is the "fudginess". The owner on barren: "it starts to
+      // look a little like a tasteful Flash animation... It needs some kind of
+      // fudginess to give it a little wiggle room, to allow it to look
+      // organic." Quite so — a perfectly smooth cylinder with a clean edge is a
+      // vector shape, and the base forest gets away with it only because mist
+      // and dapple are breaking the surface up for free. Barren has neither.
       //
-      // That reading came from uniformity, not from count. Two limbs, both
-      // leaving the same third of the trunk, both between 0.065 and 0.17 long,
-      // both at one of three fixed angles, both tapering identically — every
-      // trunk wore the same pair of bristles. What makes a bare crown read is
-      // that the limbs DISAGREE: the big ones leave low and reach far, the
-      // small ones leave high and barely clear the trunk, and the angle a limb
-      // takes is related to its size (a heavy limb comes off closer to the
-      // horizontal, a whip goes up). So length is now hashed over a four-fold
-      // range and the slope is derived FROM the length rather than drawn
-      // independently — which is also §14.7, the rule about never drawing two
-      // correlated properties from two independent hashes.
+      // Streaked hard along the grain and fine across it, which is what bark
+      // is: long vertical fissures, not a mottle. Applied to the SHADE rather
+      // than to the coverage, so it is texture on a solid rather than holes in
+      // one — and only where the trunks are a material (bark) rather than
+      // silhouettes, since a backlit trunk in a mist has no visible surface.
+      float grain = (lnoise(vec2(f * 26.0 + ci * 4.3, hgt * 3.2 + ci)) - 0.5)
+                  + (lnoise(vec2(f * 61.0 + ci * 9.1, hgt * 7.5)) - 0.5) * 0.55;
+      shade += grain * 0.62 * bark * cover;
+
+      // BRANCHES THAT BRANCH. Third time of asking, and the owner is right that
+      // nothing so far has answered it: "the branches should branch. they
+      // should look like actual trees. looks like hairy skin under a microscope
+      // atm... it becomes very conspicuous that there are no branches that,
+      // well, branch."
+      //
+      // Every version until now drew a limb as ONE SEGMENT from the trunk to a
+      // point. Varying their lengths, angles and thickness makes a better set
+      // of bristles and it is still a set of bristles, because what the eye
+      // reads as a tree is not the distribution of the limbs — it is that a
+      // limb DIVIDES, and that the parts after the division are smaller
+      // versions of the thing that divided. A hair does not fork; that is the
+      // whole of why this looked like hair.
+      //
+      // The cheap way to fork in a fragment shader is the one frost's crystal()
+      // already uses: a SHEARED LATTICE along the parent. Quantising the
+      // distance-along-the-limb gives a rank of nodes for the cost of a floor,
+      // and subtracting a lean times the perpendicular offset finds which node
+      // the fragment's own sub-branch grew from. One evaluation therefore draws
+      // a whole generation of children rather than one child, which is what
+      // makes three generations affordable at all.
       float br = 0.0;
       if (bark > 0.01 && L > 0) {
         // Both coordinates in aperture units, or the segment distance is
         // measured in a squashed frame and every limb comes out the wrong angle.
         float px = d / fx;
-        for (int b = 0; b < 5; b++) {
+        for (int b = 0; b < 4; b++) {
           vec2 hb = ch2(vec2(ci * 1.7 + float(b) * 9.1, fl + 5.0));
           // Spread over most of the trunk's height rather than one band, and
-          // staggered by index so five limbs never bunch at one node.
-          float y0 = -0.04 + hb.x * 0.46 + float(b) * 0.035;
+          // staggered by index so the limbs never bunch at one node.
+          float y0 = -0.04 + hb.x * 0.46 + float(b) * 0.045;
           // Four to one, so a crown has boughs AND twigs in it.
-          float blen = 0.045 + fract(hb.y * 7.31) * 0.185;
+          // SIZED AGAINST THE TREE, not in absolute units — which is what was
+          // wrong every time so far. The owner: "don't you find them to be
+          // comically short and skinny?" They were: 0.157 of a unit is about
+          // seventy pixels, against a trunk drawn eighty-four pixels WIDE. A
+          // branch shorter than the trunk is thick cannot read as a branch at
+          // any level of detail.
+          //
+          // The trunk's own half-width in the same units the limbs are measured
+          // in is the scale everything here should have been derived from, so
+          // it is computed once and used for both length and thickness. Then a
+          // limb is two to eight times the trunk's radius long — which is what
+          // a bare tree looks like — and stays right whatever the trunks are
+          // resized to next.
+          //
+          // Length no longer needs holding back to stop limbs lying across
+          // their neighbours: that was never about length, it was that they
+          // were straight and nearly horizontal. Curved and rising, a long one
+          // overlapping the tree behind it is just what a wood looks like.
+          float trunkR = hw / fx;                    // trunk half-width, in uv
+          float lenF = fract(hb.y * 7.31);
+          float blen = trunkR * (2.2 + lenF * 6.0);
           // Heavy limbs lie down, light ones reach up. Derived from blen, so
-          // the two properties agree the way they do on a tree.
-          float rise = 0.86 - clamp((blen - 0.045) / 0.185, 0.0, 1.0) * 0.46;
+          // the two properties agree the way they do on a tree (§14.7).
+          float rise = 0.93 - lenF * 0.34;
           float sy = rise;
           float sx = sqrt(max(1.0 - rise * rise, 1e-4));
           sx *= (fract(hb.x * 5.7) < 0.5 ? -1.0 : 1.0);
           vec2 bp = vec2(px, uv.y - y0);
+          // The limb's own frame: distance ALONG it, and offset ACROSS it.
           float along = bp.x * sx + bp.y * sy;
+          float across = bp.x * -sy + bp.y * sx;
+          if (along < -0.01 || along > blen * 1.35) continue;
+
+          // A LIMB CURVES. A straight segment is a stick, and four sticks at
+          // four angles is still four sticks — wood grows toward the light, so
+          // a bough leaves the trunk at one angle and finishes at a steeper
+          // one. A parabola in the limb's own frame costs a multiply, and once
+          // the centreline is curved every generation hanging off it inherits
+          // the curve for free, because they are all measured from lateral.
+          float curv = (fract(hb.x * 11.3) - 0.5) * 3.2 + 1.4 * sy;
+          float ctr = curv * along * along;
+          float lateral = across - ctr;
           float ta = clamp(along / blen, 0.0, 1.0);
-          float dd = length(bp - vec2(sx, sy) * (ta * blen));
-          // Tapering harder, so a limb thins to nothing instead of ending as a
-          // stick of even width laid across the wood.
-          // Thickness follows length too: a bough is thick at the trunk, a twig
-          // is thin everywhere. Same principle as the slope above.
-          float bw = (0.0010 + (0.0035 + 0.0075 * clamp(blen / 0.23, 0.0, 1.0))
-                              * (1.0 - ta) * (1.0 - ta)) * (0.7 + fl * 0.25);
+          float dd = along < 0.0 ? length(bp)
+                   : (along > blen ? length(bp - vec2(sx, sy) * blen)
+                                   : abs(lateral));
+          // Thickness follows length: a bough is thick at the trunk, a twig is
+          // thin everywhere. The taper is squared so a limb thins to nothing
+          // rather than ending as a stick of even width laid across the wood.
+          // ...AND SO IS THE THICKNESS. A primary bough leaves the trunk at
+          // something like a quarter of its diameter and tapers to a twig; at
+          // 0.0082 of a unit against a trunk of 0.093 these were a twentieth of
+          // it, which is a bristle. Proportional to trunkR, so it cannot drift
+          // out of scale again.
+          float thick = trunkR * (0.22 + 0.38 * lenF);
+          float bw = (0.0008 + thick * (1.0 - ta) * (1.0 - ta)) * (0.7 + fl * 0.25);
           br = max(br, (1.0 - smoothstep(bw * 0.55, bw, dd))
                      * step(0.0, along) * bark);
+
+          // --- SECOND GENERATION -------------------------------------------
+          // Children leaning forward off the parent, spaced along it. bu is the
+          // parent-coordinate of the node this fragment's child grew from: one
+          // subtraction, and it is what makes the children lean rather than
+          // stand perpendicular. Sides are hashed separately so a node does not
+          // always sprout a matched pair, which is the other thing that reads
+          // as manufactured.
+          float sq = abs(lateral);
+          float side = lateral < 0.0 ? 0.5 : 0.0;
+          float bu = along - sq * (0.48 + 0.30 * fract(hb.y * 3.7));
+          // WARPED BEFORE QUANTISING, or the nodes sit at even intervals and the
+          // limb comes out a fern. This is the same fix §14.5 records for the
+          // frost: jitter does not save a periodic structure, but warping the
+          // coordinate the lattice is cut from does, because then the SPACING
+          // is a field rather than a constant.
+          bu += (lnoise(vec2(bu * 26.0 + float(b) * 4.1, ci * 0.7)) - 0.5) * 0.020;
+          float P2 = 3.4 / max(blen, 1e-3);          // fewer nodes up the limb
+          float bx = bu * P2 + float(b) * 3.1 + side;
+          float bi = floor(bx);
+          float bf = (fract(bx) - 0.5) / P2;         // back into limb units
+          float r2 = ch1(vec2(bi, ci * 2.3 + fl * 7.0 + float(b) * 5.0 + side * 17.0));
+          // AND NOT EVERY NODE SPROUTS, on EITHER side. A rank of paired
+          // branches at every node is the definition of a frond; a tree divides
+          // here and not there, and the two sides of a limb rarely match. The
+          // sides are already hashed apart (side is folded into r2's seed), so
+          // one gate does both.
+          float on2 = step(0.40, r2);
+          // A child is a fraction of what is left of its parent, so limbs get
+          // shorter as they go out — which is the self-similarity the eye is
+          // actually reading when it says "tree".
+          float want2 = (0.22 + 0.34 * r2) * blen;
+          float have2 = max(0.0, blen - bu);
+          float len2 = min(want2, have2) * step(0.012, bu) * step(bu, blen) * on2;
+          float tap2 = len2 > 1e-5 ? max(0.0, 1.0 - sq / len2) : 0.0;
+          float bw2 = (0.0008 + thick * 0.42 * tap2 * tap2) * (0.7 + fl * 0.25);
+          float d2 = abs(bf);
+          br = max(br, (1.0 - smoothstep(bw2 * 0.55, bw2, d2))
+                     * smoothstep(0.0, 0.22, tap2) * bark);
+
+          // --- THIRD GENERATION --------------------------------------------
+          // Same construction one level down, on the child's own coordinate.
+          // Two generations is a fishbone (§14.5); three is a tree. Only worth
+          // drawing where a child actually exists, and the test is uniform
+          // across a whole limb so the branch is cheap.
+          if (tap2 > 0.02) {
+            float sq3 = abs(bf);
+            float side3 = bf < 0.0 ? 0.5 : 0.0;
+            float cu = sq - sq3 * 0.58;
+            float P3 = 2.6 / max(len2, 1e-3);
+            float cx = cu * P3 + bi * 1.7 + side3;
+            float ci3 = floor(cx);
+            float cf = (fract(cx) - 0.5) / P3;
+            float r3 = ch1(vec2(ci3, bi * 3.1 + float(b) * 11.0 + side3 * 23.0));
+            float want3 = (0.18 + 0.28 * r3) * len2;
+            float have3 = max(0.0, len2 - cu);
+            float len3 = min(want3, have3) * step(0.006, cu) * step(cu, len2)
+                       * step(0.46, r3);
+            float tap3 = len3 > 1e-5 ? max(0.0, 1.0 - sq3 / len3) : 0.0;
+            float bw3 = (0.0006 + thick * 0.20 * tap3 * tap3) * (0.7 + fl * 0.25);
+            br = max(br, (1.0 - smoothstep(bw3 * 0.55, bw3, abs(cf)))
+                       * smoothstep(0.0, 0.26, tap3) * bark);
+          }
         }
       }
 
@@ -2788,26 +2910,30 @@ float mCone(vec2 uv, out float sky, out float down, out float descent,
   // the owner's "there's too much receding going on". At 0.86 the cone stands
   // in its own landscape with sky either side of it, which is how every one of
   // the reference photographs is framed.
-  float flank = clamp(ax / 0.86, 0.0, 1.0);
-  // A PEAK, NOT A SPIKE. "I said I wanted Volcano to have 'more of' a peak, not
-  // to make it super pointy! Arenal isn't THAT sharp!"
+  // A PEAK WITH A SHORT FLAT TOP. Three shapes have been tried and the owner
+  // has named what is wrong with each, so the record is worth keeping:
   //
-  // pow(flank, 0.88) was the wrong FAMILY of curve, and not by a little: the
-  // derivative of flank^p at the apex goes as flank^(p-1), so any exponent
-  // below one has infinite slope at flank = 0. The summit was a cusp by
-  // construction, and tuning the exponent could only ever choose between a cusp
-  // (p < 1) and the mesa this replaced (p > 1). No value of p gives what a
-  // stratovolcano actually looks like.
+  //   plateau 0.28 wide   a mesa. Far too much flat.
+  //   pow(flank, 0.88)    a cusp — the derivative of x^p at the origin is
+  //                       infinite for any p below one. "Super pointy!"
+  //   sqrt(x^2 + r^2)     a mound. "Absolutely not ROUNDED. that's silly and
+  //                       you know it!" — quite right; a rounded summit is a
+  //                       hill, and a volcano is not a hill.
   //
-  // What it looks like is straight flanks with the apex rounded off, and the
-  // curve for that is a hyperbola: sqrt(x^2 + r^2) is asymptotically |x| — dead
-  // straight sides — and smoothly blunt within r of the axis. One constant, and
-  // it means exactly "how broad is the summit", which is the thing being
-  // judged. The normalisation holds the base at -0.62 wherever r is set.
-  const float R_TIP = 0.15;
-  float prof = sqrt(flank * flank + R_TIP * R_TIP) - R_TIP;
-  const float PROF_MAX = 1.011187 - R_TIP;   // sqrt(1 + R_TIP^2) - R_TIP
-  float coneH = CONE_RIM - (CONE_RIM + 0.62) * (prof / PROF_MAX);
+  // What was asked for all along is "a peak but it isn't totally sharp", which
+  // is a TRUNCATED CONE: dead straight flanks running up to a short flat
+  // summit. That is the Arenal silhouette, and it is also the very first
+  // construction here with one number changed — the plateau was never the wrong
+  // idea, it was four times too wide. At 0.07 the flat reads as a summit rather
+  // than a tabletop, and the straight flanks under it are what stop it looking
+  // like a mound.
+  //
+  // The corner where flank meets flat stays a CORNER. Rounding it is exactly
+  // what produced the mound, and rock at this scale really does break at an
+  // angle. The crag term below softens it enough to not look drafted.
+  const float FLAT = 0.07;
+  float flank = clamp((ax - FLAT) / (0.86 - FLAT), 0.0, 1.0);
+  float coneH = mix(CONE_RIM, -0.62, flank);
   // Craggy, not drafted — lnoise for the reason every angular material in this
   // engine uses it: straight runs meeting at corners, where smooth noise can
   // only make lumps. Scaled by flank so the crater rim stays clean and the
@@ -4352,7 +4478,19 @@ void main() {
       // Descent is measured from the rim's HEIGHT, so it is negative
       // everywhere in the sky above the summit — gated on that alone this
       // painted a column of lava straight up out of the crater into the night.
-      float lip = smoothstep(0.22, 0.80, ccrater) * (1.0 - smoothstep(0.86, 1.0, ccrater));
+      // NO HOLE IN THE MIDDLE. The second factor cut the overflow out of the
+      // crater's centre — the intent was that streams leave from the brim
+      // rather than from the axis — and with a wide crater that was invisible.
+      // With the crater narrowed to a real vent it became a dark column running
+      // from the summit down the face of the mountain, because between the
+      // pool's lower edge and the flows' upper edge the middle of the cone had
+      // nothing drawn on it at all. That is the black throat the last two
+      // renders kept showing, and it is not the notch: the notch had already
+      // gone both times.
+      //
+      // A vent that is overflowing IS molten across its whole width. One ramp,
+      // no exclusion, and the pool above and the flows below now meet.
+      float lip = smoothstep(0.10, 0.52, ccrater);
       float spill = lip
                   * smoothstep(0.34, 0.02, coneDescent)
                   * smoothstep(-0.002, 0.02, coneDown);
